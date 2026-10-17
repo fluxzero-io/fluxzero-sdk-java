@@ -243,7 +243,7 @@ Fluxzero provides conservative defaults to ensure safe and sequential processing
 | `maxFetchBytes`        | Serialized payload byte limit per fetch; `-1` inherits the global default. | `-1`                      |
 | `maxFetchSize`         | Maximum messages per batch; balances throughput and memory. | `1024`                    |
 | `maxIndexExclusive`    | Negative means no upper bound. | `-1`                      |
-| `maxWaitDuration`      | How long to wait before polling again if no messages are available. | `60`                      |
+| `maxWaitDuration`      | Maximum idle wait; omitted values inherit application configuration. | `15 minutes on supporting peers`                      |
 | `minIndex`             | Negative means start at the end of the log (only new messages). | `-1`                      |
 | `namespace`            | Namespace for this consumer; empty uses the client default. | `""` (empty)              |
 | `passive`              | If true, handler results are ignored and not published to the result log. | `false`                   |
@@ -399,6 +399,167 @@ graph TD
 ```
 
 Trackers aren’t only useful for consuming commands or events — they also enable request–response communication between services, without direct endpoints.
+
+## Consumer filtering and idle reads
+
+An application with many consumers can spend time fetching messages that none of their handlers use. Consumer
+filtering lets Runtime exclude those messages before delivery. The SDK enables it automatically on supporting
+Runtime connections, Test Server and local tracking, with a fifteen-minute idle wait. No configuration is required.
+
+To retain broad delivery or a shorter wait, override the application defaults:
+
+```properties
+fluxzero.tracking.consumerFiltering=false
+fluxzero.tracking.maxWaitDuration=PT1M
+```
+
+The equivalent environment variables are `FLUXZERO_TRACKING_CONSUMER_FILTERING` and
+`FLUXZERO_TRACKING_MAX_WAIT_DURATION`. These defaults are independent of `fluxzero.defaults.version`.
+Explicit properties override either default. A per-consumer builder
+setting or explicit `@Consumer(maxWaitDuration = ...)` (seconds) takes precedence over the wait property. These
+settings apply equally to Java and Kotlin applications.
+
+The SDK describes the actual registered handlers, including payload revisions, legacy upcaster inputs, aliases and
+web routes. It derives the selection per handler method from payload parameters and `allowedClasses`, then combines
+it per consumer. Open and sealed supertypes remain broad until a complete subtype catalog is available.
+Reflection may omit unloadable permitted subclasses, so its visible sealed leaves cannot prove completeness.
+This also preserves nested sealed interfaces, concrete sealed bases, `non-sealed` branches and enum specializations.
+A final `@TrackSelf` payload contributes its required type even without a payload parameter; web self-handlers
+keep route-based selection, including automatic OPTIONS. Bean/trigger injection and an additional JSON view do not
+widen a separate typed payload parameter. Standard interceptor/document wrappers preserve selection; unknown
+subclasses and stateful/member routing retain conservative broad delivery. Graph-change wrappers preserve any
+payload boundary already proven by their delegate, including `allowedClasses`.
+Automatic Model commands contribute the payload boundary of their actual command matcher, including commands whose
+`@Apply` is declared on a registered Model. Scheduled commands first match the `ScheduledCommand` wrapper on the
+schedule log, then the dispatched command matches its normal command consumer; the relay accepts every wrapped
+command, including commands handled by another application. Local automatic handling does not issue a server Read.
+In SDK 2.x, every persistent legacy aggregate root requires `@Aggregate`; unannotated loads or newly created roots fail.
+Implicit legacy aggregate-value injection also requires `@Aggregate` on the declared parameter type, including
+through an interface or superclass. This applies equally to Java and Kotlin. Add the marker to previously unannotated
+types used this way; otherwise a bare value parameter selects the payload. Explicit `Entity<T>` parameters and
+injection within an existing entity context keep their own resolution path. An aggregate argument alone supplies no
+payload restriction, but another required payload parameter or `allowedClasses` can still narrow the handler.
+Runtime does not inspect aggregate metadata for this selection.
+Web selection uses the actual composed package/class/method/property paths, absolute origins and automatic
+HEAD/OPTIONS, including static mount/fallback routes. Shared automatic OpenAPI, API-reference and static routes
+remain eligible for each declaring handler's consumer, even when another handler owns their execution. This preserves
+synchronous fixture admission when local and tracked registration orders differ; execution remains deduplicated.
+Socket consumers retain known HTTP and implicit handshake
+paths. Session-correlated websocket replies, pongs and cleanup remain eligible on unmatched paths where the SDK's
+session lookup accepts them; those lifecycle methods do not make unrelated HTTP methods/routes eligible. Automatic
+OPTIONS is derived from HTTP routes only. Missing routes remain eligible for legacy inputs.
+Unknown/custom metadata widens delivery rather than risk excluding a relevant message. Handlers still
+perform dispatch and authorization. Registering a new handler or migration updates future delivery; use replay when
+previously skipped messages need processing.
+Exact class aliases that only rename the serialized type follow the target payload/revision selection and retain
+route restrictions. Unknown or generic targets, package aliases and aliases involving a caster keep conservative
+delivery. Upcaster inputs remain eligible because an upcaster can change the final payload type or web route.
+Caster batches register atomically: a conflict leaves the chain unchanged. A failed filter-refresh listener does not
+prevent other consumers or peers from refreshing; the registration still reports the activation failure. Handle that
+failure before relying on the changed registration. A refresh failure is not a transaction rollback: the local
+registration may already be active while a remote peer failed to update. Recover or rebuild the affected tracking
+lifecycle before treating that registration as usable.
+
+Hand-written `TrackingClient.read` calls without a `ConsumerBlueprint` remain unfiltered by handler metadata, even
+when an earlier read on that consumer/tracker carried a blueprint. `readFromIndex` remains a direct log read. Existing
+explicit type, target, segment and cursor rules still apply. The unspecified SDK wait now defaults to fifteen minutes
+on a supporting peer (sixty seconds on an older peer); set `maxWaitDuration` explicitly when the old wait is required.
+
+Batch interceptors run before deserialization and can change the inputs that reach handlers. Unknown interceptors
+therefore keep consumer delivery broad. Built-in interceptors that preserve selection retain filtering. For an
+observer that safely tolerates the omission of irrelevant messages, opt in explicitly:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    builder.addBatchInterceptor(BatchInterceptor.preservingConsumerFilter((next, tracker) -> batch -> {
+        recordDeliveredCount(batch.getSize());
+        next.accept(batch);
+    }), MessageType.EVENT);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    builder.addBatchInterceptor(BatchInterceptor.preservingConsumerFilter { next, _ ->
+        java.util.function.Consumer { batch ->
+            recordDeliveredCount(batch.size)
+            next.accept(batch)
+        }
+    }, MessageType.EVENT)
+    ```
+  </TabItem>
+</Tabs>
+
+This declaration must not hide input transformations that can turn an otherwise excluded message into a handled one,
+or processing that requires excluded messages. For such transformations, keep the conservative default or implement
+`describeConsumerFilter` with a complete input projection. Composition follows the actual interceptor order. The
+synchronous fixture uses this same admission contract; async tests exercise the actual batch transformation.
+Filtering can also make `StallingBatchInterceptor` reach its desired batch size later; its existing maximum stalling
+duration still bounds the delay.
+
+
+Web requests carry an optional message-level `route`, separate from the body's `Data.type`. Its value is the method,
+space, and origin plus raw path (for example `GET /orders/a%2Fb`), without query or fragment. SDK gateways refresh it
+from the final request after serialized dispatch interceptors; the HTTP proxy, request chunks and socket frames also
+supply it. Runtime selection reads the route and payload type/revision only, never message metadata or body bytes.
+Encoded separators, plus signs and Unicode retain the same meaning as the handler matcher. Low-level publishers
+that create `SerializedMessage` web requests can call `WebRequestRoute.update(message)` after their final changes.
+Absent routes, including old stored requests, stay eligible. An absent payload type does not disable a known route.
+Java and Kotlin applications use the same automatic behavior and compatibility rules.
+
+The websocket handshake independently advertises filter language 2 and native message envelope version 2 through
+`Fluxzero-Consumer-Filter-Versions` and `Fluxzero-Message-Envelope-Version`. Native routed envelopes are sent only to
+peers that explicitly advertise support. With older peers, routed messages use the existing JSON/CBOR object
+representation; BINARY transport falls back to CBOR. Old clients may omit `route` and new readers continue to accept
+native v1 and historical stored messages. Envelopes without a route retain their v1 binary representation.
+Runtime storage activation is separate: writers default to native v1 and omit routes. First upgrade every Runtime
+reader sharing the storage, then set `fluxzero.runtime.messageEnvelopeVersion=2`
+(`FLUXZERO_RUNTIME_MESSAGE_ENVELOPE_VERSION=2`) and restart writers. Type filtering works before activation;
+stored requests without routes remain broadly eligible. Returning the writer setting to `1` does not convert existing
+v2 data. For a filtering incident, deploy Runtime with `fluxzero.runtime.consumerFiltering=false`
+(`FLUXZERO_RUNTIME_CONSUMER_FILTERING=false`, default `true`) and keep its v2 reader. The Runtime stops advertising
+and applying blueprint filters. Reconnecting SDK clients fall back to broad delivery and the compatibility read wait;
+normal handler matching and explicit type/target/segment constraints remain. Existing stored bytes stay untouched,
+and Runtime adapts responses to older clients during delivery. This rollback needs no offline migration or maintenance
+window, though ordinary Runtime handover/reconnect latency remains. The property is resolved when the Runtime router
+starts; it does not hot-reconfigure existing connections. To re-enable filtering, restore `true` on the replacement.
+An explicit replay/reset is needed if a faulty filter already advanced a consumer past messages it needed.
+Only returning to an unpatched older binary without v2 read support requires the offline route-storage downcaster.
+
+Runtime uses the updated Common dependency for filtering and advertises its filter capability in the existing
+websocket handshake. The SDK checks each connection, including reconnects: older runtimes retain broad delivery
+and the historic wait; new runtimes still accept old SDKs. Test Server and local tracking use the same selection.
+Filtered consumers bypass the SDK's broad prefetch cache on supporting peers. An explicitly configured prefetch
+cache remains available when connected to an older Runtime.
+
+Synchronous `TestFixture` tests apply the same consumer payload/route selection before executing tracked handlers,
+including automatic Model commands and `@TrackSelf` payloads. True local handlers bypass this selection. Consumer
+assignment and filter overrides are shared with tracking; a combined consumer filter admits an input if any of its
+handlers may need it. Supplied legacy `SerializedMessage` inputs retain their original type/revision for the check.
+The synchronous fixture keeps local execution semantics; use async tests for custom serialized-dispatch changes
+and consumer lifecycle behavior.
+
+Asynchronous `TestFixture` tests wait for inputs admitted by each consumer's handler selection. This also applies
+when an older Runtime delivers extra messages. Set `fluxzero.tracking.consumerFiltering=false` if a test needs to
+await batch interceptors for messages that none of its handlers use.
+
+Longer reads reduce idle request and metric counts. Relevant messages still wake the read immediately, and stopping
+or disconnecting a tracker does not wait for the idle deadline. See <Jdoclink className="ConsumerConfiguration" />
+for per-consumer configuration and <Jdoclink className="Read" /> for the wire and metric representation.
+
+## Stopping a consumer
+
+Canceling a tracking registration lets an active batch finish before requesting release of its segment ownership
+with a `DisconnectTracker` using `STORED` delivery. This also applies when other consumers keep the client connected. Cancellation from
+inside a handler releases ownership only after the processing stack has returned. A Runtime handover is not an
+exactly-once guarantee after a crash; retain the usual replay-safe handling of external side effects.
+
+Closing the client gives outstanding terminal releases a bounded grace period before closing the transport.
+The caching wrapper and WebSocket tracking client each wait at most two seconds; an already completed release
+adds no wait. Admitted result callbacks receive at most one additional second. Other WebSocket clients allow
+one second for already-issued commands, without waiting for long polls. These are per-component budgets and
+can accumulate during full application shutdown. A disconnected Runtime or a timeout still requires the usual
+replay-safe recovery; closing from a result callback does not wait on that callback itself.
 
 ## Request–Response via tracking
 

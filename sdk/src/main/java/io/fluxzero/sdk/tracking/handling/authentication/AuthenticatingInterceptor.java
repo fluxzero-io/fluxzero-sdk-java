@@ -234,6 +234,11 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
         private final Handler<DeserializingMessage> delegate;
 
         @Override
+        public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
+            return delegate.getConsumerFilter();
+        }
+
+        @Override
         public Optional<HandlerInvoker> getInvoker(DeserializingMessage m) {
             return delegate.getInvoker(m).flatMap(
                     i -> {

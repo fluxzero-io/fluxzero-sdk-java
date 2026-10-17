@@ -22,6 +22,9 @@ import java.util.function.Consumer;
 /**
  * A {@link BatchInterceptor} specialization that transforms a {@link MessageBatch} before it is passed to the
  * consumer for processing.
+ * <p>Input selection remains unrestricted by default because mapping may change payload types or web routes.
+ * Override {@link #describeConsumerFilter(io.fluxzero.common.api.tracking.ConsumerFilter)} only when a complete
+ * conservative inverse mapping is known.</p>
  * <p>
  * This interface combines {@link BatchInterceptor} with a {@link BiFunction} contract, allowing implementors to
  * declaratively map a batch in-place:

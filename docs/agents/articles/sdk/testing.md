@@ -17,7 +17,16 @@ Typical checks:
 
 `TestFixture.create(...)` runs synchronously in the same thread and is the default for focused behavior tests. Use `TestFixture.createAsync(...)` when testing asynchronous consumers, tracking behavior, and `@HandleError`. Given steps are processed and at rest before the When step runs; later Then assertions focus on the When step, not every setup message. For multi-step helpers, exact message counts, result extraction, and active-versus-new schedules, read scenario phases.
 
-The asynchronous fixture registers newly discovered `@TrackSelf` payloads and automatic Model commands before concurrent dispatch proceeds. A failed registration remains a failure for that type; use a fresh fixture after correcting its configuration, rather than retrying a partially installed handler.
+Both fixture modes register the consumer selection of newly discovered `@TrackSelf` payloads and automatic Model commands before dispatch proceeds. Async fixtures also start their trackers. A failed registration remains a failure for that type; use a fresh fixture after correcting its configuration, rather than retrying a partially installed handler.
+
+Synchronous fixtures apply the same per-consumer payload/route selection as tracking, including handler unions,
+serializer aliases and upcaster inputs. Ordinary expectations therefore catch filters that exclude a required
+message. Logical inputs use `Serializer.describeSerialization` without body evaluation; unknown descriptions,
+custom envelopes and generic containers stay broad. Supplied legacy `SerializedMessage` inputs retain their original type and revision for selection. Genuine
+local handlers bypass the check. The shared `fluxzero.tracking.consumerFiltering=false` property
+(`FLUXZERO_TRACKING_CONSUMER_FILTERING`) or a per-consumer `consumerFiltering(false)` override disables it.
+The fixture retains synchronous execution: custom `DispatchInterceptor.modifySerializedMessage` transformations,
+batching, retries and delivery timing require async coverage; transport negotiation needs a connected server test.
 
 Use the fixture APIs rather than mocking internals:
 

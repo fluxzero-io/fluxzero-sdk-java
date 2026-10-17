@@ -76,6 +76,12 @@ public class TimestampParameterResolver implements ParameterResolver<Object> {
     }
 
     @Override
+    public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
+        return getClass() == TimestampParameterResolver.class ? resolve(parameter, methodAnnotation) != null
+                : mayApply(parameter.getDeclaringExecutable(), targetClass);
+    }
+
+    @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
             if (Instant.class.isAssignableFrom(parameter.getType())) {

@@ -96,6 +96,7 @@ class InterceptApplyAssertLegalContractTest {
         return loadAggregate("state", State.class).get();
     }
 
+    @Aggregate
     private record State(@EntityId String id, int value) {
         State increment() {
             return new State(id, value + 1);

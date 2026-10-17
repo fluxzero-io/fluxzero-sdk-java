@@ -641,7 +641,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                         HasMetadata.FIRST_CHUNK, Boolean.toString(firstChunk),
                         HasMetadata.FINAL_CHUNK, Boolean.toString(finalChunk)),
                 webRequest.getMessageId(), webRequest.getTimestamp().toEpochMilli());
-        return chunkMessage;
+        return io.fluxzero.sdk.web.WebRequestRoute.update(chunkMessage);
     }
 
     protected static class ChunkAccumulator {

@@ -160,6 +160,12 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         this.hasAnyHandlers = hasAnyHandlers;
     }
 
+    /** Conservative union of the actual compiled routes, including automatic HTTP methods. */
+    public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
+        return io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0L, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, null, null,
+                                                                routes.consumerRoutes(), List.of());
+    }
+
     @Override
     public boolean canHandle(DeserializingMessage message) {
         return methodMatcher(message).map(m -> m.canHandle(message)).orElse(false);

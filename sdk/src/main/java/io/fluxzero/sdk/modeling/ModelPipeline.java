@@ -21,6 +21,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.modeling.ModelRelationshipQueries;
@@ -39,6 +40,7 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -1503,6 +1505,19 @@ final class ModelPipeline {
 
         private CommitHandler(Class<?> trackingTarget) {
             this.trackingTarget = trackingTarget;
+        }
+
+        /** Describes the same mandatory payload boundary used by this automatic command matcher. */
+        @Override
+        public ConsumerFilter getConsumerFilter() {
+            if (trackingTarget == null || trackingTarget.isArray()
+                || !Modifier.isFinal(trackingTarget.getModifiers())) {
+                return null;
+            }
+            return ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
+                    List.of(new ConsumerFilter.PayloadType(trackingTarget.getName(), null),
+                            new ConsumerFilter.PayloadType(trackingTarget.getName() + "<", null, true)),
+                    null, List.of());
         }
 
         @Override

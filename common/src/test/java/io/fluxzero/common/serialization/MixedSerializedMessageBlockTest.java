@@ -95,7 +95,7 @@ class MixedSerializedMessageBlockTest {
     void recognizesBinaryRecordsEvenWhenTheyAlsoParseAsVersionZero() throws Exception {
         byte[] payload = {0, 0, (byte) 0xc0, (byte) 0xc0, (byte) 0xc0, (byte) 0xc0, (byte) 0xc0, (byte) 0xa4};
         var message = new SerializedMessage(new Data<byte[]>(payload, null, 0, ""), Metadata.empty(),
-                null, null, null, null, null, null, null, 192);
+                null, null, null, null, null, null, null, 192, null);
         byte[] binary = BinaryWire.encodeEnvelope(message);
         byte[] legacy = new MessagePackIO.Writer().packInt(0).packNil().packInt(0).packInt(0)
                 .packNil().packNil().packNil().packNil().packNil().packNil().toByteArray();
@@ -180,7 +180,7 @@ class MixedSerializedMessageBlockTest {
 
     private static SerializedMessage message(long index) {
         return new SerializedMessage(new Data<>(new byte[]{1, 2, 3}, "type", 0, "application/json"),
-                Metadata.of("tenant", "binary"), 2, index, "source", "target", 42, 1234L, "binary-" + index, null);
+                Metadata.of("tenant", "binary"), 2, index, "source", "target", 42, 1234L, "binary-" + index, null, null);
     }
 
     private static byte[] concatenate(List<byte[]> parts) {

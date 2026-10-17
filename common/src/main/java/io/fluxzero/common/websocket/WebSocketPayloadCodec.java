@@ -31,6 +31,11 @@ public interface WebSocketPayloadCodec {
     /** Returns a compact representation, or {@code null} when this codec does not own the value. */
     byte[] tryEncode(JsonType value, WebSocketTransportFormat format) throws IOException;
 
+    /** Encodes with the peer's native envelope capability; existing custom codecs keep their own representation. */
+    default byte[] tryEncode(JsonType value, WebSocketTransportFormat format, boolean routedEnvelopes) throws IOException {
+        return tryEncode(value, format);
+    }
+
     /** Returns the decoded value, or {@code null} when the bytes do not belong to this codec. */
     JsonType tryDecode(byte[] bytes, WebSocketTransportFormat format) throws IOException;
 }

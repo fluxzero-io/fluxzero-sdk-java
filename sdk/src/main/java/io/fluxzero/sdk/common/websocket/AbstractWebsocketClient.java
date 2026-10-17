@@ -210,7 +210,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private final Map<Long, WebSocketRequest> requests = new ConcurrentHashMap<>();
     private final ThreadLocal<ResultHandlingContext> resultHandlingContext = new ThreadLocal<>();
     private final Map<String, Backlog<Request>> sessionBacklogs = new ConcurrentHashMap<>();
-    private final Map<WebSocketTransportFormat, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
+    private final Map<TransportCodecKey, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
     private final TaskScheduler pingScheduler;
     private final Map<String, PingRegistration> pingDeadlines = new ConcurrentHashMap<>();
     private final Set<String> runtimeIngressBackpressured = ConcurrentHashMap.newKeySet();
@@ -443,6 +443,22 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         schedulePing(session);
     }
 
+    /** Existing open peers, establishing one connection only when capability discovery has no peer yet. */
+    protected List<WebsocketSession> sessionsForCapabilities() {
+        var sessions = sessionPool.activeSessions();
+        return sessions.isEmpty() ? List.of(sessionPool.get(0)) : sessions;
+    }
+
+    /** Adapts an outgoing request to the selected peer on every attempt, including reconnect replay. */
+    protected Request adaptRequestForSession(Request request, WebsocketSession session) {
+        return request;
+    }
+
+    /** Returns a local response for a peer-specific no-op, or null when the request must be sent. */
+    protected RequestResult localResponseForSession(Request request, WebsocketSession session) {
+        return null;
+    }
+
     protected <R extends RequestResult> CompletableFuture<R> send(Request request) {
         return send(request, null);
     }
@@ -457,6 +473,20 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     private <R extends RequestResult> CompletableFuture<R> sendRequest(Request request, Object resultContext) {
+        return sendRequest(request, resultContext, null);
+    }
+
+    /** Sends one independently correlated request to each established peer, awaiting every acknowledgement. */
+    protected <R extends RequestResult> CompletableFuture<List<R>> sendToAllSessions(
+            java.util.function.Supplier<? extends Request> requestFactory) {
+        List<CompletableFuture<R>> responses = sessionPool.activeSessions().stream()
+                .map(session -> this.<R>sendRequest(requestFactory.get(), null, session)).toList();
+        return CompletableFuture.allOf(responses.toArray(CompletableFuture[]::new))
+                .thenApply(ignored -> responses.stream().map(CompletableFuture::join).toList());
+    }
+
+    private <R extends RequestResult> CompletableFuture<R> sendRequest(
+            Request request, Object resultContext, WebsocketSession initialSession) {
         requireConcreteGuarantee(request);
         boolean captureMetrics = metricsEnabled();
         CompletableFuture<R> result = new WebSocketRequest(
@@ -472,7 +502,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                         ? Fluxzero.getOptionally()
                                 .orElse(null)
                         : null,
-                resultContext)
+                resultContext, initialSession)
                 .send();
         return result;
     }
@@ -493,34 +523,36 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 captureMetrics ? captureCorrelationData() : null,
                 captureMetrics ? getAdhocInterceptor(METRICS).orElse(null) : null,
                 captureMetrics ? Fluxzero.getOptionally().orElse(null) : null,
-                resultContext));
+                resultContext, null));
     }
 
     /** Releases prepared requests per selected session in one queue operation. */
     protected void sendPreparedRequests(
             List<? extends PreparedRequest<?>> preparedRequests) {
-        Map<WebsocketSession, List<WebSocketRequest>> bySession =
-                new LinkedHashMap<>();
+        Map<WebsocketSession, List<QueuedRequest>> bySession = new LinkedHashMap<>();
         for (PreparedRequest<?> prepared : preparedRequests) {
             WebSocketRequest request = prepared.delegate;
-            WebsocketSession session = request.prepareSend();
-            if (session != null) {
-                bySession.computeIfAbsent(session, ignored -> new ArrayList<>())
-                        .add(request);
+            SendAttempt attempt = request.prepareSend();
+            if (attempt != null) {
+                bySession.computeIfAbsent(attempt.session(), ignored -> new ArrayList<>())
+                        .add(new QueuedRequest(request, attempt.request()));
             }
         }
         bySession.forEach((session, batch) -> {
             try {
                 String sessionId = getNegotiatedSessionId(session);
                 requestBacklog(sessionId, session).addAllUntracked(
-                        batch.stream().map(request -> request.request).toList());
+                        batch.stream().map(QueuedRequest::wireRequest).toList());
                 batch.forEach(request -> publishRequestMetrics(
-                        request.request, request.correlationData, sessionId));
+                        request.wireRequest(), request.owner().correlationData, sessionId));
             } catch (Throwable failure) {
-                batch.forEach(request -> request.failSend(failure));
+                batch.forEach(request -> request.owner().failSend(failure));
             }
         });
     }
+
+    private record SendAttempt(WebsocketSession session, Request request) {}
+    private record QueuedRequest(WebSocketRequest owner, Request wireRequest) {}
 
     @SuppressWarnings("unchecked")
     @SneakyThrows
@@ -1745,32 +1777,34 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         private final DispatchInterceptor adhocMetricsInterceptor;
         private final Fluxzero fluxzero;
         private final Object resultContext;
+        private final WebsocketSession initialSession;
         private final AtomicBoolean sent = new AtomicBoolean();
         private volatile String sessionId;
         private volatile long sendTimestamp;
 
         @SuppressWarnings("unchecked")
         protected <T extends RequestResult> CompletableFuture<T> send() {
-            WebsocketSession session = prepareSend();
-            if (session == null) {
+            SendAttempt attempt = prepareSend();
+            if (attempt == null) {
                 return (CompletableFuture<T>) result;
             }
             try {
-                AbstractWebsocketClient.this.sendUntracked(request, correlationData, session);
+                AbstractWebsocketClient.this.sendUntracked(attempt.request(), correlationData, attempt.session());
             } catch (Exception e) {
                 failSend(e);
             }
             return (CompletableFuture<T>) result;
         }
 
-        private WebsocketSession prepareSend() {
-            if (sent.getAndSet(true)
-                && request instanceof RetryAwareRequest retryAware) {
+        private SendAttempt prepareSend() {
+            boolean previouslySent = sent.getAndSet(true);
+            if (previouslySent && request instanceof RetryAwareRequest retryAware) {
                 retryAware.markPossibleDuplicate();
             }
             WebsocketSession session;
             try {
-                session = request instanceof Command c ? sessionPool.get(c.routingKey()) : sessionPool.get();
+                session = !previouslySent && initialSession != null && initialSession.isOpen() ? initialSession
+                        : request instanceof Command c ? sessionPool.get(c.routingKey()) : sessionPool.get();
             } catch (SessionPool.ClientClosedException e) {
                 result.completeExceptionally(e);
                 return null;
@@ -1781,10 +1815,23 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 result.completeExceptionally(e);
                 return null;
             }
+            Request sessionRequest;
+            try {
+                RequestResult local = localResponseForSession(request, session);
+                if (local != null) {
+                    requests.remove(request.getRequestId(), this);
+                    result.complete(local);
+                    return null;
+                }
+                sessionRequest = adaptRequestForSession(request, session);
+            } catch (Throwable failure) {
+                failSend(failure);
+                return null;
+            }
             this.sessionId = getNegotiatedSessionId(session);
             requests.put(request.getRequestId(), this);
             sendTimestamp = System.currentTimeMillis();
-            return session;
+            return new SendAttempt(session, sessionRequest);
         }
 
         private void failSend(Throwable failure) {
@@ -1890,15 +1937,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return configured instanceof WebSocketTransportFormat format ? format : WebSocketTransportFormat.JSON;
     }
 
+    private record TransportCodecKey(WebSocketTransportFormat format, boolean routedEnvelopes) {}
+
     protected WebSocketTransportCodec transportCodec(WebsocketSession session) {
-        WebSocketTransportFormat format = getTransportFormat(session);
-        WebSocketTransportCodec cached = transportCodecs.get(format);
-        if (cached != null) {
-            return cached;
-        }
-        WebSocketTransportCodec created = WebSocketTransportCodecs.forFormat(format, objectMapper, payloadCodecs());
-        WebSocketTransportCodec raced = transportCodecs.putIfAbsent(format, created);
-        return raced == null ? created : raced;
+        boolean routed = (boolean) session.getUserProperties().computeIfAbsent(
+                "fluxzero.routedEnvelopes", ignored -> WebSocketCapabilities.supportsRoutedEnvelopes(session.getHandshakeResponseHeaders()));
+        var key = new TransportCodecKey(getTransportFormat(session), routed);
+        return transportCodecs.computeIfAbsent(key, value -> WebSocketTransportCodecs.forFormat(
+                value.format(), objectMapper, payloadCodecs(), value.routedEnvelopes()));
     }
 
     /** Returns compact payload codecs owned by this concrete protocol client. */
@@ -1956,6 +2002,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             headers.put(WebSocketCapabilities.SUPPORTED_DOCUMENT_COMPRESSION_HEADER, new ArrayList<>(List.of("ZSTD,LZ4,NONE")));
             WebSocketCapabilities.asHeaders(clientConfig.getSupportedCompressionAlgorithms()).forEach(
                     (name, values) -> headers.put(name, new ArrayList<>(values)));
+            headers.put(WebSocketCapabilities.MESSAGE_ENVELOPE_VERSION_HEADER, new ArrayList<>(List.of("2")));
             headers.put(WebSocketCapabilities.SUPPORTS_MIXED_MODEL_EVENT_BLOCKS_HEADER,
                         new ArrayList<>(List.of("true")));
             headers.put(WebSocketCapabilities.SUPPORTED_MODEL_MEMBERSHIP_VERSIONS_HEADER,

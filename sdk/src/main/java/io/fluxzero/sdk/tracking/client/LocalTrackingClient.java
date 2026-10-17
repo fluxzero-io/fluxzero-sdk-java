@@ -93,6 +93,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     @Getter
     private final String topic;
     private final Duration initialPositionLag;
+    private final ConsumerFilterUpdates consumerFilters = new ConsumerFilterUpdates();
 
     @Getter(lazy = true)
     private final TrackingStrategy trackingStrategy =
@@ -197,11 +198,22 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     }
 
     @Override
+    public boolean supportsConsumerFiltering() {
+        return true;
+    }
+
+    @Override
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex,
                                                 ConsumerConfiguration config) {
-        return getTrackingStrategy().getBatch(
-                new WebSocketTracker(readRequest(trackerId, lastIndex, config), messageType, LOCAL_CLIENT_ID, null));
+        Read read = readRequest(trackerId, lastIndex, config);
+        read.setMaxScanLookBack(config.getMaxScanLookBack());
+        return consumerFilters.read(read, config.getConsumerBlueprint(), this::sendRead);
     }
+
+    private CompletableFuture<MessageBatch> sendRead(Read read) {
+        return getTrackingStrategy().getBatch(new WebSocketTracker(read, messageType, LOCAL_CLIENT_ID, null));
+    }
+
 
     @Override
     public List<SerializedMessage> readFromIndex(long minIndex, int maxSize) {
@@ -265,6 +277,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     @Override
     public CompletableFuture<Void> disconnectTracker(String consumer, String trackerId, boolean sendFinalEmptyBatch,
                                                      Guarantee guarantee) {
+        consumerFilters.disconnect(consumer, trackerId);
         getTrackingStrategy().disconnectTrackers(t -> t.getTrackerId().equalsIgnoreCase(trackerId), sendFinalEmptyBatch);
         return CompletableFuture.completedFuture(null);
     }
@@ -276,6 +289,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
 
     @Override
     public void close() {
+        consumerFilters.close();
         messageStore.close();
         getTrackingStrategy().close();
     }

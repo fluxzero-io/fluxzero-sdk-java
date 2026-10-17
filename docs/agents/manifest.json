@@ -3171,7 +3171,15 @@
         "IndexUtils.indexFromTimestamp(...)",
         "@HandleError",
         "@HandleDocument",
-        "fluxzero.tracking.unconfiguredHandlerConsumerMode"
+        "fluxzero.tracking.unconfiguredHandlerConsumerMode",
+        "fluxzero.tracking.consumerFiltering",
+        "FLUXZERO_TRACKING_CONSUMER_FILTERING",
+        "fluxzero.tracking.maxWaitDuration",
+        "FLUXZERO_TRACKING_MAX_WAIT_DURATION",
+        "ConsumerFilter",
+        "ConsumerBlueprint",
+        "SerializedMessage.route",
+        "WebRequestRoute.update(...)"
       ],
       "links": [
         {

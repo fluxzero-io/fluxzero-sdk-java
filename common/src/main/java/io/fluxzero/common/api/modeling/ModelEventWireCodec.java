@@ -57,12 +57,18 @@ public final class ModelEventWireCodec {
      * Encodes a homogeneous compact model-event request or result batch.
      */
     public static byte[] tryEncode(JsonType value) throws IOException {
+        return tryEncode(value, false);
+    }
+
+    /** Encodes routed native envelopes only for a peer that explicitly supports them. */
+    public static byte[] tryEncode(JsonType value, boolean routedEnvelopes) throws IOException {
         if (value instanceof GetModelEvents request) {
             return encodeRequests(
                     new RequestBatch<>(List.of(request)),
                     DIRECT_REQUEST_MAGIC);
         }
         if (value instanceof GetModelEventsResult result) {
+            if (!routedEnvelopes && hasRoutes(result)) return null;
             return encodeResults(
                     new ResultBatch(List.of(result)),
                     DIRECT_RESULT_MAGIC);
@@ -70,7 +76,7 @@ public final class ModelEventWireCodec {
         if (value instanceof RequestBatch<?> batch && supportsRequests(batch)) {
             return encodeRequests(batch, REQUEST_MAGIC);
         }
-        if (value instanceof ResultBatch batch && supportsResults(batch)) {
+        if (value instanceof ResultBatch batch && supportsResults(batch, routedEnvelopes)) {
             return encodeResults(batch, RESULT_MAGIC);
         }
         return null;
@@ -120,6 +126,10 @@ public final class ModelEventWireCodec {
         }
     }
 
+    private static boolean hasRoutes(GetModelEventsResult result) {
+        return result.getPayloads().stream().anyMatch(payload -> payload.getEvent().getRoute() != null);
+    }
+
     private static boolean supportsRequests(RequestBatch<?> batch) {
         if (batch.getRequests().isEmpty()) {
             return false;
@@ -132,12 +142,12 @@ public final class ModelEventWireCodec {
         return true;
     }
 
-    private static boolean supportsResults(ResultBatch batch) {
+    private static boolean supportsResults(ResultBatch batch, boolean routedEnvelopes) {
         if (batch.getResults().isEmpty()) {
             return false;
         }
         for (RequestResult value : batch.getResults()) {
-            if (!(value instanceof GetModelEventsResult)) {
+            if (!(value instanceof GetModelEventsResult result) || !routedEnvelopes && hasRoutes(result)) {
                 return false;
             }
         }

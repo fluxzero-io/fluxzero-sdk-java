@@ -16,6 +16,7 @@ the distinction between evidence types:
 | Duplicate or stale delivery | Repeat the same delivery and deliver it after each relevant terminal path | One stale path is treated as proof for symmetric paths |
 | Search field | A term that matches only that field, stable ordering including a tie, and the promised paging/count contract | Membership-only assertions hide in-memory filtering, unstable ties, or a silent cap |
 | Projection write | Stable document identity, replacement on redelivery, public query mapping, and an injected storage failure | Calling `indexAndWait()` is treated as proof that consumer position cannot advance |
+| Consumer admission | Ordinary fixture expectation with actual consumer configuration and legacy serialized inputs where relevant; async coverage for serialized-dispatch rewrites | A sync fixture result treated as proof of wire negotiation, batching or retries |
 | Tracked failure | Selected error policy, surfaced failure, exact effect-attempt count, and tracker position around the failing index | Directly calling `ErrorHandler.handleError(...)` bypasses tracking |
 | HTTP or socket operation | Routed request/frame with real binding, identity, response mapping, and a critical negative row | Directly invoking the endpoint method proves only ordinary Java behavior |
 | Generated contract | Request the served document and inspect exact paths, operations, required fields, item schemas, and responses | Reflection over annotations or broad substring checks |

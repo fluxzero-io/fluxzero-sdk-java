@@ -18,10 +18,12 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
@@ -32,6 +34,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -40,8 +43,44 @@ import static io.fluxzero.common.api.modeling.ModelEventMetadata.SUBSTEP;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class GraphChangeHandlerDecoratorTest {
+
+    @Test
+    void preservesAllowedPayloadBoundaryWithoutWideningGraphOnlyHandlers() throws Exception {
+        var serializer = new JacksonSerializer();
+        var filter = ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
+                List.of(new ConsumerFilter.PayloadType(String.class.getName(), null)), null, List.of());
+        var method = AllowedGraphHandler.class.getDeclaredMethod("handle", Graph.class);
+        var parameter = method.getParameters()[0];
+        Handler<DeserializingMessage> source = new Handler<>() {
+            @Override public Class<?> getTargetClass() { return AllowedGraphHandler.class; }
+            @Override public ConsumerFilter getConsumerFilter() { return filter; }
+            @Override public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return message.getPayloadClass() == String.class && GraphChangeHandlerDecorator.suppliesGraph(parameter)
+                        ? Optional.of(HandlerInvoker.noOp(AllowedGraphHandler.class, method)) : Optional.empty();
+            }
+        };
+        var decorated = GraphChangeHandlerDecorator.wrapGraphChanges(source, MessageType.EVENT);
+        assertSame(filter, decorated.getConsumerFilter());
+        assertTrue(serializer.describeConsumerFilter(decorated.getConsumerFilter()).compile()
+                .test(new Message("accepted").serialize(serializer)));
+        assertFalse(serializer.describeConsumerFilter(decorated.getConsumerFilter()).compile()
+                .test(new Message(42).serialize(serializer)));
+        assertNotNull(decorated.getInvokerOrNull(new DeserializingMessage(new Message("accepted",
+                Metadata.of(COMMIT_ID, "commit", SUBSTEP, "0")), MessageType.EVENT, null)));
+        assertNull(decorated.getInvokerOrNull(new DeserializingMessage(new Message(42,
+                Metadata.of(COMMIT_ID, "commit", SUBSTEP, "0")), MessageType.EVENT, null)));
+        assertNull(GraphChangeHandlerDecorator.wrapGraphChanges(handler(GraphOnlyHandler.class), MessageType.EVENT)
+                .getConsumerFilter());
+    }
+
+    private static class AllowedGraphHandler {
+        @HandleEvent(allowedClasses = String.class)
+        void handle(Graph<Root> graph) {}
+    }
 
     @Test
     void selectsGraphOnlyHandlerWithoutInspectingTheEventPayload() throws Exception {

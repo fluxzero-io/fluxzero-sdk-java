@@ -182,7 +182,7 @@ class WebSocketTransportCodecsTest {
                 new Data<>(new byte[]{1, 2, 3}, "type-😀", 1, "application/json"),
                 Metadata.of("tenant", "München-東京"),
                 3, 99L, "brön", "doel-😀", 12, 1234L,
-                "bericht-東京", 1);
+                "bericht-東京", 1, null);
         Append append = new Append(
                 MessageType.EVENT, List.of(message), Guarantee.STORED);
 
@@ -1366,7 +1366,7 @@ class WebSocketTransportCodecsTest {
         return new SerializedMessage(
                 new Data<>(new byte[]{1, 2, 3, 4, 5}, "com.example.BenchEvent", 7, "application/json"),
                 Metadata.of("routingKey", "key-1").with("attempt", 2),
-                3, 99L, "source", "target", 12, 1234L, "message-1", 6);
+                3, 99L, "source", "target", 12, 1234L, "message-1", 6, null);
     }
 
     private static void assertSerializedMessage(SerializedMessage expected, SerializedMessage actual) {

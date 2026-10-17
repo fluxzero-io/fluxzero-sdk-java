@@ -32,6 +32,9 @@ import static org.mockito.Mockito.verify;
 
 class StallingBatchInterceptorTest {
 
+    @io.fluxzero.sdk.modeling.Aggregate
+    record EventRoot() {}
+
     private static final Duration stallingDuration = Duration.ofSeconds(10);
     private final MockEventHandler handler = spy(new MockEventHandler());
 
@@ -48,14 +51,14 @@ class StallingBatchInterceptorTest {
 
     @Test
     void testLargeBatchPassed() {
-        testFixture.whenEventsAreApplied("test", Object.class, 0, 1)
+        testFixture.whenEventsAreApplied("test", EventRoot.class, 0, 1)
                 .expectThat(fc -> verify(handler, times(2)).handle(any()))
                 .expectThat(fc -> verify(fc.client().getTrackingClient(EVENT)).storePosition(any(), any(), anyLong()));
     }
 
     @Test
     void testSmallBatchStalled() {
-        testFixture.whenEventsAreApplied("test", Object.class, 0)
+        testFixture.whenEventsAreApplied("test", EventRoot.class, 0)
                 .expectThat(fc -> verify(handler, never()).handle(any()))
                 .expectThat(fc -> verify(fc.client().getTrackingClient(EVENT), never())
                         .storePosition(any(), any(), anyLong()));
@@ -63,7 +66,7 @@ class StallingBatchInterceptorTest {
 
     @Test
     void testSmallBatchPassedAfterTimeout() {
-        testFixture.givenAppliedEvents("test", Object.class, 0)
+        testFixture.givenAppliedEvents("test", EventRoot.class, 0)
                 .whenTimeElapses(stallingDuration)
                 .expectThat(fc -> verify(handler, times(1)).handle(any()))
                 .expectThat(fc -> verify(fc.client().getTrackingClient(EVENT)).storePosition(any(), any(), anyLong()));

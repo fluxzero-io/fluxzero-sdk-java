@@ -76,6 +76,7 @@ data class KotlinUpdateCommandThatFailsIfChildDoesNotExist(val missingChildId: S
     }
 }
 
+@Aggregate
 data class KotlinConstructorAggregate(
     @EntityId val id: String,
     @Member val child: KotlinConstructorChild,

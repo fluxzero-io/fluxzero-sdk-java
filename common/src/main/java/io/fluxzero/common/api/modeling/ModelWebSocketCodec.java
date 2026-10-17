@@ -30,9 +30,14 @@ public enum ModelWebSocketCodec implements WebSocketPayloadCodec {
 
     @Override
     public byte[] tryEncode(JsonType value, WebSocketTransportFormat format) throws IOException {
-        byte[] encoded = format == BINARY ? ModelCommitWireCodec.tryEncode(value) : null;
+        return tryEncode(value, format, false);
+    }
+
+    @Override
+    public byte[] tryEncode(JsonType value, WebSocketTransportFormat format, boolean routedEnvelopes) throws IOException {
+        byte[] encoded = format == BINARY ? ModelCommitWireCodec.tryEncode(value, routedEnvelopes) : null;
         return encoded == null && format == BINARY
-                ? ModelEventWireCodec.tryEncode(value) : encoded;
+                ? ModelEventWireCodec.tryEncode(value, routedEnvelopes) : encoded;
     }
 
     @Override

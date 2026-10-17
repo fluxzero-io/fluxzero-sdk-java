@@ -19,6 +19,7 @@ import io.fluxzero.common.InMemoryTaskScheduler;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.jfr.FluxzeroJfr;
@@ -76,6 +77,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     private final ConcurrentHashMap<Tracker, WaitingTracker> waitingTrackers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Tracker, TrackerRequest<?>> openRequests = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, TrackerCluster> clusters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<FilterScope, FilterState> consumerFilters = new ConcurrentHashMap<>();
     private final AtomicBoolean updateNotificationPending = new AtomicBoolean();
     private final AtomicBoolean updateNotificationRunning = new AtomicBoolean();
     private final AtomicLong updateNotificationVersion = new AtomicLong();
@@ -211,9 +213,46 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     @Override
     public CompletableFuture<MessageBatch> getBatch(Tracker tracker) {
-        TrackerRequest<MessageBatch> request = openRequest(tracker, Function.identity());
-        getBatch(tracker, request);
-        return request.future();
+        FilterScope scope = tracker instanceof WebSocketTracker socket && socket.getConsumerFilter() != null
+                ? FilterScope.of(socket) : null;
+        FilterState filter = null;
+        if (scope != null) {
+            WebSocketTracker socket = (WebSocketTracker) tracker;
+            boolean updateOnly = socket.getMaxSize() == 0;
+            filter = consumerFilters.compute(scope, (key, state) -> {
+                FilterState result = state == null ? new FilterState() : state;
+                result.update(socket.getConsumerFilter());
+                if (updateOnly) {
+                    // A refresh can overtake the first read on another connection. Retain its high-water mark
+                    // until that read claims ownership, with bounded retention if the consumer never starts.
+                    result.retainUntil = currentTimeMillis() + Duration.ofHours(1).toMillis();
+                } else {
+                    result.admissions++;
+                }
+                return result;
+            });
+            if (updateOnly) {
+                return CompletableFuture.completedFuture(finalEmptyBatch());
+            }
+            tracker = socket.withConsumerFilterPredicate(filter);
+        }
+        try {
+            if (tracker instanceof WebSocketTracker socket && socket.getConsumerFilter() != null
+                && socket.getConsumerFilter().referenceOnly() && !filter.knows(socket.getConsumerFilter())) {
+                return CompletableFuture.completedFuture(MessageBatch.requireConsumerFilter());
+            }
+            TrackerRequest<MessageBatch> request = openRequest(tracker, Function.identity());
+            getBatch(tracker, request);
+            return request.future();
+        } finally {
+            if (scope != null) {
+                consumerFilters.computeIfPresent(scope, (key, state) -> {
+                    state.admissions--;
+                    return state.admissions == 0 && state.retainUntil <= currentTimeMillis()
+                           && !hasFilterScope(key) ? null : state;
+                });
+            }
+        }
     }
 
     protected void getBatch(Tracker tracker, TrackerRequest<MessageBatch> request) {
@@ -252,7 +291,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                     if (batch.scannedSize() > 0 && batch.messages().isEmpty()) {
                         long batchIndex = batch.lastScannedIndex();
 
-                        if (batchIndex < indexFromMillis(System.currentTimeMillis() - tracker.maxTimeout())) {
+                        if (batchIndex < indexFromMillis(System.currentTimeMillis() - tracker.maxScanLookBack())) {
                             //if the index is old, send back an empty batch.
                             // Prevents rushing through potentially billions of messages
                             MessageBatch emptyBatch =
@@ -584,6 +623,12 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                 return updatedCluster;
             });
             clusters.values().removeIf(TrackerCluster::isEmpty);
+            for (Tracker tracker : removed) {
+                if (tracker instanceof WebSocketTracker socket && socket.getConsumerFilter() != null) {
+                    consumerFilters.computeIfPresent(FilterScope.of(socket), (key, state) ->
+                            state.admissions == 0 && !hasFilterScope(key) ? null : state);
+                }
+            }
             updatedClusters.forEach(this::onClusterUpdate);
             closeOpenRequests(t -> removed.contains(t) || removedAndWaiting.contains(t), sendFinalEmptyBatch);
             return removed;
@@ -615,6 +660,9 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                     }
                     return cluster;
                 });
+                consumerFilters.keySet().forEach(scope -> consumerFilters.computeIfPresent(scope, (key, state) ->
+                        state.admissions == 0 && state.retainUntil <= currentTimeMillis() && !hasFilterScope(key)
+                                ? null : state));
                 purgeCeasedTrackers(delay);
             } finally {
                 handoverLock.readLock().unlock();
@@ -766,6 +814,49 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         scheduler.shutdown();
         sourceRegistration.cancel();
         source.close();
+    }
+
+    private boolean hasFilterScope(FilterScope scope) {
+        TrackerCluster cluster = clusters.get(scope.consumer());
+        return cluster != null && cluster.getTrackers().stream().anyMatch(tracker ->
+                tracker instanceof WebSocketTracker socket && scope.equals(FilterScope.of(socket)));
+    }
+
+    private record FilterScope(String consumer, String client, String session) {
+        static FilterScope of(WebSocketTracker tracker) {
+            String subscription = tracker.getConsumerFilter() == null ? null : tracker.getConsumerFilter().subscriptionId();
+            return new FilterScope(tracker.getConsumerName(), tracker.getClientId(),
+                                   subscription == null ? tracker.getSessionId() : "subscription:" + subscription);
+        }
+    }
+
+    private static final class FilterState implements Predicate<SerializedMessage> {
+        private long revision = Long.MIN_VALUE;
+        private volatile long knownRevision = Long.MIN_VALUE;
+        private int admissions;
+        private long retainUntil;
+        private volatile Predicate<SerializedMessage> predicate = message -> true;
+
+        void update(ConsumerFilter filter) {
+            if (filter.revision() > revision || filter.revision() == revision && knownRevision < revision) {
+                // Widen an obsolete snapshot until its replacement arrives; never scan with a missing reference.
+                predicate = filter.compile();
+                revision = filter.revision();
+                if (!filter.referenceOnly()) {
+                    knownRevision = revision;
+                }
+            }
+        }
+
+        boolean knows(ConsumerFilter filter) {
+            return knownRevision >= filter.revision();
+        }
+
+        @Override
+        public boolean test(SerializedMessage message) {
+            // Read the current projection per message, including inside an already-running storage scan.
+            return predicate.test(message);
+        }
     }
 
     protected static class TrackerRequest<T> {

@@ -942,6 +942,33 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void sealedAutomaticModelCommandsIncludeTheirConcreteSubtypes() {
+        ModelCommitHandlerRegistry subject = subject(AutomaticModelHandling.ENABLED);
+        try {
+            Handler<DeserializingMessage> handler = subject.createHandler(
+                    SealedAutomaticCommand.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+            var input = message(new SealedAutomaticLeaf("sealed"));
+            assertNull(handler.getConsumerFilter());
+            assertTrue(handler.getInvoker(input).isPresent());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void openAutomaticModelCommandsKeepSubtypesEligible() {
+        ModelCommitHandlerRegistry subject = subject(AutomaticModelHandling.ENABLED);
+        try {
+            Handler<DeserializingMessage> handler = subject.createHandler(
+                    OpenAutomaticCommand.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+            assertNull(handler.getConsumerFilter());
+            assertTrue(handler.getInvoker(message(new SpecializedAutomaticCommand("subtype"))).isPresent());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
     void receiverApplyTracksTheCommandPayloadRatherThanTheModel() {
         ModelCommitHandlerRegistry subject =
                 subject(AutomaticModelHandling.ENABLED);
@@ -2546,6 +2573,31 @@ class ModelCommitHandlerRegistryTest {
         @Apply
         TimingModel apply() {
             return new TimingModel(id);
+        }
+    }
+
+    private sealed interface SealedAutomaticCommand permits SealedAutomaticLeaf {
+        String id();
+        @Apply default TimingModel apply() { return new TimingModel(id()); }
+    }
+    private record SealedAutomaticLeaf(String id) implements SealedAutomaticCommand {}
+
+    private static class OpenAutomaticCommand {
+        private final String id;
+
+        private OpenAutomaticCommand(String id) {
+            this.id = id;
+        }
+
+        @Apply
+        TimingModel apply() {
+            return new TimingModel(id);
+        }
+    }
+
+    private static class SpecializedAutomaticCommand extends OpenAutomaticCommand {
+        private SpecializedAutomaticCommand(String id) {
+            super(id);
         }
     }
 

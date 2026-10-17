@@ -30,6 +30,9 @@ import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.publishing.Append;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
+import io.fluxzero.common.api.tracking.Read;
+import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
@@ -94,6 +97,106 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AbstractWebsocketClientTest {
+    @Test
+    void nativeEnvelopeCodecCacheFollowsEachSelectedPeerIncludingReplacementSessions() throws Exception {
+        var config = WebSocketClient.ClientConfig.builder().name("route-capability").namespace("test")
+                .runtimeBaseUrl("ws://localhost").build();
+        for (boolean firstModern : List.of(false, true)) {
+            try (var client = new TestClient(mock(WebsocketConnector.class), config) {
+                @Override protected List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec> payloadCodecs() {
+                    return List.of(io.fluxzero.common.api.tracking.TrackingWebSocketCodec.INSTANCE);
+                }
+            }) {
+                var message = new SerializedMessage(new io.fluxzero.common.api.Data<>(new byte[0], null, 0),
+                        Metadata.empty(), "route", 0L);
+                message.setRoute("GET /path");
+                var request = new Append(io.fluxzero.common.MessageType.WEBREQUEST, List.of(message), io.fluxzero.common.Guarantee.STORED);
+                for (boolean modern : List.of(firstModern, !firstModern, firstModern)) {
+                    var session = mockSession("client_route-" + java.util.UUID.randomUUID());
+                    session.getUserProperties().put(AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
+                                                   WebSocketTransportFormat.BINARY);
+                    when(session.getHandshakeResponseHeaders()).thenReturn(modern
+                            ? Map.of(WebSocketCapabilities.MESSAGE_ENVELOPE_VERSION_HEADER, List.of("2")) : Map.of());
+                    var codec = client.transportCodec(session);
+                    byte[] bytes = codec.encode(request);
+                    assertEquals(modern, io.fluxzero.common.api.tracking.TrackingWireCodec.tryDecode(bytes) != null);
+                    assertEquals(request, codec.decode(bytes));
+                }
+            }
+        }
+    }
+
+    @Test
+    void concurrentReplayCannotChangeTheWireRequestOfAnAlreadySelectedSession() throws Exception {
+        var legacy = mockSession("client_legacy");
+        var current = mockSession("client_current");
+        var selected = new CountDownLatch(1);
+        var resume = new CountDownLatch(1);
+        var connections = new AtomicInteger();
+        var legacyLookups = new AtomicInteger();
+        var delivered = new java.util.concurrent.LinkedBlockingQueue<Read>();
+        for (var peer : List.of(legacy, current)) {
+            when(peer.isOpen()).thenReturn(true);
+            peer.getUserProperties().put(AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
+                                         CompressionAlgorithm.NONE);
+            peer.getUserProperties().put(AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
+                                         WebSocketTransportFormat.JSON);
+            when(peer.sendBinaryAsync(any(), anyInt())).thenAnswer(call -> {
+                ByteBuffer buffer = call.getArgument(0);
+                byte[] bytes = new byte[buffer.remaining()];
+                buffer.get(bytes);
+                Read wire = (Read) WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper).decode(bytes);
+                if (peer == legacy) {
+                    assertNull(wire.getConsumerFilter());
+                    assertEquals(60_000L, wire.getMaxTimeout());
+                } else {
+                    org.junit.jupiter.api.Assertions.assertNotNull(wire.getConsumerFilter());
+                    assertEquals(900_000L, wire.getMaxTimeout());
+                }
+                delivered.add(wire);
+                return CompletableFuture.completedFuture(null);
+            });
+        }
+        var config = WebSocketClient.ClientConfig.builder().runtimeBaseUrl("ws://localhost")
+                .name("replay").disableMetrics(true).build();
+        try (var client = new TestClient(mock(WebsocketConnector.class), config, 2) {
+            @Override
+            protected WebsocketSession connectToServer(WebsocketConnector connector, URI uri, WebsocketSession previous) {
+                return connections.getAndIncrement() == 0 ? legacy : current;
+            }
+            @Override
+            protected Request adaptRequestForSession(Request request, WebsocketSession peer) {
+                return peer == legacy ? ((Read) request).forLegacyPeer() : request;
+            }
+            @Override
+            protected String getNegotiatedSessionId(WebsocketSession peer) {
+                if (peer == legacy && legacyLookups.incrementAndGet() == 2) {
+                    selected.countDown();
+                    try {
+                        if (!resume.await(2, TimeUnit.SECONDS)) throw new AssertionError("send was not resumed");
+                    } catch (InterruptedException e) { throw new AssertionError(e); }
+                }
+                return peer == legacy ? "legacy" : "current";
+            }
+            @Override
+            protected Duration retryOutstandingRequestsDelay() { return Duration.ZERO; }
+        }; var executor = Executors.newSingleThreadExecutor()) {
+            try {
+                var read = new Read(MessageType.EVENT, "consumer", "tracker", 10, 900_000L,
+                                    null, false, false, false, true, -20L, null);
+                read.setConsumerFilter(ConsumerFilter.unrestricted());
+                read.setMaxScanLookBack(60_000L);
+                var initial = executor.submit(() -> client.<ReadResult>send(read));
+                assertTrue(selected.await(2, TimeUnit.SECONDS));
+                client.retryOutstandingRequests("legacy");
+                assertTrue(delivered.poll(2, TimeUnit.SECONDS).getConsumerFilter() != null);
+                resume.countDown();
+                initial.get(2, TimeUnit.SECONDS);
+                assertNull(delivered.poll(2, TimeUnit.SECONDS).getConsumerFilter());
+            } finally { resume.countDown(); }
+        }
+    }
+
     @Test
     void closeDrainsIssuedCommandsWithinOneBudget() throws Exception {
         var client = org.mockito.Mockito.spy(new TestClient(mock(WebsocketConnector.class),

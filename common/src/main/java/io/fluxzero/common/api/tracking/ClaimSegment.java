@@ -61,6 +61,17 @@ public class ClaimSegment extends Read {
               false, clientControlledIndex, lastIndex, purgeTimeout);
     }
 
+    /** Preserves claim semantics and request correlation when adapting inherited waits for an older peer. */
+    @Override
+    public ClaimSegment forLegacyPeer() {
+        if (getConsumerFilter() == null && getMaxScanLookBack() == null) {
+            return this;
+        }
+        return new ClaimSegment(getRequestId(), getMessageType(), getConsumer(), getTrackerId(),
+                getMaxScanLookBack() == null ? getMaxTimeout() : Math.min(getMaxTimeout(), getMaxScanLookBack()),
+                isClientControlledIndex(), getTypeFilter(), isFilterMessageTarget(), getLastIndex(), getPurgeTimeout());
+    }
+
     public ClaimSegment(Read read) {
         this(read.getMessageType(), read.getConsumer(), read.getTrackerId(), read.getMaxTimeout(), read.isClientControlledIndex(),
              read.getTypeFilter(), read.isFilterMessageTarget(), read.getLastIndex(), read.getPurgeTimeout());

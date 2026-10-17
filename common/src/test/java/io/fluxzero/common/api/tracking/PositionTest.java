@@ -141,6 +141,6 @@ class PositionTest {
 
     private static SerializedMessage serializedMessage(int segment, Long index) {
         return new SerializedMessage(new Data<>(new byte[0], "Test", 0), null,
-                segment, index, null, null, null, null, null, null);
+                segment, index, null, null, null, null, null, null, null);
     }
 }

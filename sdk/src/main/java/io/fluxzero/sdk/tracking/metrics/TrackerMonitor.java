@@ -41,4 +41,11 @@ public class TrackerMonitor implements BatchInterceptor {
                     batch.getSegment(), batch.getLastIndex(), batch.getSize(), nsDuration)));
         };
     }
+
+    @Override
+    public io.fluxzero.common.api.tracking.ConsumerFilter describeConsumerFilter(
+            io.fluxzero.common.api.tracking.ConsumerFilter downstream) {
+        return getClass() == TrackerMonitor.class ? downstream
+                : io.fluxzero.common.api.tracking.ConsumerFilter.unrestricted();
+    }
 }

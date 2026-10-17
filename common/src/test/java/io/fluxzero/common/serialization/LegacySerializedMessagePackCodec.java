@@ -112,7 +112,7 @@ public final class LegacySerializedMessagePackCodec {
                 unpackInt(unpacker),
                 unpackLong(unpacker),
                 unpackString(unpacker),
-                null);
+                null, null);
     }
 
     private static Metadata unpackSerializedMetadata(MessageUnpacker unpacker) throws IOException {
@@ -136,7 +136,7 @@ public final class LegacySerializedMessagePackCodec {
                 unpackInt(unpacker),
                 unpackLong(unpacker),
                 unpackString(unpacker),
-                null);
+                null, null);
     }
 
     private static Metadata unpackMetadata(MessageUnpacker unpacker) throws IOException {

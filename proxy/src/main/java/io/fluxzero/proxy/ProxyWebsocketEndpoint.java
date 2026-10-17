@@ -349,6 +349,7 @@ public class ProxyWebsocketEndpoint {
                                                                     null, 0, "unknown"),
                                                          metadata, Fluxzero.generateId(),
                                                          Fluxzero.currentClock().millis());
+        io.fluxzero.sdk.web.WebRequestRoute.update(request);
         request.setSource(client.id());
         request.setTarget(context.trackerId());
         request.setSegment(context.segment());

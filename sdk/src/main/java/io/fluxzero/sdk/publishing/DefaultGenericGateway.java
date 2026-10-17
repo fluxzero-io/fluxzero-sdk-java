@@ -30,6 +30,7 @@ import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.common.serialization.UnknownSerializedTypeException;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
@@ -189,7 +190,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         if (!serializedMessages.isEmpty()) {
             try {
                 SerializedMessage[] finalMessages = serializedMessages.stream().flatMap(
-                        m -> ofNullable(interceptor.apply(m))).toArray(SerializedMessage[]::new);
+                        m -> ofNullable(updateRoute(interceptor.apply(m)))).toArray(SerializedMessage[]::new);
                 if (finalMessages.length > 0) {
                     return AsyncCompletionScope.register(gatewayClient.append(guarantee, finalMessages));
                 }
@@ -280,7 +281,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 if (serialized != null) {
                     serialized = interceptor.apply(serialized);
                     if (serialized != null) {
-                        finalMessages[resultSize++] = serialized;
+                        finalMessages[resultSize++] = updateRoute(serialized);
                     }
                 }
             }
@@ -385,7 +386,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                         serializedMessages.get(i), message, messageType, topic);
                 requests[requestIndex] = serializedMessage == null
                         ? PendingRequest.completed(emptyReturnMessage())
-                        : PendingRequest.external(serializedMessage, externalTimeouts[requestIndex]);
+                        : PendingRequest.external(updateRoute(serializedMessage), externalTimeouts[requestIndex]);
             }
             return java.util.Arrays.asList(requests);
         } finally {
@@ -611,11 +612,16 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 applicationNamespace ? null : namespace);
     }
 
+    private SerializedMessage updateRoute(SerializedMessage message) {
+        return messageType == MessageType.WEBREQUEST
+                ? io.fluxzero.sdk.web.WebRequestRoute.update(message) : message;
+    }
+
     private PendingRequest prepareExternalRequest(Message message, Duration timeout) {
         SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
                 message.serialize(serializer), message, messageType, topic);
         return serializedMessage == null ? PendingRequest.completed(emptyReturnMessage())
-                : PendingRequest.external(serializedMessage, timeout);
+                : PendingRequest.external(updateRoute(serializedMessage), timeout);
     }
 
     private Message interceptDispatch(Message message) {
@@ -760,6 +766,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     private Message deserializeResponse(SerializedMessage m) {
         Object result;
         try {
+            byte[] decodedBody = null;
             if (messageType == MessageType.WEBREQUEST) {
                 var headers = WebResponse.getHeaders(m.getMetadata());
                 if (List.of("gzip").equals(headers.get("Content-Encoding"))) {
@@ -767,6 +774,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                     byte[] encoded = data.getValue();
                     // HEAD/304 may retain representation headers without carrying a body.
                     byte[] decoded = encoded.length == 0 ? encoded : CompressionAlgorithm.GZIP.decompress(encoded);
+                    decodedBody = decoded;
                     if (decoded != encoded) {
                         // Decode before type resolution/upcasting; do not decode the body twice.
                         headers.remove("Content-Encoding");
@@ -780,8 +788,22 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             }
             // Streamed HTTP responses carry raw body bytes, not a serialized Java payload.
             // This also accepts chunks from older producers, which omit the serialized type and format.
-            result = messageType == MessageType.WEBREQUEST && m.chunked()
-                    ? m.getData().getValue() : serializer.deserialize(m);
+            try {
+                result = messageType == MessageType.WEBREQUEST && m.chunked()
+                        ? m.getData().getValue() : serializer.deserialize(m);
+            } catch (UnknownSerializedTypeException e) {
+                if (messageType != MessageType.WEBREQUEST || m.chunked() || m.getData().getType() != null
+                    || e.getSerializedType() != null) {
+                    throw e;
+                }
+                // HEAD and other bodyless HTTP responses can retain a JSON content type without a Java type.
+                // Give custom serializers/casters their usual opportunity before accepting this empty body.
+                byte[] body = decodedBody == null ? m.getData().getValue() : decodedBody;
+                if (body.length != 0) {
+                    throw e;
+                }
+                result = body;
+            }
         } catch (Exception e) {
             log.error("Failed to deserialize result with id {}", m.getMessageId(), e);
             return failedResponse(e);

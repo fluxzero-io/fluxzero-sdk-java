@@ -102,10 +102,8 @@ public class DefaultWebRequestContext implements WebRequestContext {
         uri = URI.create(Optional.ofNullable(WebRequest.getUrl(metadata)).orElse(""));
         method = WebRequest.getMethod(metadata);
         requestPath = WebRouteMatcher.normalizePath(uri.getRawPath());
-        origin = Optional.ofNullable(uri.getScheme())
-                .filter(__ -> uri.getHost() != null)
-                .map(scheme -> scheme + "://" + uri.getHost() + Optional.of(uri.getPort())
-                        .filter(p -> p >= 0).map(p -> ":" + p).orElse("")).orElse(null);
+        String routeOrigin = WebRequestRoute.origin(uri);
+        origin = routeOrigin.isEmpty() ? null : routeOrigin;
         queryParameters = parseParameters(uri.getRawQuery());
         Map<String, List<String>> headers = WebRequest.getHeaders(metadata);
         cookieMap = WebRequest.parseCookieHeaders(headers.getOrDefault("Cookie", List.of()))

@@ -52,6 +52,38 @@ public final class WebSocketCapabilities {
     public static final String RUNTIME_SESSION_ID_HEADER = "Fluxzero-Runtime-Session-Id";
     public static final String RUNTIME_VERSION_HEADER = "Fluxzero-Runtime-Version";
 
+    /** Filter languages accepted by the server, including live refresh and independent scan/idle boundaries. */
+    public static final String CONSUMER_FILTER_VERSIONS_HEADER = "Fluxzero-Consumer-Filter-Versions";
+
+    /** Whether this peer advertises the consumer filter language understood by this SDK. Missing means unsupported. */
+    public static boolean supportsConsumerFiltering(Map<String, List<String>> headers) {
+        if (headers == null) {
+            return false;
+        }
+        return headers.entrySet().stream()
+                .filter(entry -> CONSUMER_FILTER_VERSIONS_HEADER.equalsIgnoreCase(entry.getKey()))
+                .flatMap(entry -> entry.getValue().stream())
+                .flatMap(value -> Arrays.stream(value.split(",")))
+                .map(String::strip)
+                .anyMatch(Integer.toString(io.fluxzero.common.api.tracking.ConsumerFilter.VERSION)::equals);
+    }
+
+    /** Highest native message envelope version this peer can read, including packed Model-event blocks. */
+    public static final String MESSAGE_ENVELOPE_VERSION_HEADER = "Fluxzero-Message-Envelope-Version";
+
+    /** Routed native envelopes are sent only after an explicit peer capability. Missing means v1. */
+    public static boolean supportsRoutedEnvelopes(Map<String, List<String>> headers) {
+        if (headers == null) return false;
+        return headers.entrySet().stream()
+                .filter(entry -> MESSAGE_ENVELOPE_VERSION_HEADER.equalsIgnoreCase(entry.getKey()))
+                .filter(entry -> entry.getValue() != null)
+                .flatMap(entry -> entry.getValue().stream()).filter(Objects::nonNull)
+                .anyMatch(value -> {
+                    try { return Integer.parseInt(value.strip()) >= 2; }
+                    catch (NumberFormatException ignored) { return false; }
+                });
+    }
+
     private WebSocketCapabilities() {
     }
 

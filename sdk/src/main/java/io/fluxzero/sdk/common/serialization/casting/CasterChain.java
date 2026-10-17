@@ -43,6 +43,11 @@ public interface CasterChain<I, O> extends Caster<I, O> {
      * @param rev   the target revision number (nullable)
      * @return the first casted result, or {@code null} when no result is produced
      */
+    /** Complete registered input revisions, or null for an unknown/custom casting implementation. */
+    default java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType> inputRevisions() {
+        return null;
+    }
+
     default O castFirstOrNull(I input, Integer rev) {
         return cast(Stream.of(input), rev).findAny().orElse(null);
     }
@@ -108,6 +113,11 @@ public interface CasterChain<I, O> extends Caster<I, O> {
             @Override
             public boolean canSkipCast(BEFORE input, Integer rev) {
                 return CasterChain.this.canSkipCast(before.apply(input), rev);
+            }
+
+            @Override
+            public java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType> inputRevisions() {
+                return CasterChain.this.inputRevisions();
             }
 
             @Override

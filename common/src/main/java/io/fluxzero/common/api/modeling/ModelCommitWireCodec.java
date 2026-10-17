@@ -63,7 +63,12 @@ public final class ModelCommitWireCodec {
      * ordinary transport codec should be used.
      */
     public static byte[] tryEncode(JsonType value) throws IOException {
-        if (value instanceof RequestBatch<?> batch && isSupportedRequestBatch(batch)) {
+        return tryEncode(value, false);
+    }
+
+    /** Encodes routed native envelopes only for a peer that explicitly supports them. */
+    public static byte[] tryEncode(JsonType value, boolean routedEnvelopes) throws IOException {
+        if (value instanceof RequestBatch<?> batch && isSupportedRequestBatch(batch, routedEnvelopes)) {
             return encodeRequests(batch);
         }
         if (value instanceof ResultBatch batch && isSupportedResultBatch(batch)) {
@@ -205,7 +210,7 @@ public final class ModelCommitWireCodec {
                 && result.hasSingleTargetResult();
     }
 
-    private static boolean isSupportedRequestBatch(RequestBatch<?> batch) {
+    private static boolean isSupportedRequestBatch(RequestBatch<?> batch, boolean routedEnvelopes) {
         if (batch.getRequests().isEmpty()) {
             return false;
         }
@@ -221,7 +226,8 @@ public final class ModelCommitWireCodec {
                 return false;
             }
             ModelCommitStep step = commit.getSubsteps().getFirst();
-            if (step.getEvent() == null || !step.isPublishEvent()) {
+            if (step.getEvent() == null || !step.isPublishEvent()
+                    || !routedEnvelopes && step.getEvent().getRoute() != null) {
                 return false;
             }
             if (target.getDocument() != null

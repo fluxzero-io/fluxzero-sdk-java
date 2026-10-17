@@ -73,6 +73,7 @@ import io.fluxzero.sdk.scheduling.client.LocalSchedulingClient;
 import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.DefaultTracking;
 import io.fluxzero.sdk.tracking.TrackingException;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
@@ -161,7 +162,7 @@ import static java.util.stream.Stream.empty;
  * <p>
  * The fixture operates in one of two modes:
  * <ul>
- *   <li>{@link #create(Object...)} — synchronous mode: all handlers are treated as local, executed on the calling thread</li>
+ *   <li>{@link #create(Object...)} — synchronous mode: handlers execute on the calling thread; tracked handlers retain their consumer payload/route selection</li>
  *   <li>{@link #createAsync(Object...)} — asynchronous mode: messages are dispatched and consumed across threads, closely simulating production runtime behavior</li>
  * </ul>
  * In async mode, handlers behave as they would in real deployments. This means:
@@ -397,6 +398,10 @@ public class TestFixture implements Given<TestFixture>, When {
     private FixtureResult fixtureResult = new FixtureResult();
     private MessageType tracedMessageType;
     private String tracedMessageTopic;
+
+    private final SynchronousConsumers synchronousConsumers = new SynchronousConsumers();
+    private final ThreadLocal<Boolean> describingSynchronousConsumers = new ThreadLocal<>();
+    private final ThreadLocal<Object> synchronousRegistrationTarget = new ThreadLocal<>();
 
     private final BeanParameterResolver beanParameterResolver = new BeanParameterResolver();
     private final PropertySource basePropertySource;
@@ -693,17 +698,21 @@ public class TestFixture implements Given<TestFixture>, When {
             }
             HandlerFilter handlerFilter = (c, e) -> true;
             var registration = fc.apply(f -> {
-                Registration local = handlers.stream().flatMap(
-                                h -> Stream.concat(nonScheduleLocalHandlerRegistries(f)
-                                                           .map(r -> r.registerHandler(h, handlerFilter)),
-                                                   ClientUtils.getTopics(CUSTOM, h).stream()
-                                                           .map(topic -> f.customGateway(topic)
-                                                                   .registerHandler(h, handlerFilter))))
-                        .reduce(Registration::merge).orElse(Registration.noOp());
+                Registration local = handlers.stream().map(h -> fixture.withSynchronousRegistrationTarget(h, () -> {
+                    Object target = fixture.synchronousHandler(h);
+                    return Stream.concat(nonScheduleLocalHandlerRegistries(f)
+                                                 .map(r -> r.registerHandler(target, handlerFilter)),
+                                         ClientUtils.getTopics(CUSTOM, h).stream()
+                                                 .map(topic -> f.customGateway(topic)
+                                                         .registerHandler(target, handlerFilter)))
+                            .reduce(Registration::merge).orElse(Registration.noOp());
+                })).reduce(Registration::merge).orElse(Registration.noOp());
                 Registration schedules = scheduleLocalHandlerRegistry(f)
-                        .map(s -> handlers.stream().map(h -> s.registerHandler(h, handlerFilter))
+                        .map(s -> handlers.stream().map(h -> fixture.withSynchronousRegistrationTarget(h,
+                                                               () -> s.registerHandler(fixture.synchronousHandler(h), handlerFilter)))
                                 .reduce(Registration::merge).orElse(Registration.noOp()))
                         .orElse(Registration.noOp());
+                fixture.registration = fixture.registration.merge(fixture.observeSynchronousConsumers(handlers));
                 SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
                 fixture.assignHandlersToConsumers(MessageType.SCHEDULE, handlers)
                         .forEach((configuration, targets) -> targets.forEach(target ->
@@ -713,6 +722,42 @@ public class TestFixture implements Given<TestFixture>, When {
             });
             fixture.registration = fixture.registration.merge(registration);
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object synchronousHandler(Object target) {
+        return target instanceof Handler<?> handler
+                ? synchronousConsumers.wrap(target, (Handler<DeserializingMessage>) handler) : target;
+    }
+
+    private <T> T withSynchronousRegistrationTarget(Object target, java.util.function.Supplier<T> registration) {
+        Object previous = synchronousRegistrationTarget.get();
+        synchronousRegistrationTarget.set(target);
+        try {
+            return registration.get();
+        } finally {
+            if (previous == null) {
+                synchronousRegistrationTarget.remove();
+            } else {
+                synchronousRegistrationTarget.set(previous);
+            }
+        }
+    }
+
+    private Registration observeSynchronousConsumers(List<?> handlers) {
+        Registration result = Registration.noOp();
+        describingSynchronousConsumers.set(true);
+        try {
+            for (MessageType type : MessageType.values()) {
+                if (fluxzero.tracking(type) instanceof DefaultTracking tracking) {
+                    result = result.merge(tracking.observeConsumers(fluxzero, handlers, (configuration, prepared) ->
+                            synchronousConsumers.observe(fluxzero, type, configuration, prepared)));
+                }
+            }
+            return result;
+        } finally {
+            describingSynchronousConsumers.remove();
+        }
     }
 
     private void warnIfDuplicateHandlers(List<?> handlers) {
@@ -2117,7 +2162,8 @@ public class TestFixture implements Given<TestFixture>, When {
             return Stream.of(c);
         }).flatMap(event -> event instanceof SerializedMessage serializedMessage
                 ? fluxzero.serializer().deserializeMessages(Stream.of(serializedMessage), EVENT)
-                        .map(DeserializingMessage::toMessage)
+                        .map(message -> synchronous ? synchronousConsumers.remember(serializedMessage, message.toMessage())
+                                            : message.toMessage())
                 : asMessages(callerClass, event));
     }
 
@@ -2130,7 +2176,9 @@ public class TestFixture implements Given<TestFixture>, When {
     protected <M extends Message> M trace(Object object, MessageType messageType, String topic) {
         Class<?> callerClass = getCallerClass();
         M result = (M) fluxzero.apply(fc -> asMessage(parseObject(object, callerClass)));
-        registerAutomaticHandler(result);
+        if (!synchronous) {
+            registerAutomaticHandler(result);
+        }
         fixtureResult.setTracedMessage(result);
         tracedMessageType = messageType;
         tracedMessageTopic = topic;
@@ -2138,7 +2186,7 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     protected void registerAutomaticHandler(Message message) {
-        if (synchronous || message == null || message.getPayload() == null) {
+        if (message == null || message.getPayload() == null) {
             return;
         }
         Class<?> payloadClass = message.getPayloadClass();
@@ -2168,7 +2216,8 @@ public class TestFixture implements Given<TestFixture>, When {
             handlers.stream().map(this::handlerType)
                     .forEach(type -> automaticHandlerRegistrations.putIfAbsent(type, completion));
             try {
-                registration = registration.merge(fluxzero.registerHandlers(handlers));
+                registration = registration.merge(synchronous ? observeSynchronousConsumers(handlers)
+                                                             : fluxzero.registerHandlers(handlers));
                 completion.complete(null);
             } catch (RuntimeException | Error e) {
                 // Registration may already have installed some handlers. Do not retry and install duplicates.
@@ -2248,7 +2297,8 @@ public class TestFixture implements Given<TestFixture>, When {
             object = JsonUtils.fromFileWithTypeMapper(callerClass, resource, fluxzero.serializer()::resolveTypeName);
         }
         if (object instanceof SerializedMessage s) {
-            object = fluxzero.serializer().deserializeMessage(s, EVENT).toMessage();
+            Message message = fluxzero.serializer().deserializeMessage(s, EVENT).toMessage();
+            object = synchronous ? synchronousConsumers.remember(s, message) : message;
         } else if (object instanceof SerializedObject<?> s) {
             SerializedObject<byte[]> eventBytes = s.data().getValue() instanceof byte[]
                     ? (SerializedObject<byte[]>) s
@@ -2299,6 +2349,9 @@ public class TestFixture implements Given<TestFixture>, When {
         private TestFixture testFixture;
 
         private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
+        private final Map<ScheduleInputKey, SerializedMessage> scheduleInputs = new ConcurrentHashMap<>();
+
+        private record ScheduleInputKey(String namespace, String scheduleId) {}
         private final Map<LocalSchedulingClient, Registration> schedulingMonitors = new ConcurrentHashMap<>();
         private final Map<InterceptedMessage, DispatchOrigin> dispatchOrigins = new ConcurrentHashMap<>();
         private final ConcurrentLinkedQueue<Message> storedEvents = new ConcurrentLinkedQueue<>();
@@ -2311,6 +2364,12 @@ public class TestFixture implements Given<TestFixture>, When {
                 InterceptedMessage key = new InterceptedMessage(
                         messageType, topic, serializedMessage.getMessageId());
                 try {
+                    if (messageType == SCHEDULE) {
+                        String scheduleId = serializedMessage.getMetadata().get(Schedule.scheduleIdMetadataKey);
+                        if (scheduleId != null) {
+                            scheduleInputs.put(new ScheduleInputKey(namespace, scheduleId), serializedMessage);
+                        }
+                    }
                     if (messageType == DOCUMENT) {
                         testFixture.fluxzero.serializer().deserializeMessages(Stream.of(serializedMessage), DOCUMENT)
                                 .forEach(message -> monitorDispatch(
@@ -2326,10 +2385,11 @@ public class TestFixture implements Given<TestFixture>, When {
                         // A rejected lifetime or ignored ifAbsent must not replace accepted pending work.
                         registerPendingMessage(message.toMessage(), messageType, topic, namespace,
                                                serializedMessage.getSegment(), serializedMessage.getIndex());
+                        recordStoredPosition(messageType, topic, namespace, serializedMessage);
                     }
                     if (dispatchOrigins.remove(key, DispatchOrigin.SDK)) {
                         if (message == null) {
-                            recordStoredPosition(messageType, topic, serializedMessage);
+                            recordStoredPosition(messageType, topic, namespace, serializedMessage);
                         }
                         continue;
                     }
@@ -2344,9 +2404,10 @@ public class TestFixture implements Given<TestFixture>, When {
                     DispatchOrigin previous = dispatchOrigins.putIfAbsent(key, DispatchOrigin.STORED);
                     if (previous == DispatchOrigin.SDK) {
                         dispatchOrigins.remove(key, DispatchOrigin.SDK);
-                        recordStoredPosition(messageType, topic, serializedMessage);
+                        recordStoredPosition(messageType, topic, namespace, serializedMessage);
                     } else if (previous == null) {
                         monitorStoredDispatch(message, messageType, topic, namespace);
+                        recordStoredPosition(messageType, topic, namespace, serializedMessage);
                     }
                 } catch (Exception ignored) {
                     dispatchOrigins.remove(key, DispatchOrigin.STORED);
@@ -2514,7 +2575,15 @@ public class TestFixture implements Given<TestFixture>, When {
                                 ? publishedSchedules : Collections.<Message>emptyList()).stream().filter(
                                         m -> ofNullable(c.getConfiguration().getTypeFilter())
                                                 .map(f -> m.getPayload().getClass()
-                                                        .getName().matches(f)).orElse(true)).toList()));
+                                                        .getName().matches(f)).orElse(true))
+                                        .filter(m -> {
+                                            var blueprint = c.getConfiguration().getConsumerBlueprint();
+                                            var original = scheduleInputs.get(new ScheduleInputKey(
+                                                    effectiveNamespace(c.getConfiguration()), ((Schedule) m).getScheduleId()));
+                                            return blueprint == null || original == null
+                                                   || !Objects.equals(original.getMessageId(), m.getMessageId())
+                                                   || blueprint.mayHandle(original);
+                                        }).toList()));
             }
             return b -> {
                 Map<PendingConsumer, Set<Message>> completedDocuments = tracker.getMessageType() == DOCUMENT
@@ -2557,13 +2626,30 @@ public class TestFixture implements Given<TestFixture>, When {
             };
         }
 
-        private void recordStoredPosition(MessageType messageType, String topic, SerializedMessage message) {
+        private void recordStoredPosition(MessageType messageType, String topic, String namespace,
+                                          SerializedMessage message) {
             synchronized (testFixture.consumers) {
-                testFixture.consumers.entrySet().stream()
-                        .filter(e -> e.getKey().getMessageType() == messageType
-                                     && Objects.equals(e.getKey().getTopic(), topic))
-                        .forEach(e -> e.getValue().recordStoredPosition(
-                                message.getMessageId(), message.getSegment(), message.getIndex()));
+                boolean excluded = false;
+                for (var entry : testFixture.consumers.entrySet()) {
+                    if ((entry.getKey().getMessageType() != messageType
+                         && !(entry.getKey().getMessageType() == NOTIFICATION && messageType == EVENT))
+                        || !Objects.equals(entry.getKey().getTopic(), topic)
+                        || !Objects.equals(effectiveNamespace(entry.getKey().getConfiguration()), namespace)) {
+                        continue;
+                    }
+                    var blueprint = entry.getKey().getConfiguration().getConsumerBlueprint();
+                    if (blueprint != null && !blueprint.mayHandle(message)) {
+                        // A filtered read may stay open: no batch acknowledgement will arrive for this input.
+                        entry.getValue().removeMessage(message.getMessageId());
+                        excluded = true;
+                    } else {
+                        entry.getValue().recordStoredPosition(
+                                message.getMessageId(), message.getSegment(), message.getIndex());
+                    }
+                }
+                if (excluded) {
+                    testFixture.checkConsumers();
+                }
             }
         }
 
@@ -2728,6 +2814,12 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         @Override
+        public io.fluxzero.common.api.tracking.ConsumerFilter describeConsumerFilter(
+                io.fluxzero.common.api.tracking.ConsumerFilter downstream) {
+            return downstream;
+        }
+
+        @Override
         public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {
             return delegate.intercept(consumer, tracker);
         }
@@ -2744,6 +2836,30 @@ public class TestFixture implements Given<TestFixture>, When {
 
         private HighPriorityHandlerInterceptor(GivenWhenThenInterceptor delegate) {
             this.delegate = delegate;
+        }
+
+        @Override
+        public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
+            Handler<DeserializingMessage> intercepted = HandlerInterceptor.super.wrap(handler);
+            TestFixture fixture = delegate.testFixture;
+            if (!fixture.synchronous) {
+                return intercepted;
+            }
+            if (Boolean.TRUE.equals(fixture.describingSynchronousConsumers.get())) {
+                return new Handler.DelegatingHandler<>(intercepted) {
+                    @Override
+                    public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
+                        return delegate.getConsumerFilter();
+                    }
+
+                    @Override
+                    public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                        return Optional.empty();
+                    }
+                };
+            }
+            Object target = fixture.synchronousRegistrationTarget.get();
+            return fixture.synchronousConsumers.wrap(target == null ? handler.getTargetClass() : target, intercepted);
         }
 
         @Override

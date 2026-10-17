@@ -139,6 +139,11 @@ class ChatSession {
 
 Stateful sessions are ideal for authentication, accumulating messages, buffering, or managing cursors and sequences.
 
+You can combine `@SocketEndpoint` with `@ServeStatic` on the same class. Static files are available independently of
+socket sessions, including before opening and after closing one. A class/package `@Path` also contributes to the
+static mount. Register the endpoint by class and test both HTTP assets and socket lifecycle messages at that prefix;
+the same rules apply in Java and Kotlin.
+
 <Aside type="note">
 @SocketEndpoint handlers are prototype-scoped—one instance per session.
 </Aside>

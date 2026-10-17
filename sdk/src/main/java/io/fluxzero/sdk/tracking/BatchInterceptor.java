@@ -14,11 +14,17 @@
 
 package io.fluxzero.sdk.tracking;
 
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.function.Consumer;
 
@@ -73,7 +79,60 @@ public interface BatchInterceptor {
      * Returns a no-op interceptor that does not alter the consumer behavior.
      */
     static BatchInterceptor noOp() {
-        return (c, t) -> c;
+        return preservingConsumerFilter((c, t) -> c);
+    }
+
+    /**
+     * Describes serialized inputs needed by this interceptor and its downstream consumer. The default is
+     * unrestricted because interceptors can transform messages or require inputs that no handler accepts.
+     * Implementations may return {@code downstream} only when excluded inputs are irrelevant to their behavior and
+     * they never transform an excluded input into one the downstream filter admits. Custom inverse projections
+     * describe the input side of a transformation; this method runs after serializer/upcaster projection.
+     */
+    default ConsumerFilter describeConsumerFilter(ConsumerFilter downstream) {
+        return ConsumerFilter.unrestricted();
+    }
+
+    /**
+     * Marks an interceptor as preserving downstream selection. Use for observers that only need handler-relevant
+     * messages and do not expand the accepted inputs. This is an explicit promise, not an analysis of the lambda.
+     * Invocation, shutdown and the wrapped interceptor's {@link io.fluxzero.sdk.common.Order} are preserved.
+     */
+    static BatchInterceptor preservingConsumerFilter(BatchInterceptor interceptor) {
+        return new FilterPreserving(Objects.requireNonNull(interceptor));
+    }
+
+    /** Ordered application and consumer interceptors, shared by execution and input selection. */
+    static List<BatchInterceptor> effectiveInterceptors(ConsumerConfiguration configuration, MessageType type,
+                                                       Fluxzero fluxzero) {
+        List<BatchInterceptor> result = new ArrayList<>();
+        result.add(new FluxzeroInterceptor(fluxzero));
+        result.addAll(configuration.getBatchInterceptors().stream()
+                .sorted(Comparator.comparingInt(ClientUtils::orderOf)).toList());
+        result.addAll(fluxzero.configuration().batchInterceptors().getOrDefault(type, List.of()));
+        return List.copyOf(result);
+    }
+
+    /** Explicit selection-preserving wrapper; use {@link #preservingConsumerFilter(BatchInterceptor)}. */
+    record FilterPreserving(BatchInterceptor delegate) implements BatchInterceptor {
+        public FilterPreserving {
+            Objects.requireNonNull(delegate);
+        }
+
+        @Override
+        public ConsumerFilter describeConsumerFilter(ConsumerFilter downstream) {
+            return downstream;
+        }
+
+        @Override
+        public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {
+            return delegate.intercept(consumer, tracker);
+        }
+
+        @Override
+        public void shutdown(Tracker tracker) {
+            delegate.shutdown(tracker);
+        }
     }
 
     /**
@@ -104,6 +163,14 @@ public interface BatchInterceptor {
     default BatchInterceptor andThen(BatchInterceptor nextInterceptor) {
         return new BatchInterceptor() {
             @Override
+            public ConsumerFilter describeConsumerFilter(ConsumerFilter downstream) {
+                ConsumerFilter next = nextInterceptor.describeConsumerFilter(downstream);
+                ConsumerFilter result = BatchInterceptor.this.describeConsumerFilter(
+                        next == null ? ConsumerFilter.unrestricted() : next);
+                return result == null ? ConsumerFilter.unrestricted() : result;
+            }
+
+            @Override
             public Consumer<MessageBatch> intercept(Consumer<MessageBatch> c, Tracker t) {
                 return BatchInterceptor.this.intercept(nextInterceptor.intercept(c, t), t);
             }
@@ -124,6 +191,6 @@ public interface BatchInterceptor {
      * @return a composite interceptor
      */
     static BatchInterceptor join(List<BatchInterceptor> interceptors) {
-        return interceptors.stream().reduce(BatchInterceptor::andThen).orElse((c, t) -> c);
+        return interceptors.stream().reduce(BatchInterceptor::andThen).orElseGet(BatchInterceptor::noOp);
     }
 }

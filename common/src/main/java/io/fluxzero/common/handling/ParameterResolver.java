@@ -140,4 +140,12 @@ public interface ParameterResolver<M> {
     default boolean mayApply(Executable method, Class<?> targetClass) {
         return true;
     }
+
+    /**
+     * Conservative per-parameter applicability used to derive delivery metadata. Returning false promises that this
+     * resolver never supplies this parameter. The default preserves unknown/custom resolver behavior.
+     */
+    default boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
+        return true;
+    }
 }

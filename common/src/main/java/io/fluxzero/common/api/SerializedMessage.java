@@ -45,11 +45,17 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     private volatile String messageId;
     private transient volatile Integer originalRevision;
 
+    /**
+     * Optional logical destination used for consumer selection independently of the payload type. Its meaning belongs
+     * to the message type and producer; a missing value leaves route-based delivery unrestricted.
+     */
+    private volatile String route;
+
     public SerializedMessage(
             Data<byte[]> data, Metadata metadata,
             String messageId, Long timestamp) {
         this(data, metadata, null, null, null, null, null,
-             timestamp, messageId, null);
+             timestamp, messageId, null, null);
     }
 
     /** Returns the payload revision before any upcasting. */
@@ -66,7 +72,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     public SerializedMessage withData(@NonNull Data<byte[]> data) {
         return this.data == data ? this : new SerializedMessage(
                 data, metadata, segment, index, source, target, requestId,
-                timestamp, messageId, getOriginalRevision());
+                timestamp, messageId, getOriginalRevision(), getRoute());
     }
 
     @Override

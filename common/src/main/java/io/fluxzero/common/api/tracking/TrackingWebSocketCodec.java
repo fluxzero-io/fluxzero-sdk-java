@@ -30,7 +30,12 @@ public enum TrackingWebSocketCodec implements WebSocketPayloadCodec {
 
     @Override
     public byte[] tryEncode(JsonType value, WebSocketTransportFormat format) throws IOException {
-        return format == BINARY ? TrackingWireCodec.tryEncode(value) : null;
+        return tryEncode(value, format, false);
+    }
+
+    @Override
+    public byte[] tryEncode(JsonType value, WebSocketTransportFormat format, boolean routedEnvelopes) throws IOException {
+        return format == BINARY ? TrackingWireCodec.tryEncode(value, routedEnvelopes) : null;
     }
 
     @Override

@@ -112,12 +112,29 @@ class ModelEventWireCodecTest {
     }
 
     @Test
+    void routedModelPayloadsUseNativeEnvelopesOnlyForCapablePeers() throws Exception {
+        var event = new SerializedMessage(new Data<>(new byte[]{1}, "event", 0), Metadata.empty(), "id", 0L);
+        event.setRoute("partition/one");
+        var result = new GetModelEventsResult(1L, 10L, true, List.of(new ModelEventPayload(10L, event)),
+                List.of(), new long[0], List.of(), new long[0], List.of());
+        for (io.fluxzero.common.api.JsonType value : List.of(result, new ResultBatch(List.of(result)))) {
+            assertNull(ModelEventWireCodec.tryEncode(value));
+            var decoded = ModelEventWireCodec.tryDecode(ModelEventWireCodec.tryEncode(value, true));
+            var page = decoded instanceof ResultBatch batch ? (GetModelEventsResult) batch.getResults().getFirst()
+                    : (GetModelEventsResult) decoded;
+            assertEquals(result.getRequestId(), page.getRequestId());
+            assertEquals(result.getStateIndex(), page.getStateIndex());
+            assertEquals(result.getPayloads(), page.getPayloads());
+        }
+    }
+
+    @Test
     void roundTripsHeadsMembershipsRegularAndPersistedPayloads() throws Exception {
         SerializedMessage regular =
                 new SerializedMessage(
                         new Data<>(new byte[]{1, 2, 3}, "event", 2, "application/json"),
                         Metadata.of("tenant", "one"),
-                        3, 80L, "source", "target", 9, 1234L, "message-1", null);
+                        3, 80L, "source", "target", 9, 1234L, "message-1", null, null);
         GetModelEventsResult result =
                 new GetModelEventsResult(
                         99L,

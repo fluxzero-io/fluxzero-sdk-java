@@ -149,6 +149,10 @@ public class CachingTrackingClient implements TrackingClient {
 
     @Override
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex, ConsumerConfiguration config) {
+        if (config.getConsumerBlueprint() != null && delegate.supportsConsumerFiltering()) {
+            return delegate.read(trackerId, lastIndex, config);
+        }
+
         var pending = new PendingRead(config.getName(), trackerId);
         var result = readBatch(trackerId, lastIndex, config, pending);
         if (!result.isDone()) {
@@ -316,7 +320,7 @@ public class CachingTrackingClient implements TrackingClient {
                                                            ConsumerConfiguration config) {
         Predicate<SerializedMessage> predicate
                 = m -> (config.getTypeFilter() == null || m.getType() == null
-                || config.getTypeFilter().matches(m.getType())) && position.isNewMessage(m);
+                || m.getType().matches(config.getTypeFilter())) && position.isNewMessage(m);
         if (!config.ignoreSegment()) {
             predicate = predicate.and(m -> segmentRange[1] != 0 && m.getSegment() >= segmentRange[0]
                     && m.getSegment() < segmentRange[1]);
@@ -343,6 +347,11 @@ public class CachingTrackingClient implements TrackingClient {
         for (int i = 0; i < removeCount; i++) {
             cache.pollFirstEntry();
         }
+    }
+
+    @Override
+    public boolean supportsConsumerFiltering() {
+        return delegate.supportsConsumerFiltering();
     }
 
     @Override
@@ -386,6 +395,7 @@ public class CachingTrackingClient implements TrackingClient {
     public Position getPosition(String consumer) {
         return delegate.getPosition(consumer);
     }
+
 
     @Override
     public CompletableFuture<Void> disconnectTracker(String consumer, String trackerId, boolean sendFinalEmptyBatch, Guarantee guarantee) {

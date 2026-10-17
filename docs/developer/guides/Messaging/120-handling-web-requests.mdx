@@ -42,6 +42,9 @@ fun hello() = "Hello, world!"
 Register the handler with your application, or use Spring's `@Component`. A `GET /hello` request then returns
 `Hello, world!`. See [Hello world](/docs/getting-started/hello-world) for the local setup.
 
+A `@HandleGet` without a mapping value or `@Path` serves `/`. Empty request URLs also resolve to this root;
+automatic HEAD and OPTIONS use the same route. This applies in Java and Kotlin.
+
 ### Multiple paths or methods
 
 Use the general-purpose `@HandleWeb` annotation if you want to support multiple paths, multiple methods, or define a custom method:

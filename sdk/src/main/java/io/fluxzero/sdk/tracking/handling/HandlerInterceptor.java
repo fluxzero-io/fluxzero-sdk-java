@@ -392,6 +392,11 @@ public interface HandlerInterceptor extends HandlerDecorator {
         }
 
         @Override
+        public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
+            return getClass() == InterceptedHandler.class ? delegate.getConsumerFilter() : null;
+        }
+
+        @Override
         public Class<?> getTargetClass() {
             return delegate.getTargetClass();
         }
@@ -688,6 +693,11 @@ public interface HandlerInterceptor extends HandlerDecorator {
                         current.interceptor().interceptHandling(nextMessage, descriptor, combiner, next);
             }
             return new PreparedInterceptorPlan(chain, supportsHandlerMethod, false);
+        }
+
+        @Override
+        public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
+            return getClass() == PreparedInterceptedHandler.class ? delegate.getConsumerFilter() : null;
         }
 
         @Override

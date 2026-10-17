@@ -214,7 +214,7 @@ class ModelCommitAssignmentTest {
         return new SerializedMessage(
                 new Data<>(id.getBytes(), "event", 0, "application/octet-stream"),
                 Metadata.empty(), null, null, null, null, null,
-                System.currentTimeMillis(), id, null);
+                System.currentTimeMillis(), id, null, null);
     }
 
     private static <H extends ModelCommitAssignment.Head>

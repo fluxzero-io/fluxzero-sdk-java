@@ -266,6 +266,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                                     EntityHelper entityHelper, Serializer serializer,
                                     DispatchInterceptor dispatchInterceptor, CommitHandler commitHandler) {
         super(delegate);
+        DefaultEntityHelper.requireAggregateRoot(delegate);
         this.entityHelper = entityHelper;
         this.activeAggregateContext = activeAggregateContext;
         this.lastCommitted = delegate;
@@ -307,7 +308,11 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     @Override
     public Entity<T> update(UnaryOperator<T> function) {
-        return handleUpdate(a -> a.update(function));
+        return handleUpdate(a -> {
+            Entity<T> result = a.update(function);
+            DefaultEntityHelper.requireAggregateRoot(result);
+            return result;
+        });
     }
 
     @Override
@@ -349,7 +354,9 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             EntityMetadata.TransitionDecision decision = settings.decide(
                     modified, false, !configuration.eventSourced());
             boolean eventRequired = decision.storeEvent() || decision.publishEvent();
+            Entity<T> effectiveRoot = decision.updateState() ? result : a;
             if (eventRequired) {
+                DefaultEntityHelper.requireAggregateType(effectiveRoot.type());
                 if (!interceptBeforeApply) {
                     dispatchMessage = dispatchInterceptor.interceptDispatch(message, EVENT, null);
                     if (dispatchMessage == null) {
@@ -367,6 +374,8 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                 applied.add(new AppliedEvent(new DeserializingMessage(serializedEvent, type ->
                         serializer.convert(appliedMessage.getPayload(), type), EVENT, null, serializer),
                                              settings.eventStrategy()));
+            } else {
+                DefaultEntityHelper.requireAggregateRoot(effectiveRoot);
             }
             if (!decision.updateState()) {
                 return a;

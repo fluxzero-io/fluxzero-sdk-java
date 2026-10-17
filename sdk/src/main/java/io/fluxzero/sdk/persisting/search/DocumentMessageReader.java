@@ -307,7 +307,7 @@ public final class DocumentMessageReader {
                                       DocumentSource original) {
             super(data, metadata, segment, source.getIndex(), source.getSource(),
                   source.getTarget(), source.getRequestId(), source.getTimestamp(), source.getMessageId(),
-                  source.getOriginalRevision());
+                  source.getOriginalRevision(), source.getRoute());
             this.original = original;
         }
 

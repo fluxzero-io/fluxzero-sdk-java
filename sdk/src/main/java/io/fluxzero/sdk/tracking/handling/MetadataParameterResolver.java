@@ -52,6 +52,12 @@ public class MetadataParameterResolver extends TypedParameterResolver<Object>
     }
 
     @Override
+    public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
+        return getClass() == MetadataParameterResolver.class ? Metadata.class.isAssignableFrom(parameter.getType())
+                : mayApply(parameter.getDeclaringExecutable(), targetClass);
+    }
+
+    @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> m instanceof HasMetadata hasMetadata ? hasMetadata.getMetadata()
                 : ofNullable(DeserializingMessage.getCurrent()).map(DeserializingMessage::getMetadata).orElse(null);

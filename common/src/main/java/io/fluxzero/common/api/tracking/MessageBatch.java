@@ -14,10 +14,15 @@
 
 package io.fluxzero.common.api.tracking;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.fluxzero.common.api.SerializedMessage;
 import lombok.Value;
 import lombok.With;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.NonFinal;
 
 import java.util.Arrays;
 import java.util.List;
@@ -34,6 +39,7 @@ import java.util.List;
  * determine which messages are truly relevant for processing.
  */
 @Value
+@NonFinal
 public class MessageBatch {
 
     /**
@@ -63,6 +69,63 @@ public class MessageBatch {
      * Indicates whether the tracker has caught up with all available messages in the log.
      */
     boolean caughtUp;
+
+    /** Creates an ordinary data batch; the optional filter-control flag is handled by the JSON factory. */
+    @JsonCreator(mode = JsonCreator.Mode.DISABLED)
+    public MessageBatch(int[] segment, List<SerializedMessage> messages, Long lastIndex, Position position,
+                        boolean caughtUp) {
+        this.segment = segment;
+        this.messages = messages;
+        this.lastIndex = lastIndex;
+        this.position = position;
+        this.caughtUp = caughtUp;
+    }
+
+    @JsonCreator
+    private static MessageBatch fromJson(@JsonProperty("segment") int[] segment,
+                                         @JsonProperty("messages") List<SerializedMessage> messages,
+                                         @JsonProperty("lastIndex") Long lastIndex,
+                                         @JsonProperty("position") Position position,
+                                         @JsonProperty("caughtUp") boolean caughtUp,
+                                         @JsonProperty("consumerFilterRequired") boolean consumerFilterRequired) {
+        return consumerFilterRequired ? requireConsumerFilter()
+                : new MessageBatch(segment, messages, lastIndex, position, caughtUp);
+    }
+
+    /**
+     * Requests a full consumer filter snapshot before this read can be admitted. No segment has been claimed and no
+     * position has advanced. Tracking clients absorb this control response and retry with the current full snapshot.
+     */
+    public static MessageBatch requireConsumerFilter() {
+        return new ConsumerFilterRequired();
+    }
+
+    /** Whether this response requests a full snapshot instead of delivering a message batch. */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    public boolean isConsumerFilterRequired() {
+        return false;
+    }
+
+    @EqualsAndHashCode(callSuper = true)
+    private static final class ConsumerFilterRequired extends MessageBatch {
+        private ConsumerFilterRequired() {
+            super(new int[]{0, 0}, List.of(), null, Position.newPosition(), false);
+        }
+
+        @Override
+        @JsonInclude(JsonInclude.Include.ALWAYS)
+        public boolean isConsumerFilterRequired() {
+            return true;
+        }
+
+        @Override
+        public MessageBatch withMessages(List<SerializedMessage> messages) {
+            if (!messages.isEmpty()) {
+                throw new IllegalArgumentException("A filter request cannot contain messages");
+            }
+            return this;
+        }
+    }
 
     /**
      * Indicates whether this message batch is empty.

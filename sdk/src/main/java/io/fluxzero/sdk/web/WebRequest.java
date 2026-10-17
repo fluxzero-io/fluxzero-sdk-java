@@ -190,10 +190,10 @@ public class WebRequest extends Message {
      */
     @Override
     public SerializedMessage serialize(Serializer serializer) {
-        return Optional.ofNullable(getContentType()).map(
+        return WebRequestRoute.update(Optional.ofNullable(getContentType()).map(
                         format -> new SerializedMessage(serializer.serialize(getPayload(), format), getMetadata(),
                                                         getMessageId(), getTimestamp().toEpochMilli()))
-                .orElseGet(() -> super.serialize(serializer));
+                .orElseGet(() -> super.serialize(serializer)));
     }
 
     @Override

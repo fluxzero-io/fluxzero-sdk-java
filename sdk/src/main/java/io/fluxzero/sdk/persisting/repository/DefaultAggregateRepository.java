@@ -39,6 +39,7 @@ import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.ImmutableAggregateRoot;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.LazyAggregateRoot;
 import io.fluxzero.sdk.modeling.ModifiableAggregateRoot;
@@ -248,6 +249,14 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         } else {
             knownType = type;
         }
+        if (!Object.class.equals(knownType)) {
+            if (ReflectionUtils.getTypeMetadata(knownType).typeAnnotation(Model.class) != null) {
+                // Preserve loadEntity's fallback to the independent Model repository.
+                throw new EventSourcingException("Type %s is an independent @Model; use loadModel instead."
+                                                         .formatted(knownType.getName()));
+            }
+            DefaultEntityHelper.requireAggregateType(knownType);
+        }
         Class<?> delegateType = knownType;
         if (Entity.isLoading()) {
             return new NoOpEntity<>(() -> (Entity<T>) delegates.apply(delegateType).load(aggregateId));
@@ -346,6 +355,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
     @Override
     public CompletableFuture<Void> repairRelationships(Entity<?> aggregate) {
         aggregate = aggregate.root();
+        DefaultEntityHelper.requireAggregateType(aggregate.type());
         return eventStoreClient.repairRelationships(new RepairRelationships(
                 aggregate.id().toString(), aggregate.type().getName(),
                 aggregate.relationships().stream().map(Relationship::getEntityId).collect(toSet()), STORED));
@@ -535,6 +545,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         @SuppressWarnings("unchecked")
         protected Entity<T> eventSourceModel(Entity<T> model) {
             try {
+                DefaultEntityHelper.requireAggregateRoot(model);
                 if (configuration.eventSourced()) {
                     AggregateEventStream<DeserializingMessage> eventStream
                             = eventStore.getEvents(model.id().toString(), model.sequenceNumber(), -1,
@@ -549,7 +560,9 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                                         current = current.withType((Class<T>) inferred);
                                     }
                                 }
-                                return current.apply(next);
+                                Entity<T> updated = current.apply(next);
+                                DefaultEntityHelper.requireAggregateRoot(updated);
+                                return updated;
                             },
                             (current, next, error) -> new EventSourcingException(format(
                                     "Failed to apply event %s to aggregate %s.", next.getIndex(), current.id()), error));
@@ -570,6 +583,11 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
          * the required storage operations.
          */
         public CompletableFuture<Void> commit(Entity<?> after, List<AppliedEvent> unpublishedEvents, Entity<?> before) {
+            if (!unpublishedEvents.isEmpty()) {
+                DefaultEntityHelper.requireAggregateType(after.type());
+            } else {
+                DefaultEntityHelper.requireAggregateRoot(after);
+            }
             Class<?> aggregateType = after.get() == null && before != null ? before.type() : after.type();
             if (aggregateType != null && !Objects.equals(aggregateType, type)) {
                 return delegates.apply(aggregateType).commit(after, unpublishedEvents, before);

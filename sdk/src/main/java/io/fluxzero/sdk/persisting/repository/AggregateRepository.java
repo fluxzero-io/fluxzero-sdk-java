@@ -78,6 +78,7 @@ public interface AggregateRepository extends Namespaced<AggregateRepository> {
      * @param aggregateId   the aggregate identifier.
      * @param <T>           the aggregate type.
      * @return the loaded aggregate wrapped in an {@link Entity}.
+     * @throws IllegalArgumentException if the known root type has no aggregate marker
      */
     @SuppressWarnings("unchecked")
     default <T> Entity<T> load(@NotNull Object aggregateId) {
@@ -86,12 +87,15 @@ public interface AggregateRepository extends Namespaced<AggregateRepository> {
     }
 
     /**
-     * Load an aggregate by its identifier and type.
+     * Load an aggregate by its identifier and type. The root type must declare or inherit
+     * {@link io.fluxzero.sdk.modeling.Aggregate @Aggregate}. An empty, untyped {@link Object} root is allowed until
+     * its type becomes known; the default repository validates inferred types and newly created roots as well.
      *
      * @param aggregateId   the aggregate identifier.
      * @param aggregateType the expected class type.
      * @param <T>           the aggregate type.
      * @return the loaded aggregate wrapped in an {@link Entity}.
+     * @throws IllegalArgumentException if the known root type has no aggregate marker
      */
     <T> Entity<T> load(@NonNull Object aggregateId, Class<T> aggregateType);
 

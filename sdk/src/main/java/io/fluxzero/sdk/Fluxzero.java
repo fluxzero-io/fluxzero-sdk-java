@@ -1071,6 +1071,8 @@ public interface Fluxzero extends AutoCloseable {
      * Typed identifiers whose declared type is an independent {@link Model} are delegated to the model repository. This
      * preserves source-compatible typed loads while migrating an aggregate root to an independent model.
      *
+     * @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit
+     *                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Id<T> aggregateId) {
@@ -1087,6 +1089,8 @@ public interface Fluxzero extends AutoCloseable {
      * If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be
      * played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.
      *
+     * @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit
+     *                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Object aggregateId) {
@@ -1099,6 +1103,8 @@ public interface Fluxzero extends AutoCloseable {
      * If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be
      * played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.
      *
+     * @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit
+     *                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Object aggregateId, Class<T> aggregateType) {
@@ -1274,6 +1280,8 @@ public interface Fluxzero extends AutoCloseable {
      * If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be
      * played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.
      *
+     * @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit
+     *                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregateFor(Object entityId, Class<?> defaultType) {
@@ -1292,6 +1300,8 @@ public interface Fluxzero extends AutoCloseable {
      * If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be
      * played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.
      *
+     * @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit
+     *                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregateFor(Object entityId) {

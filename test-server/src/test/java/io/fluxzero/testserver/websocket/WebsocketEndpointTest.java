@@ -60,6 +60,36 @@ import static org.mockito.Mockito.when;
 class WebsocketEndpointTest {
 
     @Test
+    void binarySessionsWithDifferentEnvelopeCapabilitiesNeverShareTheWrongEncoder() throws Exception {
+        for (boolean firstModern : List.of(false, true)) {
+            var endpoint = new TestEndpoint() {
+                @Override protected List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec> payloadCodecs() {
+                    return List.of(io.fluxzero.common.api.tracking.TrackingWebSocketCodec.INSTANCE);
+                }
+            };
+            try {
+                var message = new io.fluxzero.common.api.SerializedMessage(
+                        new io.fluxzero.common.api.Data<>(new byte[0], null, 0),
+                        io.fluxzero.common.api.Metadata.empty(), "route", 0L);
+                message.setRoute("GET /path");
+                var request = new io.fluxzero.common.api.publishing.Append(
+                        io.fluxzero.common.MessageType.WEBREQUEST, List.of(message), STORED);
+                for (boolean modern : List.of(firstModern, !firstModern, firstModern)) {
+                    var session = session("peer-" + java.util.UUID.randomUUID());
+                    session.getUserProperties().put(WebsocketDeploymentUtils.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
+                            io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY);
+                    session.getUserProperties().put(WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY, modern
+                            ? Map.of(WebSocketCapabilities.MESSAGE_ENVELOPE_VERSION_HEADER, List.of("2")) : Map.of());
+                    var codec = endpoint.transportCodec(session);
+                    byte[] bytes = codec.encode(request);
+                    assertEquals(modern, io.fluxzero.common.api.tracking.TrackingWireCodec.tryDecode(bytes) != null);
+                    assertEquals(request, codec.decode(bytes));
+                }
+            } finally { endpoint.shutDown(); }
+        }
+    }
+
+    @Test
     void closedTransportIsNotLoggedAsWebsocketError() {
         Logger logger = (Logger) LoggerFactory.getLogger(WebsocketEndpoint.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();

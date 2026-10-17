@@ -58,6 +58,11 @@ import java.lang.annotation.Target;
  * Aggregates can be loaded using methods like {@link io.fluxzero.sdk.Fluxzero#loadAggregate}. Updates
  * are applied via {@link Apply @Apply} methods, and legality checks can be enforced using
  * {@link AssertLegal @AssertLegal}.
+ * <p>SDK 2.x requires this annotation on every persistent aggregate root. An annotation inherited from an interface
+ * or superclass also qualifies. Loading a known unannotated root fails; an untyped root is checked as soon as its
+ * concrete type is known, including during creation or replay. Bare aggregate-value parameters additionally require
+ * the marker on their declared type for implicit message-handler injection. Ordinary members and side-effect-free
+ * {@code asEntity(...)} wrappers do not need this annotation.
  *
  * <h2>Child Entities</h2>
  * Use {@link Member} to define child, grandchild, or other descendant entities in the aggregate. These entities can

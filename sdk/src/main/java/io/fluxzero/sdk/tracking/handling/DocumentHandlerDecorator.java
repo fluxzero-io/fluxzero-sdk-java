@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -112,6 +113,11 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
 
         protected DocumentHandler(Handler<DeserializingMessage> delegate) {
             this.delegate = delegate;
+        }
+
+        @Override
+        public ConsumerFilter getConsumerFilter() {
+            return getClass() == DocumentHandler.class ? delegate.getConsumerFilter() : null;
         }
 
         @Override

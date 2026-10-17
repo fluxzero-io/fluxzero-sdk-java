@@ -45,6 +45,9 @@ public final class BinaryWire {
     private static final int ENVELOPE_MAGIC = 0x465A4D45; // FZME
     private static final int ENVELOPE_VERSION = 1;
     private static final int ENVELOPE_HEADER_SIZE = 72;
+    private static final int ROUTED_ENVELOPE_VERSION = 2;
+    private static final int ROUTE_LENGTH_OFFSET = 72;
+    private static final int ROUTED_ENVELOPE_HEADER_SIZE = 76;
     private static final int FLAGS_OFFSET = 5;
     private static final int TOTAL_LENGTH_OFFSET = 8;
     private static final int SEGMENT_OFFSET = 12;
@@ -147,7 +150,7 @@ public final class BinaryWire {
         Data.ByteArrayView metadataView = encodedMetadata.byteArrayView();
         int metadataLength = metadataView == null
                 ? length(encodedMetadata.getValue()) : metadataView.length();
-        long result = ENVELOPE_HEADER_SIZE
+        long result = headerSize(message) + positiveLength(utf8Length(message.getRoute()))
                       + positiveLength(utf8Length(data.getType()))
                       + positiveLength(utf8Length(data.getFormat()))
                       + positiveLength(utf8Length(message.getSource()))
@@ -201,7 +204,7 @@ public final class BinaryWire {
         Data<byte[]> metadataData = (metadata == null ? Metadata.empty() : metadata).toData();
         Data.ByteArrayView metadataView = metadataData.byteArrayView();
         int metadataLength = metadataView == null ? length(metadataData.getValue()) : metadataView.length();
-        long estimate = ENVELOPE_HEADER_SIZE
+        long estimate = headerSize(message) + 3L * characterCount(message.getRoute())
                         + Math.max(0, payloadLength) + Math.max(0, metadataLength)
                         + characterCount(data.getType()) + characterCount(data.getFormat())
                         + characterCount(message.getSource()) + characterCount(message.getTarget())
@@ -294,7 +297,7 @@ public final class BinaryWire {
             throw new IOException("Unsupported binary wire message envelope");
         }
         int version = bytes[offset + 4] & 0xff;
-        if (version != ENVELOPE_VERSION) {
+        if (version != ENVELOPE_VERSION && version != ROUTED_ENVELOPE_VERSION) {
             throw new IOException("Unsupported binary wire message envelope version " + version);
         }
         int flags = bytes[offset + FLAGS_OFFSET] & 0xff;
@@ -302,7 +305,7 @@ public final class BinaryWire {
             throw new IOException("Unsupported binary wire message envelope flags " + flags);
         }
         int envelopeSize = peekInt(bytes, offset + TOTAL_LENGTH_OFFSET);
-        if (envelopeSize < ENVELOPE_HEADER_SIZE || envelopeSize > maximumValueSize || envelopeSize > length) {
+        if (envelopeSize < headerSize(bytes, offset) || envelopeSize > maximumValueSize || envelopeSize > length) {
             throw new IOException("Invalid binary wire message envelope size " + envelopeSize);
         }
         return envelopeSize;
@@ -329,8 +332,14 @@ public final class BinaryWire {
         if (metadataLength < 0) {
             throw new IOException("Invalid binary wire metadata length " + metadataLength);
         }
-        int cursor = offset + ENVELOPE_HEADER_SIZE;
+        int routeLength = bytes[offset + 4] == ROUTED_ENVELOPE_VERSION
+                ? readNullableLength(bytes, offset + ROUTE_LENGTH_OFFSET, "route") : -1;
+        if (bytes[offset + 4] == ROUTED_ENVELOPE_VERSION && routeLength < 0) {
+            throw new IOException("Routed binary envelopes require a route");
+        }
+        int cursor = offset + headerSize(bytes, offset);
         try {
+            cursor = Math.addExact(cursor, positiveLength(routeLength));
             cursor = Math.addExact(cursor, positiveLength(typeLength));
             cursor = Math.addExact(cursor, positiveLength(formatLength));
             cursor = Math.addExact(cursor, positiveLength(sourceLength));
@@ -345,6 +354,14 @@ public final class BinaryWire {
             throw new IOException("Invalid binary wire message envelope components");
         }
         return envelopeSize;
+    }
+
+    private static int headerSize(SerializedMessage message) {
+        return message.getRoute() == null ? ENVELOPE_HEADER_SIZE : ROUTED_ENVELOPE_HEADER_SIZE;
+    }
+
+    private static int headerSize(byte[] bytes, int offset) {
+        return bytes[offset + 4] == ROUTED_ENVELOPE_VERSION ? ROUTED_ENVELOPE_HEADER_SIZE : ENVELOPE_HEADER_SIZE;
     }
 
     private static int readNullableLength(byte[] bytes, int offset, String label) throws IOException {
@@ -701,8 +718,10 @@ public final class BinaryWire {
 
         private void writeRawEnvelopeOnePass(SerializedMessage message) {
             int bodyOffset = position;
-            ensure(ENVELOPE_HEADER_SIZE);
-            position += ENVELOPE_HEADER_SIZE;
+            String route = message.getRoute();
+            int headerSize = route == null ? ENVELOPE_HEADER_SIZE : ROUTED_ENVELOPE_HEADER_SIZE;
+            ensure(headerSize);
+            position += headerSize;
             Data<byte[]> data = message.getData();
             EnvelopeHeaderCache headers = ENVELOPE_HEADER_CACHE.get();
             int typeLength = writeCachedUtf8Raw(headers, 0, data.getType());
@@ -710,12 +729,16 @@ public final class BinaryWire {
             int sourceLength = writeCachedUtf8Raw(headers, 2, message.getSource());
             int targetLength = writeCachedUtf8Raw(headers, 3, message.getTarget());
             int messageIdLength = writeUtf8Raw(message.getMessageId());
+            int routeLength = writeUtf8Raw(route);
             int payloadLength = writeDataRaw(data);
             Metadata metadata = message.getMetadata();
             int metadataLength = writeDataRaw((metadata == null ? Metadata.empty() : metadata).toData());
             int bodyLength = position - bodyOffset;
             patchInt(bodyOffset, ENVELOPE_MAGIC);
-            bytes[bodyOffset + 4] = ENVELOPE_VERSION;
+            bytes[bodyOffset + 4] = (byte) (route == null ? ENVELOPE_VERSION : ROUTED_ENVELOPE_VERSION);
+            if (route != null) {
+                patchInt(bodyOffset + ROUTE_LENGTH_OFFSET, routeLength);
+            }
             bytes[bodyOffset + 6] = 0;
             bytes[bodyOffset + 7] = 0;
             patchInt(bodyOffset + TOTAL_LENGTH_OFFSET, bodyLength);
@@ -1160,6 +1183,7 @@ public final class BinaryWire {
         private final int sourceLength;
         private final int targetLength;
         private final int messageIdLength;
+        private final int routeLength;
         private final int payloadLength;
         private final int metadataLength;
         private final int payloadOffset;
@@ -1171,6 +1195,9 @@ public final class BinaryWire {
         private volatile String source;
         private volatile String target;
         private volatile String messageId;
+        private volatile String route;
+        private volatile boolean routeDecoded;
+        private volatile boolean routeChanged;
         private volatile boolean dataTypeDecoded;
         private volatile boolean dataFormatDecoded;
         private volatile boolean sourceDecoded;
@@ -1193,7 +1220,7 @@ public final class BinaryWire {
                   null, null,
                   nullableInt(bytes, offset, HAS_REQUEST_ID, REQUEST_ID_OFFSET),
                   nullableLong(bytes, offset, HAS_TIMESTAMP, TIMESTAMP_OFFSET),
-                  null, peekInt(bytes, offset + ORIGINAL_REVISION_OFFSET));
+                  null, peekInt(bytes, offset + ORIGINAL_REVISION_OFFSET), null);
             this.bytes = bytes;
             this.offset = offset;
             this.length = length;
@@ -1202,9 +1229,11 @@ public final class BinaryWire {
             sourceLength = peekInt(bytes, offset + SOURCE_LENGTH_OFFSET);
             targetLength = peekInt(bytes, offset + TARGET_LENGTH_OFFSET);
             messageIdLength = peekInt(bytes, offset + MESSAGE_ID_LENGTH_OFFSET);
+            routeLength = bytes[offset + 4] == ROUTED_ENVELOPE_VERSION
+                    ? peekInt(bytes, offset + ROUTE_LENGTH_OFFSET) : -1;
             payloadLength = peekInt(bytes, offset + PAYLOAD_LENGTH_OFFSET);
             metadataLength = peekInt(bytes, offset + METADATA_LENGTH_OFFSET);
-            payloadOffset = messageIdOffset() + positiveLength(messageIdLength);
+            payloadOffset = routeOffset() + positiveLength(routeLength);
             metadataOffset = payloadOffset + positiveLength(payloadLength);
             currentOriginalRevision = peekInt(bytes, offset + ORIGINAL_REVISION_OFFSET);
             dataRevision = peekInt(bytes, offset + REVISION_OFFSET);
@@ -1213,7 +1242,7 @@ public final class BinaryWire {
         private EncodedMessage(SerializedMessage source, byte[] bytes, int offset, int length) {
             super(source.getData(), normalizedMetadata(source), source.getSegment(), source.getIndex(),
                   source.getSource(), source.getTarget(), source.getRequestId(), source.getTimestamp(),
-                  source.getMessageId(), source.getOriginalRevision());
+                  source.getMessageId(), source.getOriginalRevision(), source.getRoute());
             this.bytes = bytes;
             this.offset = offset;
             this.length = length;
@@ -1222,9 +1251,11 @@ public final class BinaryWire {
             sourceLength = peekInt(bytes, offset + SOURCE_LENGTH_OFFSET);
             targetLength = peekInt(bytes, offset + TARGET_LENGTH_OFFSET);
             messageIdLength = peekInt(bytes, offset + MESSAGE_ID_LENGTH_OFFSET);
+            routeLength = bytes[offset + 4] == ROUTED_ENVELOPE_VERSION
+                    ? peekInt(bytes, offset + ROUTE_LENGTH_OFFSET) : -1;
             payloadLength = peekInt(bytes, offset + PAYLOAD_LENGTH_OFFSET);
             metadataLength = peekInt(bytes, offset + METADATA_LENGTH_OFFSET);
-            payloadOffset = messageIdOffset() + positiveLength(messageIdLength);
+            payloadOffset = routeOffset() + positiveLength(routeLength);
             metadataOffset = payloadOffset + positiveLength(payloadLength);
             currentOriginalRevision = source.getOriginalRevision();
             decodedData = source.getData();
@@ -1235,6 +1266,8 @@ public final class BinaryWire {
             this.source = source.getSource();
             target = source.getTarget();
             messageId = source.getMessageId();
+            route = source.getRoute();
+            routeDecoded = true;
             dataTypeDecoded = true;
             dataFormatDecoded = true;
             sourceDecoded = true;
@@ -1273,6 +1306,9 @@ public final class BinaryWire {
             if (messageIdChanged) {
                 view.setMessageId(super.getMessageId());
             }
+            if (routeChanged) {
+                view.setRoute(getRoute());
+            }
             if (originalRevisionChanged) {
                 view.setOriginalRevision(currentOriginalRevision);
             }
@@ -1294,7 +1330,7 @@ public final class BinaryWire {
 
         private boolean matchesVariables() {
             return !dataChanged && !metadataChanged && !sourceChanged && !targetChanged
-                   && !messageIdChanged && !originalRevisionChanged;
+                   && !messageIdChanged && !originalRevisionChanged && !routeChanged;
         }
 
         @Override
@@ -1438,6 +1474,27 @@ public final class BinaryWire {
         }
 
         @Override
+        public String getRoute() {
+            if (!routeDecoded) {
+                synchronized (this) {
+                    if (!routeDecoded) {
+                        route = decode(routeOffset(), routeLength);
+                        routeDecoded = true;
+                    }
+                }
+            }
+            return route;
+        }
+
+        @Override
+        public void setRoute(String route) {
+            super.setRoute(route);
+            this.route = route;
+            routeDecoded = true;
+            routeChanged = true;
+        }
+
+        @Override
         public void setOriginalRevision(Integer originalRevision) {
             super.setOriginalRevision(originalRevision);
             currentOriginalRevision = originalRevision;
@@ -1511,7 +1568,7 @@ public final class BinaryWire {
         }
 
         private int typeOffset() {
-            return offset + ENVELOPE_HEADER_SIZE;
+            return offset + headerSize(bytes, offset);
         }
 
         private int formatOffset() {
@@ -1528,6 +1585,10 @@ public final class BinaryWire {
 
         private int messageIdOffset() {
             return targetOffset() + positiveLength(targetLength);
+        }
+
+        private int routeOffset() {
+            return messageIdOffset() + positiveLength(messageIdLength);
         }
 
         private String decode(int stringOffset, int stringLength) {
@@ -1557,7 +1618,7 @@ public final class BinaryWire {
 
         private SerializedMessage copy(Data<byte[]> data, Metadata metadata, Integer segment) {
             return new SerializedMessage(data, metadata, segment, getIndex(), getSource(), getTarget(),
-                                         getRequestId(), getTimestamp(), getMessageId(), getOriginalRevision());
+                                         getRequestId(), getTimestamp(), getMessageId(), getOriginalRevision(), getRoute());
         }
     }
 

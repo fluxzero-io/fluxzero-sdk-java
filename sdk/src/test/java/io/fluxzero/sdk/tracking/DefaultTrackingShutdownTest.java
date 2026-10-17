@@ -34,6 +34,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultTrackingShutdownTest {
 
+    @io.fluxzero.sdk.modeling.Aggregate
+    record EventRoot() {}
+
     @Test
     void unregisteringHandlersDoesNotSkipRemainingMessagesInCurrentBatch() throws Exception {
         SlowEventHandler handler = new SlowEventHandler();
@@ -51,7 +54,7 @@ class DefaultTrackingShutdownTest {
         Registration registration = testFixture.getFluxzero().registerHandlers(handler);
 
         try (var processBatch = new TestTask(() ->
-                testFixture.whenEventsAreApplied("aggregate", Object.class, 1, 2).expectNoErrors(),
+                testFixture.whenEventsAreApplied("aggregate", EventRoot.class, 1, 2).expectNoErrors(),
                 handler::releaseFirstEvent)) {
             handler.awaitFirstEventStarted();
             try (var unregister = new TestTask(registration::cancel, handler::releaseFirstEvent)) {

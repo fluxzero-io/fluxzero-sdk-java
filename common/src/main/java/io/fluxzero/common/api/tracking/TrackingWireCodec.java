@@ -65,14 +65,21 @@ public final class TrackingWireCodec {
      * Encodes a supported tracking value, or returns {@code null} when the regular codec should be used.
      */
     public static byte[] tryEncode(JsonType value) throws IOException {
+        return tryEncode(value, false);
+    }
+
+    /** Encodes routed native envelopes only for a peer that explicitly supports them. */
+    public static byte[] tryEncode(JsonType value, boolean routedEnvelopes) throws IOException {
         if (value != null && value.getClass() == Append.class) {
             Append append = (Append) value;
-            return encodeAppends(List.of(append), DIRECT_APPEND);
+            return !routedEnvelopes && hasRoutes(append.getMessages()) ? null
+                    : encodeAppends(List.of(append), DIRECT_APPEND);
         }
         if (value instanceof RequestBatch<?> batch && allExactInstancesOf(batch.getRequests(), Append.class)) {
             @SuppressWarnings("unchecked")
             List<Append> appends = (List<Append>) (List<?>) batch.getRequests();
-            return encodeAppends(appends, APPEND_BATCH);
+            return !routedEnvelopes && appends.stream().anyMatch(a -> hasRoutes(a.getMessages())) ? null
+                    : encodeAppends(appends, APPEND_BATCH);
         }
         if (value != null && value.getClass() == ClaimSegment.class) {
             return encodeClaimSegments(List.of((ClaimSegment) value), DIRECT_CLAIM_SEGMENT);
@@ -85,21 +92,26 @@ public final class TrackingWireCodec {
         }
         if (value != null && value.getClass() == ReadResult.class) {
             ReadResult result = (ReadResult) value;
-            return encodeReadResults(List.of(result), DIRECT_READ_RESULT);
+            return (result.getMessageBatch().isConsumerFilterRequired()
+                    || !routedEnvelopes && hasRoutes(result.getMessageBatch().getMessages())) ? null
+                    : encodeReadResults(List.of(result), DIRECT_READ_RESULT);
         }
         if (value instanceof ResultBatch batch && allExactInstancesOf(batch.getResults(), ReadResult.class)) {
             @SuppressWarnings("unchecked")
             List<ReadResult> results = (List<ReadResult>) (List<?>) batch.getResults();
-            return encodeReadResults(results, READ_RESULT_BATCH);
+            return results.stream().anyMatch(result -> result.getMessageBatch().isConsumerFilterRequired()
+                    || !routedEnvelopes && hasRoutes(result.getMessageBatch().getMessages())) ? null
+                    : encodeReadResults(results, READ_RESULT_BATCH);
         }
         if (value != null && value.getClass() == Read.class) {
             Read read = (Read) value;
-            return encodeReads(List.of(read), DIRECT_READ);
+            return read.getConsumerFilter() == null && read.getMaxScanLookBack() == null ? encodeReads(List.of(read), DIRECT_READ) : null;
         }
         if (value instanceof RequestBatch<?> batch && allExactInstancesOf(batch.getRequests(), Read.class)) {
             @SuppressWarnings("unchecked")
             List<Read> reads = (List<Read>) (List<?>) batch.getRequests();
-            return encodeReads(reads, READ_BATCH);
+            return reads.stream().anyMatch(read -> read.getConsumerFilter() != null || read.getMaxScanLookBack() != null)
+                    ? null : encodeReads(reads, READ_BATCH);
         }
         return null;
     }
@@ -137,6 +149,10 @@ public final class TrackingWireCodec {
         } catch (EOFException e) {
             throw new IOException("Truncated tracking wire value", e);
         }
+    }
+
+    private static boolean hasRoutes(List<SerializedMessage> messages) {
+        return messages.stream().anyMatch(message -> message.getRoute() != null);
     }
 
     private static byte[] encodeAppends(List<Append> appends, int kind) throws IOException {

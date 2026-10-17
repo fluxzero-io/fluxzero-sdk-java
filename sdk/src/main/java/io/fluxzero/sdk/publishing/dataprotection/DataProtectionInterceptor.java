@@ -578,6 +578,11 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
         return new Handler<>() {
             @Override
+            public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
+                return handler.getConsumerFilter();
+            }
+
+            @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
                 return Optional.ofNullable(getInvokerOrNull(message));
             }

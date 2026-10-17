@@ -152,6 +152,21 @@ class TestFixtureScheduleWaitTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(2)
+    void lateConsumerDoesNotWaitForAnExcludedSchedule() {
+        TestFixture fixture = TestFixture.createAsync().atFixedTime(NOW).given(fc ->
+                fc.messageScheduler().schedule(new Schedule(new IgnoredSchedule(), "ignored", DEADLINE)));
+        fixture.registerHandlers(List.of(new Object() {
+            @HandleSchedule void handle(AcceptedSchedule schedule) {}
+        }));
+        fixture.whenTimeAdvancesTo(DEADLINE).expectNoErrors();
+        assertTrue(fixture.checkConsumers());
+    }
+
+    private record IgnoredSchedule() {}
+    private record AcceptedSchedule() {}
+
+    @Test
     void acceptedReplacementAndRawClientDispatchRemainObservable() {
         List<String> calls = new CopyOnWriteArrayList<>();
         TestFixture fixture = TestFixture.createAsync(new Object() {

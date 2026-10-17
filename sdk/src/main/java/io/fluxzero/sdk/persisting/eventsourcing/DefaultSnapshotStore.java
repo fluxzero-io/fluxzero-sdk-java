@@ -21,6 +21,7 @@ import io.fluxzero.common.search.Sortable;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.ImmutableAggregateRoot;
@@ -63,6 +64,7 @@ public class DefaultSnapshotStore extends AbstractNamespaced<SnapshotStore> impl
 
     @Override
     public <T> CompletableFuture<Void> storeSnapshot(Entity<T> snapshot) {
+        DefaultEntityHelper.requireAggregateType(snapshot.type());
         try {
             return documentStore.prepareIndex(SnapshotDocument.of(snapshot, serializer.serialize(
                             ImmutableAggregateRoot.from(snapshot, null, null, eventStore))))

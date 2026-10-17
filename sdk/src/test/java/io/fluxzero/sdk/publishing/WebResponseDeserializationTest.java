@@ -16,12 +16,14 @@ package io.fluxzero.sdk.publishing;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.common.serialization.UnknownSerializedTypeException;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -45,6 +47,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -182,6 +185,69 @@ class WebResponseDeserializationTest {
         assertEquals("gzip", response.getHeader("Content-Encoding"));
         assertEquals("1234", response.getHeader("Content-Length"));
         assertEquals(status, response.getStatus());
+    }
+
+    @Test
+    void configuredSerializerCanStillInterpretAnUntypedEmptyBody() {
+        var source = new SerializedMessage(new Data<>(new byte[0], null, 0), Metadata.empty(), "response", 0L);
+        Serializer configured = responseSerializer();
+        when(configured.deserialize(source)).thenReturn(new Reply("custom empty body"));
+        assertEquals(new Reply("custom empty body"), receive(source, MessageType.WEBREQUEST, configured).join().getPayload());
+        verify(configured).deserialize(source);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"200,false", "200,true", "204,false", "204,true", "304,false", "304,true"})
+    void untypedEmptyJsonBodiesPreserveHeadersWithoutReadingTwice(int status, boolean gzip) {
+        var reads = new java.util.concurrent.atomic.AtomicInteger();
+        var data = new Data<>(() -> {
+            assertEquals(1, reads.incrementAndGet());
+            return new byte[0];
+        }, null, 0, Data.JSON_FORMAT);
+        var headers = new java.util.HashMap<String, List<String>>();
+        headers.put("Content-Type", List.of(Data.JSON_FORMAT));
+        headers.put("Content-Length", List.of("1234"));
+        if (gzip) headers.put("Content-Encoding", List.of("gzip"));
+        var source = new SerializedMessage(data, WebResponse.asMetadata(status, headers), "response", 0L);
+        var response = (WebResponse) receive(source, MessageType.WEBREQUEST).join();
+        assertArrayEquals(new byte[0], response.getPayload());
+        assertEquals(status, response.getStatus());
+        assertEquals(headers, response.getHeaders());
+        assertEquals(1, reads.get());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"COMMAND,,", "WEBREQUEST,unknown.Type,", "WEBREQUEST,,{}"})
+    void ordinaryResultsTypedBodiesAndNonEmptyJsonStillRejectUnknownTypes(
+            MessageType type, String serializedType, String body) {
+        var data = new Data<>((body == null ? "" : body).getBytes(UTF_8), serializedType, 0);
+        var source = new SerializedMessage(data, Metadata.empty(), "response", 0L);
+        var failure = assertThrows(CompletionException.class, () -> receive(source, type).join()).getCause();
+        assertEquals(serializedType, assertInstanceOf(UnknownSerializedTypeException.class, failure).getSerializedType());
+    }
+
+    @Test
+    void concreteUnknownTypeReportedByConfiguredSerializerRemainsAFailure() {
+        var source = new SerializedMessage(new Data<>(new byte[0], null, 0), Metadata.empty(), "response", 0L);
+        Serializer configured = responseSerializer();
+        var failure = new UnknownSerializedTypeException("unknown.UpcastedType", 1);
+        when(configured.deserialize(source)).thenThrow(failure);
+        assertSame(failure, assertThrows(CompletionException.class,
+                () -> receive(source, MessageType.WEBREQUEST, configured).join()).getCause());
+    }
+
+    @Test
+    void chunkSupplierFailuresAreNotReinterpretedAsEmptyBodies() {
+        var failure = new UnknownSerializedTypeException(null, 0);
+        var reads = new java.util.concurrent.atomic.AtomicInteger();
+        var data = new Data<>(() -> {
+            if (reads.incrementAndGet() == 1) throw failure;
+            return new byte[0];
+        }, null, 0, Data.JSON_FORMAT);
+        var source = new SerializedMessage(data, Metadata.of(HasMetadata.FINAL_CHUNK, "true"), "response", 0L);
+        assertSame(failure, assertThrows(CompletionException.class,
+                () -> receive(source, MessageType.WEBREQUEST).join()).getCause());
+        assertEquals(1, reads.get());
     }
 
     @Test
