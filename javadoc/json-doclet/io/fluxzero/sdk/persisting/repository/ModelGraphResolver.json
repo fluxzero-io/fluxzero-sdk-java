@@ -96,6 +96,17 @@
     "varArgs" : false,
     "documentation" : " Recovers only an unavailable historical document value. Implementations must preserve historical absence,\n resolve the exact canonical identity, and rethrow unrelated failures. The default preserves strict behavior.\n"
   }, {
+    "name" : "literalLookupUnsupported",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#literalLookupUnsupported",
+    "returnType" : "java.lang.UnsupportedOperationException",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "loadCurrentGraphValue",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadCurrentGraphValue",
     "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
@@ -116,6 +127,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Loads deliberately current state with its namespace boundary, ignoring any active handler boundary. "
+  }, {
+    "name" : "loadCurrentGraphValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadCurrentGraphValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads deliberately current state with optional ID conversion and affixes. "
   }, {
     "name" : "loadGraphProjection",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadGraphProjection",
@@ -287,6 +324,73 @@
     "varArgs" : false,
     "documentation" : "Loads at a pinned boundary without confusing transaction-current document authority with historical replay. "
   }, {
+    "name" : "loadGraphValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadGraphValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads a source value with independent normalization and alias policy. "
+  }, {
+    "name" : "loadGraphValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadGraphValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads a source value at a pinned boundary with independent normalization and alias policy. "
+  }, {
     "name" : "loadGraphValues",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadGraphValues",
     "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Entity<?>>",
@@ -398,6 +502,37 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.sdk.modeling.ModelBatchScope.Snapshot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves a deliberately current root with independent normalization and alias policy. "
+  }, {
+    "name" : "resolveCurrentGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveCurrentGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "modelId",
       "type" : "java.lang.Object",
       "varArgs" : false,
@@ -478,6 +613,73 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Resolves metadata at a pinned boundary with an explicit current versus historical value contract. "
+  }, {
+    "name" : "resolveGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves a root with independent normalization and alias policy. "
+  }, {
+    "name" : "resolveGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves a root at a pinned boundary with independent normalization and alias policy. "
   }, {
     "name" : "resolveGraphIdentity",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveGraphIdentity",

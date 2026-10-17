@@ -249,6 +249,30 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
     "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.@lombok.NonNull Id<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads a typed ID with optional model affixes; false uses its existing string representation unchanged. "
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.SuppressWarnings",
       "values" : {
@@ -268,6 +292,35 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Loads a model by ID, inferring its requested type when the ID is typed.\n <p>\n An untyped ID requests {@link Object}. Its concrete type is resolved from the durable model head. If no model\n exists, an empty {@link Entity} of type {@link Object} is returned.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads a possibly typed ID with optional affixes; untyped IDs remain literal in either mode. "
   }, {
     "name" : "load",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
@@ -342,6 +395,38 @@
     "name" : "load",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads by functional ID when {@code applyAffixes} is true, or by the supplied string representation when false.\n False skips typed-ID conversion and EntityId affixes (including parent scope); supply the full key or alias.\n Both modes retain primary-ID precedence and alias resolution. Existing overloads keep their own defaults.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ "T" ],
@@ -392,6 +477,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Loads several models at one coherent state boundary, preserving input order.\n\n <p>Repositories without coherent multi-model reconstruction reject this capability instead of emulating it with\n independent reads at different boundaries.</p>\n"
+  }, {
+    "name" : "loadAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadAll",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.@lombok.NonNull List<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads models at one coherent boundary with optional ID conversion and affixes, retaining alias resolution.\n False uses each supplied string representation unchanged. Custom repositories must support literal batch reads\n explicitly; the default never substitutes independent reads at different boundaries.\n"
   }, {
     "name" : "loadContext",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadContext",
@@ -447,6 +564,38 @@
     "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Current counterpart of {@link #load(Object, Class, boolean)}, retaining aliases in either mode. "
+  }, {
+    "name" : "loadCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadCurrent",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
       "type" : "java.lang.@lombok.NonNull String",
       "varArgs" : false,
       "annotations" : [ {
@@ -464,7 +613,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads the latest model state by exact persisted identity. Custom repositories without contextual historical\n reads retain their normal behavior by delegating to {@link #load(String, Class)}.\n"
+    "documentation" : " Loads the latest model state by literal primary key or alias, without adding affixes. Custom repositories without contextual historical\n reads retain their normal behavior by delegating to {@link #load(String, Class)}.\n"
   }, {
     "name" : "loadCurrentState",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadCurrentState",

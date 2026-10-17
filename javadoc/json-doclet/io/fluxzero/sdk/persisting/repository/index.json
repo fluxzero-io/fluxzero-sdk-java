@@ -155,6 +155,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Value",
     "kind" : "record"
   }, {
+    "file" : "ModelIdResolution.json",
+    "name" : "ModelIdResolution",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+    "kind" : "enum"
+  }, {
     "file" : "ModelReadException.json",
     "name" : "ModelReadException",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException",

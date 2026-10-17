@@ -1,0 +1,252 @@
+{
+  "name" : "ModelIdResolution",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Identity policy for repository Graph resolution; normalization and alias lookup are independent choices. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.persisting.repository.ModelIdResolution>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ModelIdResolution",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#ModelIdResolution",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "exact",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#exact",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether alias resolution must be suppressed. "
+  }, {
+    "name" : "loadValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#loadValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolver",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Dispatches source value reads while retaining existing extension methods. "
+  }, {
+    "name" : "loadValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#loadValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolver",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Dispatches pinned value reads while retaining existing extension methods. "
+  }, {
+    "name" : "ofExact",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#ofExact",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exact",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Converts the legacy exact-identity flag without changing its meaning. "
+  }, {
+    "name" : "primaryId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#primaryId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Selects the primary repository key before alias lookup. "
+  }, {
+    "name" : "resolveIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#resolveIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolver",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Dispatches existing policies through the original extension methods. "
+  }, {
+    "name" : "resolveIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#resolveIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolver",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Dispatches pinned identity reads while retaining existing extension methods. "
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#valueOf",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution#values",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "EXACT",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution.EXACT",
+    "annotations" : [ ],
+    "documentation" : "Retain an already resolved canonical identity without redirecting it through aliases. "
+  }, {
+    "name" : "FUNCTIONAL",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution.FUNCTIONAL",
+    "annotations" : [ ],
+    "documentation" : "Apply the model's ID conversion and affixes, retaining alias resolution. "
+  }, {
+    "name" : "LITERAL",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution.LITERAL",
+    "annotations" : [ ],
+    "documentation" : "Use the supplied string representation unchanged, retaining alias resolution. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

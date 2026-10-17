@@ -429,6 +429,47 @@
     "varArgs" : false,
     "documentation" : "Selects the captured batch value that supersedes a root identity, without reading its durable body. "
   }, {
+    "name" : "currentRootOverlay",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#currentRootOverlay",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requested",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expected",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.sdk.modeling.ModelBatchScope.Snapshot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "identity",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Selects a captured batch value using independent normalization and alias policy. "
+  }, {
     "name" : "descendants",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#descendants",
     "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<?>>",
@@ -555,6 +596,42 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "inMutation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#inMutation",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "requestedId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repositoryId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "lazy",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#lazy",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
@@ -630,6 +707,32 @@
   }, {
     "name" : "lazy",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#lazy",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Discovers the root at call time while optionally bypassing typed-ID conversion and affixes. "
+  }, {
+    "name" : "lazy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#lazy",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
@@ -690,6 +793,37 @@
     "varArgs" : false,
     "documentation" : "Creates a detached graph whose model and relationship state remain lazy. "
   }, {
+    "name" : "lazy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#lazy",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a lazy alias-aware graph with optional ID conversion and affixes. "
+  }, {
     "name" : "lazyCurrent",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#lazyCurrent",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
@@ -715,6 +849,37 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Creates a graph whose root deliberately resolves to the latest state instead of a handler boundary. "
+  }, {
+    "name" : "lazyCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#lazyCurrent",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a deliberately current alias-aware graph with optional ID conversion and affixes. "
   }, {
     "name" : "lazyRepositoryId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#lazyRepositoryId",
@@ -1026,6 +1191,47 @@
     }, {
       "name" : "exact",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolvedRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#resolvedRoot",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "requested",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expected",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.sdk.modeling.ModelBatchScope.Snapshot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "identity",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

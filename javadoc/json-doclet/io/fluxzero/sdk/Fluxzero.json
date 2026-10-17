@@ -1405,6 +1405,27 @@
     "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.Id<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Typed-ID counterpart of {@link #loadCurrentGraph(Object, Class, boolean)}. "
+  }, {
+    "name" : "loadCurrentGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadCurrentGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
       "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
@@ -1417,6 +1438,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Loads the latest state of an independently stored model as a relationship graph, without inheriting an event or\n notification handler's historical read boundary.\n Within a Model mutation this shares the active attempt's boundary, staged state and inspected readset instead\n of opening a newer snapshot. Outside mutations the default repository pins a fresh storage boundary with a\n head read during this call, even when the root is cached: its relationships may have changed after the cache's\n observation boundary. Event-sourced values remain lazy and may reuse an exact matching cached revision.\n A DOCUMENT-only root is read coherently with its head during this call and retained, since later replacement\n cannot be replayed. Concurrent changes during this fresh resolution cause bounded retries of the complete\n lookup; an already returned Graph never advances. Descendants remain lazy. This is not the document-only\n {@link #loadCurrentModelState(String, Class)} read contract.\n <p>\n Use this when deliberately inspecting current intent, such as after a synchronous nested command or when\n reconciling schedules triggered by an older event. Ordinary {@link #loadGraph(Object, Class)} reads remain\n coherent with the message being handled and are preferred for event-bound comparisons and invariants.\n"
+  }, {
+    "name" : "loadCurrentGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadCurrentGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Variant of {@link #loadCurrentGraph(Object, Class)} with optional ID conversion and affixes.\n True preserves the default functional-ID lookup. False uses {@code modelId.toString()} unchanged,\n including any prefix already carried by a typed ID; it neither adds nor removes affixes or parent scope.\n Primary identities retain precedence over aliases in both modes. For an existing Graph,\n {@link Graph#current()} also preserves its owning repository and namespace.\n\n @param applyAffixes whether to convert a functional ID using the model's ID type and EntityId metadata\n"
   }, {
     "name" : "loadCurrentModelState",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadCurrentModelState",
@@ -1594,6 +1641,27 @@
   }, {
     "name" : "loadGraph",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.Id<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Typed-ID counterpart of {@link #loadGraph(Object, Class, boolean)}. "
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
@@ -1607,6 +1675,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Loads a model whose concrete type is resolved from storage as a lazy relationship graph. The default repository\n discovers its type from the head and pins the boundary during this call, without replaying the root value.\n The root Model contract must be locally known. Custom repositories may retain value-based discovery.\n Within a Model mutation this uses that attempt's pinned boundary, staged state and inspected readset.\n"
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Untyped counterpart of {@link #loadGraph(Object, Class, boolean)}. Untyped strings already use literal\n identity/type discovery; the option changes normalization only when the supplied ID carries a type.\n"
   }, {
     "name" : "loadGraph",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
@@ -1660,6 +1749,32 @@
     "varArgs" : false,
     "documentation" : " Lazily loads an independently stored model by ID and expected type as a relationship graph.\n Within a Model mutation this shares its pinned boundary, staged state and inspected readset. Otherwise the\n default repository establishes a new nonhistorical snapshot at storage on the first storage read.\n The resulting Graph stays pinned; later commits require a new view.\n"
   }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Variant of {@link #loadGraph(Object, Class)} with optional ID conversion and affixes.\n True preserves the default functional-ID lookup. False uses {@code modelId.toString()} unchanged,\n including any prefix already carried by a typed ID; it neither adds nor removes affixes or parent scope.\n Primary identities retain precedence over aliases in both modes. For an existing Graph,\n {@link Graph#current()} also preserves its owning repository and namespace.\n\n @param applyAffixes whether to convert a functional ID using the model's ID type and EntityId metadata\n"
+  }, {
     "name" : "loadGraphAt",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraphAt",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
@@ -1705,6 +1820,27 @@
     "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.Id<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Typed-ID counterpart of {@link #loadModel(Object, Class, boolean)}. "
+  }, {
+    "name" : "loadModel",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModel",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
       "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
@@ -1712,6 +1848,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Loads an independently stored model by ID. Typed IDs provide the requested model type; untyped IDs let the\n repository resolve the stored type.\n <p>\n A primary model ID is tried first, followed by a current {@link Alias @Alias} value.\n"
+  }, {
+    "name" : "loadModel",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModel",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Untyped counterpart of {@link #loadModel(Object, Class, boolean)}. A typed ID supplies its model type;\n an untyped ID is already literal and discovers its type from storage in either mode.\n"
   }, {
     "name" : "loadModel",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModel",
@@ -1765,6 +1922,32 @@
     "varArgs" : false,
     "documentation" : " Loads an independently stored model by ID and expected type.\n <p>\n A primary model ID is tried first, followed by a current {@link Alias @Alias} value.\n"
   }, {
+    "name" : "loadModel",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModel",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Variant of {@link #loadModel(Object, Class)} with optional ID conversion and affixes.\n True preserves the default functional-ID lookup. False uses {@code modelId.toString()} unchanged,\n including any prefix already carried by a typed ID; it neither adds nor removes affixes or parent scope.\n Primary identities retain precedence over aliases in both modes. For an existing Graph,\n {@link Graph#current()} also preserves its owning repository and namespace.\n\n @param applyAffixes whether to convert a functional ID using the model's ID type and EntityId metadata\n"
+  }, {
     "name" : "loadModels",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModels",
     "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Entity<T>>",
@@ -1785,6 +1968,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Loads several independently stored models at one coherent state boundary.\n\n <p>The native repository batches stream I/O and reconstruction while preserving input order.</p>\n"
+  }, {
+    "name" : "loadModels",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModels",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads several models at one coherent boundary with optional affixes, retaining alias resolution and input order.\n False uses each supplied string representation unchanged; the existing overload defaults to true.\n"
   }, {
     "name" : "memoization",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoization",

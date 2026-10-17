@@ -1554,6 +1554,67 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "loadAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadAll",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.@lombok.NonNull List<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadAllWithAffixes",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadAllWithAffixes",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "loadAncestorGraph",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadAncestorGraph",
     "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<A>>",
@@ -2045,6 +2106,35 @@
     }, {
       "name" : "modelType",
       "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadCurrentGraphValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadCurrentGraphValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applyAffixes",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -2629,6 +2719,79 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "loadGraphValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadGraphValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadGraphValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadGraphValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "loadGraphValueOnce",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadGraphValueOnce",
     "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
@@ -2641,8 +2804,44 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "exact",
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadGraphValueWithPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadGraphValueWithPolicy",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -3255,8 +3454,73 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "modelType",
       "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.sdk.modeling.ModelBatchScope.Snapshot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveCurrentGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#resolveCurrentGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveCurrentGraphIdentityWithPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#resolveCurrentGraphIdentityWithPolicy",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.sdk.modeling.ModelBatchScope.Snapshot",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -3347,6 +3611,79 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#resolveGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#resolveGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "modelId",
       "type" : "java.lang.Object",
       "varArgs" : false,
@@ -3359,6 +3696,42 @@
     }, {
       "name" : "boundary",
       "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveGraphIdentityWithPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#resolveGraphIdentityWithPolicy",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selected",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
