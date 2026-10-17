@@ -20,6 +20,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.MethodInvocationValidator;
+import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
@@ -111,6 +112,59 @@ class WebConsumerFilterTest {
                 Arguments.of(new MountedSite(), OPTIONS, "/site/index.html", true),
                 Arguments.of(new MountedSite(), POST, "/site/index.html", false),
                 Arguments.of(new MountedSite(), GET, "/outside/index.html", false));
+    }
+
+    @ParameterizedTest
+    @MethodSource("apiReferences")
+    void apiReferenceRoutesRemainSelectiveAndServeTheirDocument(
+            boolean async, Object target, String page, String document, String renderer) {
+        var configuration = new AtomicReference<ConsumerConfiguration>();
+        var builder = builder(configuration);
+        var fixture = async ? TestFixture.createAsync(builder, target) : TestFixture.create(builder, target);
+        try (var app = fixture.getFluxzero()) {
+            fixture.whenGet(page + "?theme=dark")
+                    .expectWebResult(r -> r.getStatus() == 200
+                            && "text/html; charset=utf-8".equals(r.getContentType())
+                            && r.<String>getPayloadAs(String.class).contains(renderer)
+                            && r.<String>getPayloadAs(String.class).contains(document)).expectNoErrors();
+            // serveApiReference also enables the spec even when serveOpenApi is left at its default.
+            fixture.whenGet(document).expectWebResult(r -> r.getStatus() == 200
+                    && "application/json".equals(r.getContentType())
+                    && JsonUtils.readTree(r.<String>getPayloadAs(String.class))
+                            .path("openapi").asText().startsWith("3.")).expectNoErrors();
+            for (String path : List.of(page, document)) {
+                fixture.whenWebRequest(WebRequest.builder().method(HEAD).url(path).build())
+                        .expectWebResult(r -> r.getStatus() == 200 && r.getPayload() == null).expectNoErrors();
+                fixture.whenWebRequest(WebRequest.builder().method(OPTIONS).url(path).build())
+                        .expectWebResult(r -> r.getStatus() == 204
+                                && "GET, HEAD, OPTIONS".equals(r.getHeader("Allow"))).expectNoErrors();
+            }
+            var factory = new DefaultHandlerFactory(WEBREQUEST, HandlerDecorator.noOp,
+                    List.of(new MessageParameterResolver(), new WebParamParameterResolver()),
+                    MethodInvocationValidator.noOp(), ignored -> null, null, false, app.serializer());
+            var owner = factory.createHandler(target, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+            var duplicate = factory.createHandler(target, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+            var selected = async ? configuration.get().getConsumerBlueprint().getFilter() : owner.getConsumerFilter();
+            for (var filter : List.of(selected, duplicate.getConsumerFilter())) {
+                assertTrue(filter.routeRestricted());
+                var predicate = filter.compile();
+                for (String path : List.of(page, document)) {
+                    for (String method : List.of(GET, HEAD, OPTIONS)) {
+                        assertTrue(predicate.test(request(method, path + "?theme=dark")), method + " " + path);
+                    }
+                    assertFalse(predicate.test(request(POST, path)));
+                }
+                assertFalse(predicate.test(request(GET, "/unrelated")));
+            }
+        }
+    }
+
+    static Stream<Arguments> apiReferences() {
+        return Stream.of(false, true).flatMap(async -> Stream.of(
+                Arguments.of(async, new RedocDocs(), "/docs", "/openapi.json", "<redoc spec-url="),
+                Arguments.of(async, new ScalarDocs(), "/scalar/reference", "/scalar/openapi.json",
+                             "Scalar.createApiReference("),
+                Arguments.of(async, new SwaggerDocs(), "/swagger-ui", "/spec/openapi.json", "SwaggerUIBundle(")));
     }
 
     @ParameterizedTest
@@ -247,6 +301,16 @@ class WebConsumerFilterTest {
         @HandleGet("/plain/{id}") String plain() { return "plain"; }
         @HandleGet("/items/{id:[a-z]+}[/{part}]") String optional() { return "optional"; }
     }
+    @ApiDocInfo(serveApiReference = true)
+    static class RedocDocs { @HandleGet("/redoc/items") String get() { return "redoc"; } }
+    @Path("/scalar")
+    @ApiDocInfo(serveApiReference = true, apiReferenceRenderer = ApiReferenceRenderer.SCALAR,
+            apiReferencePath = "reference")
+    static class ScalarDocs { @HandleGet("items") String get() { return "scalar"; } }
+    @Path("/swagger")
+    @ApiDocInfo(serveApiReference = true, apiReferenceRenderer = ApiReferenceRenderer.SWAGGER_UI,
+            apiReferencePath = "/swagger-ui", openApiPath = "/spec/openapi.json")
+    static class SwaggerDocs { @HandleGet("items") String get() { return "swagger"; } }
     @Path("https://example.com")
     static class OriginRoot { @HandleGet String root() { return "root"; } }
     static class ImplicitRoot { @HandleGet String root() { return "root"; } }
