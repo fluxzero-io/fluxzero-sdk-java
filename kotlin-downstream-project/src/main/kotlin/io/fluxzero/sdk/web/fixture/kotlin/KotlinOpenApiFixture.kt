@@ -2,6 +2,8 @@ package io.fluxzero.sdk.web.fixture.kotlin
 
 import io.fluxzero.sdk.web.ApiDoc
 import io.fluxzero.sdk.web.ApiDocInfo
+import io.fluxzero.sdk.web.HandlePost
+import io.fluxzero.sdk.web.HandlePut
 import io.fluxzero.sdk.web.HandleGet
 import io.fluxzero.sdk.web.Path
 import io.fluxzero.sdk.web.PathParam
@@ -28,3 +30,18 @@ data class KotlinOpenApiItem(
     @field:ApiDoc(description = "Visible labels")
     val labels: List<String>,
 )
+
+@ApiDoc
+class KotlinRootEndpoint {
+    @HandleGet
+    @ApiDoc(operationId = "kotlinRoot")
+    fun root() = "ok"
+
+    @HandlePost("/")
+    @ApiDoc(operationId = "kotlinExplicitRoot")
+    fun explicitRoot() = "ok"
+
+    @HandlePut("https://kotlin-root.example")
+    @ApiDoc(operationId = "kotlinAbsoluteRoot")
+    fun absoluteRoot() = "ok"
+}

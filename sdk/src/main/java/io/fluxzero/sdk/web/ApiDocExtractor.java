@@ -51,7 +51,8 @@ import static io.fluxzero.common.ObjectUtils.isBlank;
  * Extracts generic API documentation metadata from Fluxzero web handlers.
  * <p>
  * The extractor reuses the same {@link WebPattern} resolution as runtime web dispatch, including package/class/method
- * {@link Path} prefixes and optional route fragments. The resulting {@link ApiDocCatalog} is intentionally generic and
+ * {@link Path} prefixes and optional route fragments. Root routes use {@code /}, including absolute origins
+ * without an explicit path. The resulting {@link ApiDocCatalog} is intentionally generic and
  * can be rendered to OpenAPI or another documentation format later.
  * </p>
  */
@@ -87,7 +88,8 @@ public final class ApiDocExtractor {
             }
             for (WebPattern pattern : getWebPatterns(handlerType, handler, executable)) {
                 for (WebRouteMatcher.RouteVariant variant : WebRouteMatcher.RouteVariants.expand(pattern.getPath())) {
-                    endpoints.add(endpoint(handlerType, executable, pattern, variant.path()));
+                    endpoints.add(endpoint(handlerType, executable, pattern,
+                                           WebRouteMatcher.normalizePath(variant.path())));
                 }
             }
         }
