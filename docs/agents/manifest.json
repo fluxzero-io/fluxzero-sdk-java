@@ -4623,6 +4623,8 @@
       "summary": "Execute every advertised HTTP operation through TestFixture and separately prove binding, required inputs, responses, critical failures, and structural OpenAPI evidence.",
       "source": "articles/sdk/testing/http.md",
       "symbols": [
+        "withCookie",
+        "withoutCookies",
         "whenGet",
         "whenPost",
         "whenPut",

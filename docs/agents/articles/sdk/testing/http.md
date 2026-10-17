@@ -72,6 +72,12 @@ SDK accepts `Type`, not `Class<R>`, so the class argument alone leaves the stati
 
 Use `whenGet`, `whenPost`, `whenPut`, `whenPatch`, and `whenDelete` for normal HTTP methods, with their `...ByUser` variants for caller-sensitive routes. Use `whenWebRequest` or `whenWebRequestByUser` when headers, cookies, content type, or a less common method is part of the contract. For successful transport conversion, prefer `expectWebResult(...)`; for a contractual failure, assert the exact exception and the mapped `WebResponse` status when both are significant.
 
+The fixture stores response cookies and sends them on subsequent requests. Use `withCookie(name, value)` to add a
+stored cookie, `withoutCookies("session", "preference")` to remove named cookies, or `withoutCookies()` to clear the
+store. These methods return the same fixture; removal does not change explicit `Cookie` headers or stop later
+responses from storing cookies. To model responses arriving in a chosen order, retain their `WebResponse` values,
+clear the stored cookies, and apply each response's `getCookies()` with `fixture::withCookie` in that order.
+
 ## Prove the bindings that can drift
 
 - For path and query parameters, choose values that would expose a swap, omission, or fallback default.

@@ -404,6 +404,16 @@ public interface Given<Self extends Given<Self>> extends When {
     Self withCookie(HttpCookie cookie);
 
     /**
+     * Removes stored cookies with the given names, regardless of their domain or path.
+     * Without names, removes all stored cookies. Unknown names are ignored.
+     * <p>
+     * Does not change explicit Cookie headers or prevent subsequent responses from storing new cookies.
+     *
+     * @return this fixture
+     */
+    Self withoutCookies(String... names);
+
+    /**
      * Adds or removes headers to be used in subsequent simulated web requests.
      * <p>
      * If {@code headerValues} is empty, the header will be removed.

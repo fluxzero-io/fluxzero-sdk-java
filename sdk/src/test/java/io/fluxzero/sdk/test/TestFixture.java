@@ -1304,6 +1304,17 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public TestFixture withoutCookies(String... names) {
+        if (names.length == 0) {
+            cookies.clear();
+        } else {
+            var namesToRemove = Arrays.asList(names);
+            cookies.removeIf(cookie -> namesToRemove.contains(cookie.getName()));
+        }
+        return this;
+    }
+
+    @Override
     public TestFixture withHeader(String headerName, String... headerValues) {
         if (headerValues.length == 0 || (headerValues.length == 1 && headerValues[0] == null)) {
             headers.remove(headerName);
