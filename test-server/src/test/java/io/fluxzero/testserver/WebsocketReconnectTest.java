@@ -30,10 +30,12 @@ import io.fluxzero.testserver.websocket.JettyWebsocketRouter;
 import io.fluxzero.testserver.websocket.ServerWebsocketSession;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
 import java.util.UUID;
@@ -50,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
 class WebsocketReconnectTest {
-    private static final int port = 9125;
+    private static int port;
     private static Server server;
 
     @BeforeAll
@@ -58,7 +60,8 @@ class WebsocketReconnectTest {
         JettyWebsocketRouter router = deploy(
                 ignored -> new ClosingConsumerEndpoint(),
                 "/%s/".formatted(trackingPath(MessageType.EVENT)), new JettyWebsocketRouter());
-        server = router.start(port);
+        server = router.start(new InetSocketAddress("127.0.0.1", 0));
+        port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
 
     @AfterAll
@@ -70,7 +73,7 @@ class WebsocketReconnectTest {
     void reconnectsAfterServerAbnormallyClosesSessionWithOutstandingRequest() throws Exception {
         String namespace = UUID.randomUUID().toString().replace("-", "");
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
-                .runtimeBaseUrl("ws://localhost:" + port)
+                .runtimeBaseUrl("ws://127.0.0.1:" + port)
                 .namespace(namespace)
                 .id("reconnect-test")
                 .name("reconnect-test")

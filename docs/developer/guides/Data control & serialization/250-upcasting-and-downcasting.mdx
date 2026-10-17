@@ -483,6 +483,10 @@ Outside of Spring, register them manually:
 
 All casting occurs in your application, not in the Fluxzero Runtime. Stored messages remain unchanged.
 
+Enum constants with their own method implementations use the declaring enum's type and revision in Jackson
+serialization. Old envelopes containing the generated constant subclass name remain readable while that class is
+available. Existing custom codecs that support the subclass retain their original type and revision.
+
 ---
 
 ## Best practices

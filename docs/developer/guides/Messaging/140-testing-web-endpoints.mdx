@@ -257,3 +257,11 @@ testFixture.whenPost("/games", "/game/game-details.json") // returns gameId
 <Aside type="note">
 Substitution uses result order only—not types or variable names—making it ideal for chaining multi-step flows.
 </Aside>
+
+## Tests with a real network server
+
+When a test needs an embedded `TestServer`, bind it directly to loopback and port `0`:
+`TestServer.startServer(new InetSocketAddress("127.0.0.1", 0))` in Java, or
+`TestServer.startServer(InetSocketAddress("127.0.0.1", 0))` in Kotlin. Read the selected port from the returned
+server's `ServerConnector.getLocalPort()`, connect to `127.0.0.1`, and stop the server in `finally`.
+This avoids fixed-port conflicts and the race introduced by reserving, closing, and later rebinding a free port.

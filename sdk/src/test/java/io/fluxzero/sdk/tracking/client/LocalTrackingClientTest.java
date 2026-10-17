@@ -141,13 +141,16 @@ class LocalTrackingClientTest {
                 delegate.append(STORED, anchor).join();
                 client.cache(anchor);
 
+                long startedAt = System.nanoTime();
                 CompletableFuture<MessageBatch> waitingBatch = client.read(
                         "cached-tracker", anchor.getIndex(), config("cached-consumer").toBuilder()
                                 .maxWaitDuration(Duration.ofMillis(250)).build());
-                Thread.sleep(100L);
-                assertFalse(waitingBatch.isDone());
+                CompletableFuture<Long> completedAt = waitingBatch.thenApply(ignored -> System.nanoTime());
 
                 MessageBatch finalBatch = waitingBatch.get(2, TimeUnit.SECONDS);
+                // The wait loop rounds down to milliseconds; the test thread itself may resume after the deadline.
+                assertTrue(completedAt.get(2, TimeUnit.SECONDS) - startedAt >= Duration.ofMillis(249).toNanos(),
+                           "An empty cached read must not complete before its max-wait deadline");
                 assertEquals(0, finalBatch.getSize());
                 assertTrue(finalBatch.isCaughtUp());
                 assertEquals(0, delegate.cachedTrackerReadCalls.get());
