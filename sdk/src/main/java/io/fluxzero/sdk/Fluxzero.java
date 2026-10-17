@@ -1309,9 +1309,10 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Loads the entity with given id. If the entity is not associated with any aggregate yet, a new aggregate root is
-     * loaded with the entityId as aggregate identifier. In case multiple entities are associated with the given
-     * entityId the most recent entity is returned.
+     * Loads the entity with given id. Marked roots retain aggregate loading when no owner is found. A typed lookup
+     * for an absent, unmarked member returns an empty entity with the requested ID and type, without creating a
+     * standalone aggregate. In case multiple entities are associated with the given entityId the most recent entity
+     * is returned.
      * <p>
      * If the entity is loaded while handling an event its aggregate, the returned entity will automatically be played
      * back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.
@@ -1344,9 +1345,10 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Loads the entity with given id. If the entity is not associated with any aggregate yet, a new aggregate root is
-     * loaded with the entityId as aggregate identifier. In case multiple entities are associated with the given
-     * entityId the most recent entity is returned.
+     * Loads the entity with given id. Marked roots retain aggregate loading when no owner is found. A typed lookup
+     * for an absent, unmarked member returns an empty entity with the requested ID and type, without creating a
+     * standalone aggregate. In case multiple entities are associated with the given entityId the most recent entity
+     * is returned.
      * <p>
      * If the entity is loaded while handling an event its aggregate, the returned entity will automatically be played
      * back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.
@@ -1360,7 +1362,9 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Loads an entity by functional ID and expected type. The type makes {@link EntityId} affixes available for
-     * independent models and entities embedded in legacy aggregates.
+     * independent models and entities embedded in legacy aggregates. An absent unmarked member yields an empty
+     * entity retaining its ID and type; it can be inspected or validated but cannot be persisted as a standalone
+     * aggregate. Create members through their owning root. Marked roots retain the normal aggregate fallback.
      */
     static <T> Entity<T> loadEntity(Object entityId, Class<T> entityType) {
         if (entityType.isAnnotationPresent(Model.class)) {
@@ -1368,7 +1372,8 @@ public interface Fluxzero extends AutoCloseable {
         }
         String repositoryId = io.fluxzero.sdk.modeling.EntityMetadata.of(entityType).repositoryId(entityId);
         return loadAggregateFor(repositoryId).getEntity(entityId, entityType)
-                .orElseGet(() -> loadAggregate(entityId, entityType));
+                .orElseGet(() -> playbackToHandledMessage(
+                        get().aggregateRepository().loadEntityFallback(entityId, entityType)));
     }
 
     private static <T> Entity<T> legacyModelEntity(
@@ -1409,6 +1414,9 @@ public interface Fluxzero extends AutoCloseable {
      */
     @SuppressWarnings("unchecked")
     static <T> T loadEntityValue(Object entityId) {
+        if (entityId instanceof Id<?> id) {
+            return (T) loadEntityValue(id);
+        }
         return (T) loadAggregateFor(entityId).getEntity(entityId).map(Entity::get).orElse(null);
     }
 

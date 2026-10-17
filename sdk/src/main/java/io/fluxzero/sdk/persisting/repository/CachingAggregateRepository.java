@@ -176,6 +176,12 @@ public class CachingAggregateRepository extends AbstractNamespaced<AggregateRepo
     }
 
     @Override
+    public <T> Entity<T> loadEntityFallback(Object entityId, Class<T> entityType) {
+        catchUpIfNeeded();
+        return delegate.loadEntityFallback(entityId, entityType);
+    }
+
+    @Override
     public <T> Entity<T> asEntity(T entityId) {
         return delegate.asEntity(entityId);
     }
