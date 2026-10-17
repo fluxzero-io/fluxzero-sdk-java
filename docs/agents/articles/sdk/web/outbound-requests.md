@@ -304,3 +304,64 @@ fixture.withProperty("processor.caption.base-url", "https://caption.test/api/")
 Assert URL, method, content type, and exact typed body for every processing and compensation component. Also test
 missing, blank, relative, opaque, hostless, unsupported-scheme, query-bearing, and fragment-bearing configuration
 independently.
+
+## Isolate outbound failures without changing existing configurations
+
+The additional resilience controls are opt-in on both supported SDK lines. Existing applications retain
+`retryPolicy(LEGACY)`, fixed retry delays and no per-origin concurrency limit; no defaults-version threshold changes
+these settings.
+
+Use `retryPolicy(RetryPolicy.SAFE)` for configured retries of GET, HEAD, PUT, DELETE, OPTIONS and TRACE, or of a
+request with exactly one nonblank `Idempotency-Key` header. For POST/PATCH, use a stable key supported by the upstream's
+deduplication contract. The SDK reuses the same serialized body and headers across attempts; the presence of a key
+alone cannot guarantee that an upstream deduplicates it. `RetryPolicy.IDEMPOTENT` is an explicit application guarantee
+for operations with proven idempotent semantics. `LEGACY` preserves the previous method-independent retry behavior.
+None of these choices enables retries unless `maxRetries` is positive.
+
+```java
+WebRequestSettings settings = WebRequestSettings.builder()
+        .timeout(Duration.ofSeconds(5)).maxRetries(2)
+        .retryPolicy(RetryPolicy.SAFE)
+        .retryDelay(Duration.ofMillis(250)).retryJitter(true)
+        .build();
+```
+
+```kotlin
+val settings = WebRequestSettings.builder()
+    .timeout(Duration.ofSeconds(5)).maxRetries(2)
+    .retryPolicy(RetryPolicy.SAFE)
+    .retryDelay(Duration.ofMillis(250)).retryJitter(true)
+    .build()
+```
+
+With jitter enabled, each retry waits a randomized duration between half and all of `retryDelay`. All attempts,
+redirects and retry waits still consume the same timeout budget; retries do not reset it. Fixture retries enforce
+the same safety policy without actual retry waits. A new SDK publishes `maxRetries=0` for disallowed SAFE retries,
+so an older proxy also refrains from retrying them. Jitter requires an updated proxy on the proxy route.
+
+Configure concurrency limits through the normal property infrastructure:
+
+| Transport owner | Property | Environment variable | Default |
+| --- | --- | --- | --- |
+| Proxy process | `fluxzero.proxy.forward.maxConcurrentPerOrigin` | `FLUXZERO_PROXY_FORWARD_MAX_CONCURRENT_PER_ORIGIN` | `0` (disabled) |
+| Native application client | `fluxzero.web.native.maxConcurrentPerOrigin` | `FLUXZERO_WEB_NATIVE_MAX_CONCURRENT_PER_ORIGIN` | `0` (disabled) |
+
+A positive value limits outstanding executions per original HTTP origin: lowercase scheme and hostname plus the
+effective port, without DNS resolution. Paths, credentials and query strings do not create separate origins.
+Limits are local to the owning client/process, not cluster-wide. Namespace views of one native client share its
+limit. Idle origins are removed from bookkeeping; no permanent hostname cache or additional unbounded queue is kept.
+
+The proxy admits requests within its existing bounded queue and selects eligible segment heads before reserving a
+global execution slot. Set the per-origin limit below the existing global concurrency limit to leave execution
+capacity for other origins. Requests in one segment remain ordered, including response publication. The global
+outstanding bound and backpressure remain in force: a completely full queue or a preceding request in the same
+segment can still delay another origin. The limit is held across retries and response publication and is released
+on completion or shutdown handoff. Waiting in the proxy queue consumes the existing request deadline.
+
+Native execution has no added waiting queue: exceeding its limit returns HTTP 503 immediately, without an HTTP
+attempt or automatic transport retry of that local response. The permit is held across retries and released on
+completion, failure or cancellation; closing the client cancels its limited in-flight requests and retry waits.
+
+Redirects retain the original request's permit and existing redirect policy. Multiple original origins redirecting
+to the same destination are not a shared destination bulkhead. Use `SAME_ORIGIN` or `NEVER` when that distinction
+matters. These local limits also do not deduplicate replayed requests or replace domain idempotency.
