@@ -322,6 +322,11 @@ public final class MessagePackIO {
          */
         public void skipString() throws IOException {
             int length = unpackBinaryHeader();
+            skipPayload(length);
+        }
+
+        /** Skips exactly length unframed bytes with the same bounds checks as {@link #readPayload(int)}. */
+        public void skipPayload(int length) throws IOException {
             require(length);
             position += length;
         }

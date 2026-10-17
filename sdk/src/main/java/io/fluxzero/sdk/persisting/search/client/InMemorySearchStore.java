@@ -1575,7 +1575,7 @@ public class InMemorySearchStore implements SearchClient {
                         manifest);
             }
         }
-        if (document.getMetadata().containsKey(io.fluxzero.common.search.ModelGraphInvalidation.METADATA_KEY)) {
+        if (io.fluxzero.common.search.ModelGraphInvalidation.isInvalidation(document)) {
             metadata = metadata.with(io.fluxzero.common.search.ModelGraphInvalidation.METADATA_KEY, true);
         }
         var result = new SerializedMessage(document.getDocument(), metadata, document.getId(),
