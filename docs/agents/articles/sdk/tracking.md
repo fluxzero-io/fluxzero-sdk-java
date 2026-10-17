@@ -22,6 +22,9 @@ class OrderProjection {
 
 Handlers without explicit consumer configuration use the unconfigured-handler fallback. `fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler` gives each handler class a generated default consumer. `defaultAppConsumer` shares the application default consumer. With `fluxzero.defaults.version >= 2026.05.20`, `perHandler` is the default.
 
+When segment ownership changes, a waiting read or segment claim checks its newly assigned range for existing work.
+It does not need a new publication or the idle deadline to resume. Do not add polling or dummy publications for this.
+
 Start with the default `LoggingErrorHandler`: log failures and continue without retry, with monitoring and recovery
 for skipped effects where needed. **`ThrowingErrorHandler` can stop the affected tracker until explicit restart,
 even for functional rejection; it does not automatically retry or resume.** Unlimited retries are appropriate only

@@ -16,6 +16,9 @@ Fluxzero handles message dispatch asynchronously by default. Messages are first 
 
 This separation makes Fluxzero highly flexible: you can isolate workloads into dedicated consumers, scale them independently, or run multiple consumers side by side in the same application.
 
+When segment ownership changes, a waiting read or segment claim checks its newly assigned range for existing work.
+It does not need a new publication or the idle deadline to resume. Do not add polling or dummy publications for this.
+
 ## Tracking flow
 
 The following diagram shows the lifecycle flow of a single tracker, responsible for fetching messages from the log and invoking the right handlers.
