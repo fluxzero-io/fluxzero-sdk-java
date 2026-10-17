@@ -954,6 +954,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "updateRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#updateRoot",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.UnaryOperator<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Keeps the updated owner available when removing a built-in immutable member. "
+  }, {
     "name" : "withType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#withType",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",

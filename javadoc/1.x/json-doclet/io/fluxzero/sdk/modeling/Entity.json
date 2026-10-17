@@ -1041,7 +1041,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Updates the current entity's value using the specified unary operator and returns a new entity containing the\n updated value.\n\n @param function the unary operator to apply to the current entity's value\n @return a new entity containing the updated value after applying the function\n"
+    "documentation" : " Updates the current entity's value using the specified unary operator and returns a new entity containing the\n updated value. Returning {@code null} from the function removes a member from its owner. A managed\n member updates its root through the existing commit policy; retain the root handle when continuing after\n removal, since the returned member may be {@code null}.\n\n @param function the unary operator to apply to the current entity's value\n @return the updated entity, or {@code null} if it no longer exists in the hierarchy\n"
   }, {
     "name" : "withEventIndex",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#withEventIndex",
