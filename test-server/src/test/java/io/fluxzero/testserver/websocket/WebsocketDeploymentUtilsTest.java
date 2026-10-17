@@ -24,10 +24,12 @@ import io.fluxzero.sdk.common.websocket.WebsocketEndpoint;
 import io.fluxzero.sdk.common.websocket.WebsocketSession;
 import io.fluxzero.testserver.TestServerVersion;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -42,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebsocketDeploymentUtilsTest {
 
-    private static final int port = 9126;
+    private static int port;
     private static final AtomicInteger receivedBinaryMessageSize = new AtomicInteger();
     private static volatile CountDownLatch receivedBinaryMessage;
     private static Server server;
@@ -63,7 +65,8 @@ class WebsocketDeploymentUtilsTest {
                 }
             }
         }, "/test/", new JettyWebsocketRouter());
-        server = router.start(port);
+        server = router.start(new InetSocketAddress("127.0.0.1", 0));
+        port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
 
     @AfterAll
@@ -155,6 +158,6 @@ class WebsocketDeploymentUtilsTest {
             public void onError(WebsocketSession session, Throwable error) {
             }
         }, new WebsocketConnectionOptions(headers, Map.of(), Duration.ofSeconds(5), List.of()),
-           URI.create("ws://localhost:" + port + "/test"));
+           URI.create("ws://127.0.0.1:" + port + "/test"));
     }
 }
