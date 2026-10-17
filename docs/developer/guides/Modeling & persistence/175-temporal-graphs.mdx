@@ -187,8 +187,16 @@ val selected = task.atStateIndex(savedStateIndex)
   </TabItem>
 </Tabs>
 
-`previous()` returns `null` when there is no preceding revision. `revisions()` starts with the current view and then
-follows those preceding revisions. Limit traversal for an interactive screen; a long history can require replay and I/O.
+`previous()` returns `null` at the creation revision. `revisions()` walks through available history from the current revision back toward creation,
+newest first; it excludes the empty state before creation. A model that has never existed has an empty revision stream.
+For an event-sourced model with retained history, creating it and changing it twice yields three revisions,
+independently of caching or snapshots. Non-empty provisional views remain included before they are committed.
+
+Deletion is a real revision whose `get()` returns `null`, and remains in the history. Do not filter all null values
+when you need to show deletions. Loading a missing model still gives an empty Graph for identity and creation;
+that empty view does not imply an existing revision. The legacy `Entity.previous()` contract is unchanged.
+
+Limit traversal for an interactive screen; a long history can require replay and I/O.
 
 A root's revision stream does **not** enumerate every descendant change. Adding Task B need not create another
 Project value revision. The complete Graph-change event handler above supplies a special before boundary for the whole affected
