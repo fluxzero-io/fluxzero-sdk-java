@@ -227,6 +227,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "containsEnumSubclass",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#containsEnumSubclass",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deserializeUnknownType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#deserializeUnknownType",
     "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.common.serialization.DeserializingObject<byte[],?>>",
@@ -431,7 +447,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Computes the canonical string representation of a {@link Type}.\n"
+    "documentation" : " Computes the canonical string representation of a {@link Type}. Constant-specific enum subclasses use their\n declaring enum unless the configured mapper already supports their original type. This also applies to\n inferred collection elements and map keys/values.\n"
   }, {
     "name" : "getJavaType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#getJavaType",
@@ -447,7 +463,26 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Resolves a canonical or registered simple/partial {@link JavaType} for the given string-based type name.\n"
+    "documentation" : " Resolves a canonical or registered simple/partial {@link JavaType} for the given string-based type name.\n Historical constant-specific enum subclass names are accepted after type aliases and upcasters have run.\n"
+  }, {
+    "name" : "getRevision",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#getRevision",
+    "returnType" : "int",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Uses the declaring enum's revision when its constant-specific subclass is normalized to that enum.\n Explicitly supported subtype codecs retain their original type and revision.\n"
   }, {
     "name" : "hasZeroByte",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#hasZeroByte",
@@ -545,6 +580,43 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "normalizeEnumType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#normalizeEnumType",
+    "returnType" : "com.fasterxml.jackson.databind.JavaType",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "normalizeEnumType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#normalizeEnumType",
+    "returnType" : "com.fasterxml.jackson.databind.JavaType",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mapKey",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "serializedPropertyPaths",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#serializedPropertyPaths",
     "returnType" : "java.util.List<java.lang.String>",
@@ -611,6 +683,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a canonical string name for the given type.\n"
+  }, {
+    "name" : "supportsEnumType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#supportsEnumType",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mapKey",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "toDocument",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#toDocument",

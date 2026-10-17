@@ -228,6 +228,27 @@
     "varArgs" : false,
     "documentation" : " Returns an unmodifiable view of the current set of trackers.\n"
   }, {
+    "name" : "hasSameAssignment",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#hasSameAssignment",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "other",
+      "type" : "io.fluxzero.common.tracking.TrackerCluster",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isActive",
     "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#isActive",
     "returnType" : "boolean",
