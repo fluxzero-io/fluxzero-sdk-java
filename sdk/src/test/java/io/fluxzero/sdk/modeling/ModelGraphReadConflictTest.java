@@ -1100,6 +1100,33 @@ class ModelGraphReadConflictTest {
         @Apply Receipt apply(Receipt receipt) { return null; }
     }
 
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void collectionParentMembershipChangesInvalidateReads(boolean remove) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(app, new CreateParent("parent", 10));
+            commit(app, new PutMultiChild("child", remove ? List.of("parent", "other") : List.of("other")));
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("receipt") && once.compareAndSet(false, true)) {
+                    commit(app, new PutMultiChild("child", remove ? List.of("other") : List.of("other", "parent")));
+                }
+            };
+            commit(app, new CountMultiChildren("receipt", "parent"));
+            assertTrue(once.get());
+            assertEquals(remove ? 0 : 1, app.apply(fc -> Fluxzero.loadModel("receipt", Receipt.class).get().observed()).intValue());
+        }
+    }
+    @Model(searchable = false)
+    record MultiChild(@EntityId String childId, @Parent(value = ParentModel.class, pathInParent = "multi") List<String> parents) {}
+    record PutMultiChild(String childId, List<String> parents) {
+        @Apply MultiChild apply(@jakarta.annotation.Nullable MultiChild existing) { return new MultiChild(childId, parents); }
+    }
+    record CountMultiChildren(String receiptId, String parentId) {
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
+        Receipt apply(Graph<ParentModel> parent) { return new Receipt(receiptId, parent.children("multi", MultiChild.class).size()); }
+    }
+
     private static Object commit(Fluxzero fluxzero, Object command) {
         return fluxzero.apply(fc -> fc.executeModelCommit(Message.asMessage(command)).join());
     }

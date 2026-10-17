@@ -1743,14 +1743,15 @@ public final class ModelReducer {
             for (MutationPlan.CascadeParent parent : plan.parents()) {
                 MutationPlan.CascadePlan parentPlan = compiler.cascadePlan(parent.type());
                 if (!parentPlan.matches(message, true)) { continue; }
-                Object parentId = parent.reference().read(routeValue);
-                if (parentId == null || !parent.type().equals(parent.reference().parentModelType(parentId))) { continue; }
-                String key = parentId.toString();
-                if (visited.contains(key)) { continue; }
-                CommitAttempt context = load(key, parent.type(), values);
-                Entity<?> entity = context.entity(key);
-                collect(key, parent.type(), entity == null ? null : entity.get(), parentPlan, message, true,
-                        owners, visited, depth + 1);
+                for (Object parentId : parent.reference().readIds(routeValue)) {
+                    if (!parent.type().equals(parent.reference().parentModelType(parentId))) { continue; }
+                    String key = parentId.toString();
+                    if (visited.contains(key)) { continue; }
+                    CommitAttempt context = load(key, parent.type(), values);
+                    Entity<?> entity = context.entity(key);
+                    collect(key, parent.type(), entity == null ? null : entity.get(), parentPlan, message, true,
+                            owners, visited, depth + 1);
+                }
             }
         }
 

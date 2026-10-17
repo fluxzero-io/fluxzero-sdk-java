@@ -98,8 +98,7 @@ final class ScheduleParents {
         LinkedHashSet<String> result = new LinkedHashSet<>();
         for (var reference : references) {
             if (reference.deleteOnParentDeletion()) {
-                Object id = reference.read(message.getPayload());
-                if (id != null) {
+                for (Object id : reference.readIds(message.getPayload())) {
                     result.add(reference.repositoryId(id));
                 }
             }

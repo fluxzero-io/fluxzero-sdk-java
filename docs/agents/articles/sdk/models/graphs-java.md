@@ -103,6 +103,27 @@ serializer upcasts nodes independently and lazily; do not create a Graph-wide up
 back into the derived projection. That operation must preserve the root, state boundary, nodes and placements and does
 not modify direct Models, histories or relationships.
 
+### Several parents in one relation
+
+Use a collection when one relation can refer to several parents. Each distinct ID creates an ordinary Graph edge
+with the same path and policies. Null or empty collections create no edges; null elements, raw or nested collections,
+arrays and maps are rejected. List order does not define Graph child ordering. Typed IDs supply the element's Model
+type; untyped IDs can use `@Parent(ParentModel.class)`, and polymorphic ID elements can use `types`.
+
+```java
+@Model
+public record SharedDocument(
+        @EntityId DocumentId documentId,
+        @Parent(pathInParent = "documents", deleteOnParentDeletion = false)
+        Set<ProjectId> projectIds) {}
+```
+
+Adding or removing IDs changes those edges atomically. Graph reads retain the usual relationship conflict checks.
+A singular parent lookup must still be unambiguous; use plural navigation to inspect several parents. With cascade
+enabled, deleting **any** owning parent deletes the child, even if other parents remain. Parent-scoped identity still
+requires one unambiguous scope. Schedules and cascading assertions use every declared parent ID as well.
+
+
 ## Loading and event parameters
 
 ```java

@@ -59,6 +59,11 @@ public class GenericTypeResolver {
         return resolveType(clazz, target, new HashMap<>());
     }
 
+    /** Resolves a target supertype while retaining the supplied type's actual generic arguments. */
+    public static Type getGenericType(Type type, Class<?> target) {
+        return matchAndResolve(type, target, new HashMap<>());
+    }
+
     /**
      * Resolves a type declared by {@code declaringType} in the generic context of {@code contextType}.
      *

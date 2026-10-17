@@ -1561,22 +1561,22 @@ public final class MutationPlan {
                     if (payloadProperty == null) {
                         continue;
                     }
-                    Object parentId = payloadProperty.read(payload);
-                    Class<?> parentType = parentId == null
-                            ? null : parent.parentModelType(parentId);
-                    if (parentType == null) {
-                        continue;
+                    for (Object parentId : parent.ids(payloadProperty.read(payload))) {
+                        Class<?> parentType = parent.parentModelType(parentId);
+                        if (parentType == null) {
+                            continue;
+                        }
+                        LinkedHashSet<String> sources = new LinkedHashSet<>();
+                        sources.add(payloadProperty.name());
+                        sources.add(EntityMetadata.of(parentType).entityIdName());
+                        if (!parent.pathInParent().isEmpty()) {
+                            sources.add(parent.pathInParent());
+                        }
+                        merge(result, new ResolvedModel(
+                                parent.repositoryId(parentId), parentType,
+                                Access.READ_ONLY,
+                                sources.stream().filter(Objects::nonNull).toList()));
                     }
-                    LinkedHashSet<String> sources = new LinkedHashSet<>();
-                    sources.add(payloadProperty.name());
-                    sources.add(EntityMetadata.of(parentType).entityIdName());
-                    if (!parent.pathInParent().isEmpty()) {
-                        sources.add(parent.pathInParent());
-                    }
-                    merge(result, new ResolvedModel(
-                            parent.repositoryId(parentId), parentType,
-                            Access.READ_ONLY,
-                            sources.stream().filter(Objects::nonNull).toList()));
                 }
             }
         }

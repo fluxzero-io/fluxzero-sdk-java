@@ -1176,9 +1176,12 @@ public class ReflectionUtils {
         return getAnnotation(parameter, annotationType).isPresent();
     }
 
-    /**
-     * Resolves the requested supertype's generic arguments in the context of the candidate class.
-     */
+    /** Resolves a generic supertype from a parameterized declaration, preserving its argument bindings. */
+    public static Type getGenericType(Type candidate, Class<?> wantedClass) {
+        return GenericTypeResolver.getGenericType(candidate, wantedClass);
+    }
+
+    /** Resolves the requested supertype's generic arguments in the context of the candidate class. */
     public static Type getGenericType(Class<?> candidate, Class<?> wantedClass) {
         return GenericTypeResolver.getGenericType(candidate, wantedClass);
     }
