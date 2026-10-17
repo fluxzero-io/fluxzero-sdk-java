@@ -377,7 +377,6 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @Getter
     private final Fluxzero fluxzero;
-    private final FixtureFluxzero handlerFluxzero;
     private final FluxzeroBuilder fluxzeroBuilder;
     private final GivenWhenThenInterceptor interceptor;
     private Duration resultTimeout = defaultResultTimeout;
@@ -460,8 +459,7 @@ public class TestFixture implements Given<TestFixture>, When {
                 .addBatchInterceptor(new HighPriorityBatchInterceptor(interceptor))
                 .addHandlerInterceptor(new HighPriorityHandlerInterceptor(interceptor));
         this.fluxzeroBuilder = fluxzeroBuilder;
-        this.handlerFluxzero = new FixtureFluxzero(fluxzeroBuilder.build(client));
-        this.fluxzero = handlerFluxzero;
+        this.fluxzero = new FixtureFluxzero(fluxzeroBuilder.build(client));
         Fluxzero.instance.set(this.fluxzero);
         if (synchronous) {
             localHandlerRegistries(fluxzero).forEach(r -> r.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE));
@@ -510,7 +508,7 @@ public class TestFixture implements Given<TestFixture>, When {
                 ? LocalClient.newInstance(null) : currentClient;
         newClient = trackRemoteDocumentUpdates(newClient);
         monitorClientDispatch(newClient, dispatchInterceptor);
-        this.handlerFluxzero = new FixtureFluxzero(fluxzeroBuilder.build(
+        Fluxzero handlerFluxzero = new FixtureFluxzero(fluxzeroBuilder.build(
                 spying ? new SpyingClient(newClient) : newClient));
         this.fluxzero = spying ? new SpyingFluxzero(handlerFluxzero) : handlerFluxzero;
         Fluxzero.instance.set(this.fluxzero);
@@ -616,6 +614,7 @@ public class TestFixture implements Given<TestFixture>, When {
     /**
      * Returns a new test fixture with Mockito spies on all major Fluxzero components.
      * <p>
+     * Handlers use the same spies exposed by {@link #getFluxzero()}, including in asynchronous fixtures.
      * Useful for verifying internal interactions, e.g. gateway or repository usage.
      */
     public TestFixture spy() {
@@ -2700,7 +2699,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
         public Function<DeserializingMessage, Object> interceptHandling(
                 Function<DeserializingMessage, Object> function, HandlerInvoker invoker) {
-            return m -> testFixture.handlerFluxzero.apply(ignored -> {
+            return m -> testFixture.fluxzero.apply(ignored -> {
                 ActiveHandler activeHandler = testFixture.synchronous ? testFixture.activeHandler(m, invoker) : null;
                 Deque<ActiveHandler> activeHandlers = null;
                 if (activeHandler != null) {
