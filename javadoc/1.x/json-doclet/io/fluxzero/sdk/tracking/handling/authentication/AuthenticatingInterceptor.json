@@ -307,6 +307,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "usesDefaultInterception",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor#usesDefaultInterception",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "usesDefaultInterception",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor#usesDefaultInterception",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterTypes",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
     "name" : "wrap",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor#wrap",
     "returnType" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
@@ -342,6 +374,12 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$RefreshedUser",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SkippableInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ]
   } ]
 }

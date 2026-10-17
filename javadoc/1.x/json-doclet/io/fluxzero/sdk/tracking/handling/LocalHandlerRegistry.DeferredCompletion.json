@@ -1,0 +1,182 @@
+{
+  "name" : "DeferredCompletion",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "invoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion.invoker",
+    "type" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "logMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion.logMessage",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "response",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion.response",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "source",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion.source",
+    "type" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DeferredCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion#DeferredCompletion",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "response",
+      "type" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "logMessage",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion#invoker",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "logMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion#logMessage",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "response",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion#response",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "source",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion#source",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "invoker",
+    "type" : "io.fluxzero.common.handling.HandlerInvoker",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "logMessage",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "response",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "source",
+    "type" : "java.util.concurrent.CompletableFuture<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -1164,6 +1164,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getFirstKnownAncestorPackage",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getFirstKnownAncestorPackage",
+    "returnType" : "java.lang.Package",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "childPackageName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "loader",
+      "type" : "java.lang.ClassLoader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getFirstTypeArgument",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getFirstTypeArgument",
     "returnType" : "T",
@@ -1357,6 +1378,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getPackageAndParentPackages",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPackageAndParentPackages",
+    "returnType" : "java.util.List<java.lang.Package>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "p",
+      "type" : "java.lang.Package",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "owner",
+      "type" : "java.lang.Module",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the package and its resolvable ancestors in the owning class's module and loader.\n Each ancestor first resolves its own module's {@code package-info}, matching {@link Package#getAnnotations()},\n then uses loader delegation when the module has no definition. Loading unrelated classes first does not change\n the policy. An already bound class identity remains authoritative. The thread context loader is not consulted.\n\n @param p the starting package, or {@code null}\n @param owner the module of the class whose package policy is being resolved\n @return nearest packages first, omitting ancestors that cannot be resolved\n"
+  }, {
     "name" : "getPackageAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPackageAnnotation",
     "returnType" : "java.util.Optional<A>",
@@ -1418,7 +1460,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns package annotations, optionally including enclosing packages when {@code recursive} is true.\n Each package uses the first {@code package-info} definition selected by its class loader; competing definitions\n of the same package are not combined. For duplicate annotation types in parent packages, the nearest package wins.\n"
   }, {
     "name" : "getParameterIndex",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getParameterIndex",
@@ -2538,6 +2580,32 @@
     "parameters" : [ {
       "name" : "name",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "loader",
+      "type" : "java.lang.ClassLoader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "tryGetPackage",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#tryGetPackage",
+    "returnType" : "java.lang.Package",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "owner",
+      "type" : "java.lang.Module",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

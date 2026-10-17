@@ -126,6 +126,17 @@
     "varArgs" : false,
     "documentation" : " Indicates whether this handler operates in passive mode (i.e., results will not be published).\n\n @return {@code true} if passive; otherwise {@code false}\n"
   }, {
+    "name" : "isSkipPending",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#isSkipPending",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether a deferred invocation has yet to decide if it will be skipped. Local mirroring must wait for that\n decision, but may proceed immediately once authorization has allowed the handler to start.\n"
+  }, {
     "name" : "join",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#join",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
@@ -141,6 +152,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Joins a list of invokers into a single composite invoker. The result of each invocation is combined using the\n provided combiner function.\n\n @param invokers a list of invokers to join\n @return an optional containing the combined invoker, or empty if the list is empty\n"
+  }, {
+    "name" : "maySkip",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#maySkip",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether this invoker can silently skip after selection, possibly during asynchronous completion.\n Callers that publish a result must recheck {@link #wasSkipped()} after the result completes in that case.\n"
   }, {
     "name" : "noOp",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#noOp",
@@ -173,6 +195,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a no-op invoker associated with a handler method. This is useful for synthetic framework invocations that\n should still expose the user handler's metadata to decorators and interceptors.\n"
+  }, {
+    "name" : "onSkipDecision",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#onSkipDecision",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "callback",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs a callback when the pending skip decision is available, including a silent refusal. The callback may run\n on the completing thread; callers own context propagation. Ordinary invokers invoke it immediately.\n"
   }, {
     "name" : "run",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#run",

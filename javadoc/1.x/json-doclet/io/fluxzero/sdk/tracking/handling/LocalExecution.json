@@ -130,6 +130,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "skipped",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.skipped",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "topic",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.topic",
     "type" : "java.lang.String",
@@ -525,6 +533,17 @@
     "varArgs" : false,
     "documentation" : " Marks batch-scoped message state as used by the active payload-first handler.\n\n <p>This infrastructure hook ensures that batch callbacks and resources are completed after the invocation.</p>\n"
   }, {
+    "name" : "markSkipped",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#markSkipped",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Records a silent refusal for this execution only; the pooled frame clears it on entry and exit. "
+  }, {
     "name" : "releaseResult",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#releaseResult",
     "returnType" : "void",
@@ -551,6 +570,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Stores the user selected during dispatch for later handler-parameter resolution.\n\n @param user the selected user, or {@code null}\n"
+  }, {
+    "name" : "wasSkipped",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#wasSkipped",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether authorization skipped the current invocation without producing a result. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

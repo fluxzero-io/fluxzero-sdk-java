@@ -280,6 +280,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CombinedPlanKey",
     "kind" : "record"
   }, {
+    "file" : "LocalHandlerRegistry.DeferredCompletion.json",
+    "name" : "LocalHandlerRegistry.DeferredCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion",
+    "kind" : "record"
+  }, {
     "file" : "LocalHandlerRegistry.MessageHandlerInput.json",
     "name" : "LocalHandlerRegistry.MessageHandlerInput",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput",

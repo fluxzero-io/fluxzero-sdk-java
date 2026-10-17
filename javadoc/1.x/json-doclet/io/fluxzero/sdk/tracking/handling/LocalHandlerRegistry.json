@@ -492,6 +492,27 @@
     "varArgs" : false,
     "documentation" : " Determines whether a handler allows its message to be sent to the Fluxzero Runtime.\n"
   }, {
+    "name" : "logMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#logMessage",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "payloadClass",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#payloadClass",
     "returnType" : "java.lang.Class<?>",
@@ -553,6 +574,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "responseFuture",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#responseFuture",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "setSelfHandlerFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#setSelfHandlerFilter",
     "returnType" : "void",
@@ -597,6 +634,12 @@
   }, {
     "name" : "CombinedPlanKey",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CombinedPlanKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DeferredCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$DeferredCompletion",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
