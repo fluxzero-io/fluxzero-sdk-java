@@ -460,6 +460,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Configures how this factory determines whether a handler type is currently registered.\n\n <p>This is used to prefer a concrete self-tracking specialization over a registered base type without\n suppressing explicitly registered base handlers when the specialization itself is absent.</p>\n\n @param registeredHandlerType predicate that returns {@code true} for active handler types\n"
+  }, {
+    "name" : "withStaticFiles",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#withStaticFiles",
+    "returnType" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

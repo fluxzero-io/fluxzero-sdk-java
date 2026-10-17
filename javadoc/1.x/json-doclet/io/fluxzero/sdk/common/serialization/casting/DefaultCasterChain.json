@@ -13,7 +13,7 @@
     "name" : "casters",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain.casters",
     "type" : "java.util.Map<io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain.DataRevision,io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster<T>>",
-    "modifiers" : [ "final", "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -361,7 +361,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : null
+    "documentation" : "Registers the complete batch atomically; a conflicting candidate leaves the chain unchanged. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

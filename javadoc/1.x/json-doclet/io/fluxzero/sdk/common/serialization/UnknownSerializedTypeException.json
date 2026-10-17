@@ -1,0 +1,57 @@
+{
+  "name" : "UnknownSerializedTypeException",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.UnknownSerializedTypeException",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  } ],
+  "documentation" : "A serialized identifier remains unknown after upcasting; preserves the DeserializationException contract. ",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.common.serialization.DeserializationException",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "revision",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.UnknownSerializedTypeException.revision",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : "Revision of the unresolved representation. ",
+    "constantValue" : null
+  }, {
+    "name" : "serializedType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.UnknownSerializedTypeException.serializedType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : "Identifier that could not be resolved, after any upcasting. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "UnknownSerializedTypeException",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.UnknownSerializedTypeException#UnknownSerializedTypeException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a failure without retaining serialized payload bytes or metadata. "
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

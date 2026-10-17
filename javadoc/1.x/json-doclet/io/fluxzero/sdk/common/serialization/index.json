@@ -115,6 +115,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer",
     "kind" : "interface"
   }, {
+    "file" : "UnknownSerializedTypeException.json",
+    "name" : "UnknownSerializedTypeException",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.UnknownSerializedTypeException",
+    "kind" : "class"
+  }, {
     "file" : "UnknownTypeStrategy.json",
     "name" : "UnknownTypeStrategy",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.UnknownTypeStrategy",
