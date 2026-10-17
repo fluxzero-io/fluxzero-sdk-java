@@ -17,6 +17,10 @@ package io.fluxzero.sdk.tracking;
 import ch.qos.logback.classic.Logger;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
@@ -26,6 +30,8 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentMatchers;
 import org.slf4j.LoggerFactory;
 
@@ -47,8 +53,9 @@ class LoggingErrorHandlerTest {
                                            && message.getMetadata().containsKey("$traceId"))));
     }
 
-    @Test
-    void technicalReportRetainsCodeAndDocumentationInPublishedDiagnostics() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void technicalReportRetainsCodeAndDocumentationInPublishedDiagnostics(boolean malformedWebRequest) {
         var failure = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
                 "ExampleHandler.handle", "ExampleRequest", new IllegalStateException("diagnostic detail")));
         Logger logger = (Logger) LoggerFactory.getLogger(LoggingErrorHandler.class);
@@ -59,13 +66,17 @@ class LoggingErrorHandlerTest {
             TestFixture.createAsync(new Object() {
                         @HandleCommand
                         void handle(String command) {
-                            new LoggingErrorHandler().handleError(failure, "Request 42 failed", () -> null);
+                            new DeserializingMessage(new Message("request", Metadata.of("diagnostic", "context")),
+                                    malformedWebRequest ? MessageType.WEBREQUEST : MessageType.COMMAND,
+                                    new JacksonSerializer()).run(m -> new LoggingErrorHandler().handleError(
+                                            failure, "Request 42 failed", () -> null));
                         }
                     }).spy().whenCommand("error")
                     .expectThat(fc -> verify(fc.client().getGatewayClient(MessageType.ERROR)).append(
                             any(), ArgumentMatchers.<SerializedMessage>argThat(message -> {
                                 var metadata = message.getMetadata();
-                                return "{}. Continuing...".equals(metadata.get("messageTemplate"))
+                                return metadata.containsKey("diagnostic") != malformedWebRequest
+                                       && "{}. Continuing...".equals(metadata.get("messageTemplate"))
                                        && failure.getMessage().equals(metadata.get("errorMessage"))
                                        && metadata.get("stackTrace").contains("FZ-SDK-0003")
                                        && metadata.get("stackTrace").contains(failure.getDocumentationUrl());
