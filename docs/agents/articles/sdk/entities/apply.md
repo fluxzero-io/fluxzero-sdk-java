@@ -30,7 +30,9 @@ KnowledgeArticle apply(KnowledgeArticle current, Sender sender) {
 
 When time affects a transition, inject the message timestamp as an `Instant` parameter or use `Fluxzero.currentTime()` at the handling/legal boundary. Never call `Instant.now()`, `LocalDate.now()`, or another system clock from `@Apply`; replay must produce the same state.
 
-Returning `null` deletes an entity or clears a member. Child/member updates rebuild parent state automatically, and a single update payload can define multiple `@Apply` methods when it needs to affect both a child and a root aggregate shape.
+Returning `null` deletes an entity or clears a member. For direct `Entity.update(...)`, returning `null` removes a
+loaded member through its owner's existing commit policy; the call may itself return `null`, so retain the root
+handle for subsequent work. Direct updates do not add event history. Child/member updates rebuild parent state automatically, and a single update payload can define multiple `@Apply` methods when it needs to affect both a child and a root aggregate shape.
 
 Apply methods can inject the current state, ancestor entities, the update payload, `Message`, `Metadata`, the message timestamp, and concrete user context when needed. Prefer those explicit parameters over static ambient access. If existing state is required and absent, Fluxzero raises a not-found style failure; mark the state parameter nullable only for create-or-upsert paths that intentionally allow absence. Creating state that already exists raises an already-exists style failure unless the aggregate/update settings explicitly relax that behavior.
 

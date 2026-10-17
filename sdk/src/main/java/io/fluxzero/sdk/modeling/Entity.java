@@ -666,10 +666,12 @@ public interface Entity<T> {
 
     /**
      * Updates the current entity's value using the specified unary operator and returns a new entity containing the
-     * updated value.
+     * updated value. Returning {@code null} from the function removes a member from its owner. A managed
+     * member updates its root through the existing commit policy; retain the root handle when continuing after
+     * removal, since the returned member may be {@code null}.
      *
      * @param function the unary operator to apply to the current entity's value
-     * @return a new entity containing the updated value after applying the function
+     * @return the updated entity, or {@code null} if it no longer exists in the hierarchy
      */
     Entity<T> update(UnaryOperator<T> function);
 

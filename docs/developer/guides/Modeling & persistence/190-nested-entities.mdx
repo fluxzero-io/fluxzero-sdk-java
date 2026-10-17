@@ -190,6 +190,10 @@ With Fluxzero, you can handle this using:
 Even if the `Task` is deeply nested within a `Project` or other parent aggregate, this method works because of the
 **entity relationship tracking** automatically maintained by Fluxzero.
 
+For direct state changes, `member.update(value -> null)` removes the loaded member through its owner's existing
+commit policy. Keep the root handle for subsequent work: the removed member's update may return `null`.
+Direct updates do not add event history; use `assertAndApply` for event-sourced transitions.
+
 Additional behavior:
 
 - If multiple entities match the given ID, the one with the most recently added relationship is used.
