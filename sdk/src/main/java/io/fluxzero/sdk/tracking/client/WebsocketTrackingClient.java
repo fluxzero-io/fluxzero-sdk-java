@@ -115,7 +115,7 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
 
     @Override
     public CompletableFuture<Void> storePosition(String consumer, int[] segment, long lastIndex, Guarantee guarantee) {
-        return sendCommand(new StorePosition(messageType, consumer, segment, lastIndex, resolveGuarantee(guarantee)));
+        return sendCommand(new StorePosition(messageType, consumer, segment, lastIndex, resolveGuarantee(guarantee), topic));
     }
 
     @Override

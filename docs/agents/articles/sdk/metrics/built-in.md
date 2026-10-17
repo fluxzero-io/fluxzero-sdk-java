@@ -41,7 +41,7 @@ proof that the operation succeeded; correlate it with its result, an error signa
 | `Read` / `ReadResult.Metric` | A tracker requested and received a batch from its position. |
 | `ReadFromIndex` / `ReadFromIndexResult.Metric` | A bounded diagnostic or reprocessing read started at an explicit index. |
 | `GetPosition` / `GetPositionResult` | A durable consumer position was requested and returned. |
-| `StorePosition` | A segment position was advanced. |
+| `StorePosition` | A segment position update was submitted. `topic` identifies the tracked custom topic or document collection; absent/null means an unscoped stream or an older producer. |
 | `ResetPosition` | All segment positions for a consumer were forcibly reset. |
 | `DisconnectTracker` | A named tracker was disconnected from its consumer. |
 

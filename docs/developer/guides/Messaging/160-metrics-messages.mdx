@@ -55,7 +55,7 @@ All metric messages are published by the SDK, except for `ConnectEvent` and `Dis
 | **ReadFromIndexResult$Metric** | Response metrics for `ReadFromIndex`. |
 | **GetPosition** | Requests the current consumer position. |
 | **GetPositionResult** | Returns the current consumer position. |
-| **StorePosition** | Reports that the tracker position has been updated. |
+| **StorePosition** | Reports the submitted tracker position, including `topic` for a custom topic or document collection. An absent/null topic indicates an unscoped stream or an older producer. |
 | **ResetPosition** | Indicates that a consumer’s position has been reset. |
 | **DisconnectTracker** | Published when a tracker disconnects. |
 
