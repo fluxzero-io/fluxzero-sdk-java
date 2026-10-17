@@ -14,16 +14,27 @@
 
 package io.fluxzero.sdk.web;
 
+import ch.qos.logback.classic.Logger;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 
 class SocketErrorDisclosureTest {
     @ParameterizedTest
@@ -36,6 +47,47 @@ class SocketErrorDisclosureTest {
                     .whenWebRequest(frame(WS_MESSAGE, request))
                     .expectResult(SocketResponse.error(request.getRequestId(),
                             command.endsWith("functional") ? "Choose another date" : "Request failed"));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void publishedSocketDiagnosticsExcludePrivateRequestMetadata(boolean async) {
+        Logger logger = (Logger) LoggerFactory.getLogger(DefaultSocketSession.class);
+        var appender = new FluxzeroLogbackAppender(false) {};
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            for (String command : new String[]{"technical", "async-technical"}) {
+                SocketRequest request = SocketRequest.valueOf(command);
+                TestFixture fixture = (async ? TestFixture.createAsync(Endpoint.class)
+                        : TestFixture.create(Endpoint.class)).spy();
+                fixture.givenWebRequest(frame(WS_OPEN, null))
+                        .whenWebRequest(WebRequest.builder().method(WS_MESSAGE).url("/socket?token=query-secret")
+                                .header("Authorization", "Bearer authorization-secret")
+                                .header("Cookie", "session=cookie-secret")
+                                .metadata(Metadata.of("sessionId", "session", "private", "metadata-secret"))
+                                .payload(request).build())
+                        .expectResult(SocketResponse.error(request.getRequestId(), "Request failed"))
+                        .expectThat(fc -> {
+                            var captured = ArgumentCaptor.forClass(SerializedMessage.class);
+                            verify(fc.client().getGatewayClient(MessageType.ERROR)).append(any(), captured.capture());
+                            Metadata metadata = captured.getValue().getMetadata();
+                            assertEquals(WS_MESSAGE, metadata.get(WebRequest.methodKey));
+                            assertEquals("/socket", metadata.get(WebRequest.urlKey));
+                            assertEquals("Socket request {} failed", metadata.get("messageTemplate"));
+                            assertTrue(metadata.containsKey("$correlationId"));
+                            assertTrue(metadata.containsKey("$traceId"));
+                            assertTrue(metadata.get("stackTrace").contains("private implementation detail"));
+                            assertFalse(metadata.containsKey(WebRequest.headersKey));
+                            assertFalse(metadata.containsKey(WebRequest.sessionIdKey));
+                            assertFalse(metadata.containsKey("private"));
+                            assertFalse(metadata.toString().contains("-secret"));
+                        });
+            }
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
         }
     }
 
