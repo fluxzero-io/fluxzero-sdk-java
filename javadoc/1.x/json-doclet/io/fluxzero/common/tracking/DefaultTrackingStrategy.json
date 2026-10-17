@@ -966,6 +966,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "wakeReassignedPeers",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#wakeReassignedPeers",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previous",
+      "type" : "io.fluxzero.common.tracking.TrackerCluster",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "current",
+      "type" : "io.fluxzero.common.tracking.TrackerCluster",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
