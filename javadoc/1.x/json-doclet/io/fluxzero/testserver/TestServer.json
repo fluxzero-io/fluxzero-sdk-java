@@ -405,7 +405,7 @@
     "name" : "startServer",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
     "returnType" : "org.eclipse.jetty.server.Server",
-    "modifiers" : [ "static" ],
+    "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -416,7 +416,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Starts an embedded server bound to the supplied address. Use a loopback address and port {@code 0}\n to isolate local tests from other listeners and let the operating system allocate the port.\n The caller owns the returned server and must stop it when finished.\n\n @param address local interface and port to bind\n @return the started server\n"
   }, {
     "name" : "startServer",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",

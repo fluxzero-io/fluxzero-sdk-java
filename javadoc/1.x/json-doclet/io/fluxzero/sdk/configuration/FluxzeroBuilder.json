@@ -772,7 +772,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Replaces the default {@link TaskScheduler} implementation.\n"
+    "documentation" : " Replaces the default {@link TaskScheduler} implementation.\n Configure a replacement before building or requesting the default scheduler to avoid creating unused resources.\n The built Fluxzero instance shuts down the selected scheduler when it closes.\n"
   }, {
     "name" : "replaceValidator",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceValidator",

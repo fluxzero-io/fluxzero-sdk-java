@@ -522,6 +522,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getRevision",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#getRevision",
+    "returnType" : "int",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines the revision written alongside {@link #getTypeString(Object)}. The default uses the payload's\n runtime class; serializers that normalize that class can override this to keep type and revision consistent.\n"
+  }, {
     "name" : "getType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#getType",
     "returnType" : "java.lang.reflect.Type",
