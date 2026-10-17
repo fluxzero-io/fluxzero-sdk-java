@@ -565,6 +565,11 @@ public interface HandlerInterceptor extends HandlerDecorator {
             PreparedHandlerInputFunction result = chain;
             return new HandlerMethodPlan<>() {
                 @Override
+                public boolean isApplicable(HandlerInput<DeserializingMessage> input) {
+                    return method.isApplicable(input);
+                }
+
+                @Override
                 public Object invoke(HandlerInput<DeserializingMessage> input) {
                     return result.apply(input, method);
                 }
