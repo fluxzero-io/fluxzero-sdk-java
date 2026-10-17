@@ -46,6 +46,9 @@ Annotate your handler class or `package-info.java` with `@Consumer` to define pr
 > Multiple handlers can share the same `@Consumer(name=...)`. This means they will share the same tracker
 > threads and be processed in strict order if they share segments.
 
+When segment ownership changes, a waiting read or segment claim checks its newly assigned range for existing work.
+It does not need a new publication or the idle deadline to resume. Do not add polling or dummy publications for this.
+
 Handlers without an explicit `@Consumer` or matching builder-level `ConsumerConfiguration` use the
 unconfigured-handler fallback. `fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler` gives each handler class
 its own generated default consumer. `defaultAppConsumer` assigns those handlers to the shared application default

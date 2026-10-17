@@ -135,7 +135,6 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     protected void getBatch(Tracker tracker, TrackerRequest<MessageBatch> request) {
-        TrackerCluster oldCluster = clusters.get(tracker.getConsumerName());
         if (request.isDone()) {
             return;
         }
@@ -199,10 +198,6 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             log.error("Failed to get a batch for tracker {}", tracker, e);
             waitForMessages(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), false),
                             request);
-        } finally {
-            if (oldCluster != null && !Objects.deepEquals(oldCluster.getSegment(tracker), newSegment)) {
-                onClusterUpdate(oldCluster);
-            }
         }
     }
 
@@ -300,16 +295,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         // Releasing an active reservation can assign work to peers that already published their waiters.
         // Notify outside the cluster mutation, and only for changed assignments: waking every empty reader here
         // would recursively re-enter the same scan/wait path even when the cluster is stable.
-        if (!stopped) {
-            for (Tracker peer : trackerCluster.getTrackers()) {
-                if (!peer.equals(tracker) && !trackerCluster.hasSameAssignment(peer, previousCluster.get())) {
-                    WaitingTracker peerWaiter = waitingTrackers.get(peer);
-                    if (peerWaiter != null) {
-                        peerWaiter.run();
-                    }
-                }
-            }
-        }
+        wakeReassignedPeers(tracker, previousCluster.get(), trackerCluster);
     }
 
     protected Position position(Tracker tracker, int[] segment) {
@@ -370,9 +356,28 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     protected int[] claimSegmentRange(Tracker tracker) {
-        TrackerCluster cluster = clusters.compute(tracker.getConsumerName(), (p, c) -> ofNullable(c)
-                .orElseGet(() -> new TrackerCluster(segments)).withActiveTracker(tracker));
+        var previousCluster = new AtomicReference<TrackerCluster>();
+        TrackerCluster cluster = clusters.compute(tracker.getConsumerName(), (p, c) -> {
+            previousCluster.set(c);
+            return ofNullable(c).orElseGet(() -> new TrackerCluster(segments)).withActiveTracker(tracker);
+        });
+        // A peer can join between the caller's entry and this claim. Compare the actual atomic transition,
+        // then wake reassigned peers outside compute so their follow-up reads can safely claim their ranges.
+        wakeReassignedPeers(tracker, previousCluster.get(), cluster);
         return cluster.getSegment(tracker);
+    }
+
+    private void wakeReassignedPeers(Tracker tracker, TrackerCluster previous, TrackerCluster current) {
+        if (!stopped && previous != null) {
+            for (Tracker peer : current.getTrackers()) {
+                if (!peer.equals(tracker) && !current.hasSameAssignment(peer, previous)) {
+                    WaitingTracker peerWaiter = waitingTrackers.get(peer);
+                    if (peerWaiter != null) {
+                        peerWaiter.run();
+                    }
+                }
+            }
+        }
     }
 
     protected void onUpdate(List<SerializedMessage> messages) {
