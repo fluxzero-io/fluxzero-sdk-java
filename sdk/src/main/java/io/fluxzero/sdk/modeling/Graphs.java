@@ -2934,6 +2934,11 @@ final class GraphView<T> implements Graph<T> {
             }
             return null;
         }
+        if (previous instanceof ModelRoot<?> root && root.stateIndex() < 0 && root.sequenceNumber() < 0
+                && root.isEmpty()) {
+            // The retained empty pre-creation entity is not a Graph revision. Keep Entity history unchanged.
+            return null;
+        }
         long currentStateIndex = entity instanceof ModelRoot<?> root && root.stateIndex() >= -1L
                 ? root.stateIndex() : state.stateIndex();
         ModelReadBoundary boundary = state.boundary();

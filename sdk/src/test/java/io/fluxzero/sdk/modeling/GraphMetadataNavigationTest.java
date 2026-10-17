@@ -104,6 +104,7 @@ class GraphMetadataNavigationTest {
             assertTrue(foreign.knownType().isEmpty());
             assertEquals("foreign", foreign.previous().id());
             assertTrue(foreign.previous().knownType().isEmpty());
+            assertEquals(List.of("foreign", "foreign"), foreign.revisions().limit(2).map(Graph::id).toList());
             assertEquals(0, rejected.get());
             assertTrue(client.eventQueries.isEmpty());
         }
