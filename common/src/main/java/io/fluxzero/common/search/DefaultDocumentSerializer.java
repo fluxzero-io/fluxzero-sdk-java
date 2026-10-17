@@ -23,6 +23,7 @@ import io.fluxzero.common.serialization.MessagePackIO;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import lombok.SneakyThrows;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -58,6 +59,8 @@ public enum DefaultDocumentSerializer {
     INSTANCE;
 
     private static final int currentVersion = 0;
+    private static final byte[] metadataPrefix = JacksonInverter.METADATA_PATH_PREFIX.getBytes(StandardCharsets.UTF_8);
+    private static final List<Path> metadataOnly = List.of(new Path(JacksonInverter.METADATA_PATH_PREFIX));
 
     /**
      * Serializes the given {@link Document} into a compressed binary {@link Data} container.
@@ -99,11 +102,21 @@ public enum DefaultDocumentSerializer {
      * @throws IllegalArgumentException if the data cannot be parsed or is invalid
      */
     public Map<Entry, List<Path>> deserialize(Data<byte[]> document) {
+        return deserialize(document, false);
+    }
+
+    /* Payload conversion ignores metadata. Keep a sentinel for metadata-only entries: an empty path list denotes
+       a scalar root, and duplicate entries must still replace earlier payload paths in their original map position. */
+    Map<Entry, List<Path>> deserializePayload(Data<byte[]> document) {
+        return deserialize(document, true);
+    }
+
+    private Map<Entry, List<Path>> deserialize(Data<byte[]> document, boolean payloadOnly) {
         if (!canDeserialize(document)) {
             throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
         }
         try {
-            return deserializeEntries(CompressionAlgorithm.LZ4.decompress(document.getValue()));
+            return deserializeEntries(CompressionAlgorithm.LZ4.decompress(document.getValue()), payloadOnly);
         } catch (Exception e) {
             throw new IllegalArgumentException("Could not deserialize document", e);
         }
@@ -128,7 +141,7 @@ public enum DefaultDocumentSerializer {
             if (!containsMetadata(bytes)) {
                 return Metadata.empty();
             }
-            entries = deserializeEntries(bytes);
+            entries = deserializeEntries(bytes, false);
         } catch (Exception e) {
             throw new IllegalArgumentException("Could not deserialize document", e);
         }
@@ -155,7 +168,7 @@ public enum DefaultDocumentSerializer {
         }
     }
 
-    private Map<Entry, List<Path>> deserializeEntries(byte[] bytes) throws Exception {
+    private Map<Entry, List<Path>> deserializeEntries(byte[] bytes, boolean payloadOnly) throws Exception {
         try (MessagePackIO.Reader unpacker = newDocumentUnpacker(bytes)) {
             unpackHeader(unpacker);
             Map<Entry, List<Path>> map = new LinkedHashMap<>();
@@ -163,14 +176,40 @@ public enum DefaultDocumentSerializer {
             for (int i = 0; i < size; i++) {
                 Entry value = new Entry(Document.EntryType.deserialize(unpacker.unpackByte()), unpacker.unpackString());
                 int keysCount = unpacker.unpackArrayHeader();
-                List<Path> keys = new ArrayList<>(keysCount);
-                map.put(value, keys);
+                List<Path> keys = payloadOnly ? null : new ArrayList<>(keysCount);
                 for (int j = 0; j < keysCount; j++) {
-                    keys.add(new Path(unpacker.unpackString()));
+                    if (payloadOnly) {
+                        int length = unpacker.unpackBinaryHeader();
+                        int offset = unpacker.position();
+                        unpacker.skipPayload(length); // Validate the complete path before examining its bytes.
+                        if (isMetadataPath(bytes, offset, length)) {
+                            continue;
+                        }
+                        if (keys == null) {
+                            keys = new ArrayList<>(keysCount);
+                        }
+                        keys.add(new Path(new String(bytes, offset, length, StandardCharsets.UTF_8)));
+                    } else {
+                        keys.add(new Path(unpacker.unpackString()));
+                    }
                 }
+                map.put(value, keys == null ? keysCount == 0 ? List.of() : metadataOnly : keys);
             }
             return map;
         }
+    }
+
+    private static boolean isMetadataPath(byte[] bytes, int offset, int length) {
+        if (length < metadataPrefix.length || length > metadataPrefix.length
+                                             && bytes[offset + metadataPrefix.length] != '/') {
+            return false;
+        }
+        for (int i = 0; i < metadataPrefix.length; i++) {
+            if (bytes[offset + i] != metadataPrefix[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void unpackHeader(MessagePackIO.Reader unpacker) throws Exception {
