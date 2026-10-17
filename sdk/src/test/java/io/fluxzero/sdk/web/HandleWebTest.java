@@ -1930,8 +1930,8 @@ public class HandleWebTest {
 
                 @Test
                 void testSendingRequest() {
-                    testFixture.givenWebRequest(toWebRequest(WS_OPEN))
-                            .whenWebRequest(toWebRequest(WS_MESSAGE, SocketResponse.success(SocketRequest.counter.get(), new MyResponse("out"))))
+                    long requestId = openSocketRequest();
+                    testFixture.whenWebRequest(toWebRequest(WS_MESSAGE, SocketResponse.success(requestId, new MyResponse("out"))))
                             .expectEvents("out");
                 }
 
@@ -1944,9 +1944,25 @@ public class HandleWebTest {
 
                 @Test
                 void testReceivingFailedResponse() {
-                    testFixture.givenWebRequest(toWebRequest(WS_OPEN))
-                            .whenWebRequest(toWebRequest(WS_MESSAGE, SocketResponse.error(SocketRequest.counter.get(), "failed")))
+                    long requestId = openSocketRequest();
+                    testFixture.whenWebRequest(toWebRequest(WS_MESSAGE, SocketResponse.error(requestId, "failed")))
                             .expectEvents("failed");
+                }
+
+                private long openSocketRequest() {
+                    AtomicReference<SocketRequest> sent = new AtomicReference<>();
+                    testFixture.whenWebRequest(toWebRequest(WS_OPEN))
+                            .expectWebResponse(response -> {
+                                if (response.getPayload() instanceof SocketRequest request) {
+                                    sent.set(request);
+                                    return true;
+                                }
+                                return false;
+                            }).andThen();
+                    // Another session may allocate an ID before this session receives its response.
+                    SocketRequest unrelated = SocketRequest.valueOf("unrelated request");
+                    assertNotEquals(sent.get().getRequestId(), unrelated.getRequestId());
+                    return sent.get().getRequestId();
                 }
 
                 @Test
