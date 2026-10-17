@@ -57,6 +57,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "shutdownStarted",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.shutdownStarted",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "WebSocketClient",
@@ -245,6 +253,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isShuttingDown",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#isShuttingDown",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this client or its owning application has started controlled shutdown. "
+  }, {
     "name" : "name",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#name",
     "returnType" : "java.lang.String",
@@ -288,6 +307,20 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a WebSocket client using the supplied connection configuration.\n"
+  }, {
+    "name" : "prepareShutdown",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#prepareShutdown",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "shutDown",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#shutDown",

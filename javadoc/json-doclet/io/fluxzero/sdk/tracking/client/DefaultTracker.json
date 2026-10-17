@@ -157,6 +157,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "termination",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.termination",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "thread",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.thread",
     "type" : "java.util.concurrent.atomic.AtomicReference<java.lang.Thread>",
