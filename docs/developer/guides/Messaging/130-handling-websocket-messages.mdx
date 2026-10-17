@@ -204,3 +204,14 @@ class MySession {
 <Aside type="tip">
 Fluxzero WebSocket support is secure, observable, and fully integrated into your message-driven architecture.
 </Aside>
+
+## Request failures
+
+For incoming `SocketRequest` messages, automatic `SocketResponse.error` replies preserve the request ID.
+Messages from `FunctionalException` (including `IllegalCommandException`) are returned unchanged; other failures
+use `Request failed`. This applies to synchronous handlers and handlers returning `CompletableFuture`, in Java
+and Kotlin. Use functional exceptions for deliberate caller-facing rejections and keep their text suitable for
+that caller. Explicitly constructed socket responses remain application-controlled.
+
+Technical failures retain the original cause in an internal log correlated by request ID. Failed-send and
+unmatched-response logs identify the request without copying its request or response body.

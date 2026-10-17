@@ -347,7 +347,7 @@ public class ValidationUtils {
      * Returns {@code true} if the user is authorized.
      * <p>
      * If the user is not authorized, either {@code false} is returned or an exception is thrown. Which happens depends
-     * on the detected annotation.
+     * on the detected annotation. SDK-generated rejection messages omit user identifiers and handler names.
      *
      * @param payloadType the class of the payload
      * @param user        the authenticated user (may be null)
@@ -400,7 +400,7 @@ public class ValidationUtils {
      * Returns {@code true} if the user is authorized.
      * <p>
      * If the user is not authorized, either {@code false} is returned or an exception is thrown. Which happens depends
-     * on the detected annotation.
+     * on the detected annotation. SDK-generated rejection messages omit user identifiers and handler names.
      * <p>
      * Role requirements may be defined via annotations on the method, class, or package.
      *
@@ -460,7 +460,7 @@ public class ValidationUtils {
         }
         if (user == null) {
             if (Arrays.stream(requiredRoles).anyMatch(RequiredRole::throwIfUnauthorized)) {
-                throw new UnauthenticatedException(format("%s requires authentication", action));
+                throw new UnauthenticatedException("Authentication required.");
             }
             return false;
         }
@@ -481,7 +481,7 @@ public class ValidationUtils {
             if (r.value() != null && user.hasRole(r.value().substring(1))) {
                 if (r.throwIfUnauthorized()) {
                     throw new UnauthorizedException(
-                            format("User %s is unauthorized to execute %s", user.id(), action));
+                            "You are not allowed to perform this action.");
                 }
                 return false;
             }
@@ -498,7 +498,7 @@ public class ValidationUtils {
             }
             if (throwIfUnauthorized) {
                 throw new UnauthorizedException(
-                        format("User %s is unauthorized to execute %s", user.id(), action));
+                        "You are not allowed to perform this action.");
             }
             return false;
         }

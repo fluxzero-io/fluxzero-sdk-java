@@ -147,7 +147,7 @@ class ValidationUtilsTest {
     }
 
     @Test
-    void authorizationFailureIdentifiesUserByStableId() {
+    void authorizationFailureDoesNotDiscloseUserOrHandler() {
         User user = new User() {
             @Override
             public String id() {
@@ -168,7 +168,15 @@ class ValidationUtilsTest {
         UnauthorizedException exception = assertThrows(
                 UnauthorizedException.class, () -> ValidationUtils.assertAuthorized(AdminOnly.class, user));
 
-        assertEquals("User user-123 is unauthorized to execute AdminOnly", exception.getMessage());
+        assertEquals("You are not allowed to perform this action.", exception.getMessage());
+    }
+
+    @Test
+    void missingAuthenticationDoesNotDiscloseHandler() {
+        var failure = assertThrows(
+                io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException.class,
+                () -> ValidationUtils.assertAuthorized(AdminOnly.class, null));
+        assertEquals("Authentication required.", failure.getMessage());
     }
 
     @Value
