@@ -70,6 +70,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "route",
+    "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.route",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : " Optional logical destination used for consumer selection independently of the payload type. Its meaning belongs\n to the message type and producer; a missing value leaves route-based delivery unrestricted.\n",
+    "constantValue" : null
+  }, {
     "name" : "segment",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.segment",
     "type" : "java.lang.Integer",

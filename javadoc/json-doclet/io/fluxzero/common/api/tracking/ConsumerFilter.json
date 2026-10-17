@@ -1,0 +1,529 @@
+{
+  "name" : "ConsumerFilter",
+  "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+  "packageName" : "io.fluxzero.common.api.tracking",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+    "values" : {
+      "value" : "NON_DEFAULT"
+    }
+  } ],
+  "documentation" : " Versioned, conservative projection of an application's effective consumer blueprint. Filters are delivery\n optimizations, never authorization rules. Missing constraints and unknown versions allow delivery.\n\n @param subscriptionId unique effective-consumer identity shared by its transport sessions; null scopes to one session\n @param revision monotonically increasing revision within one client session and consumer\n @param version filter language version; currently {@code 2}\n @param format payload format for which {@code payloadTypes} is complete; other formats remain eligible\n @param payloadTypes eligible payload names/revisions when payloadRestricted is true\n @param routes eligible logical routes when routeRestricted is true\n @param payloadRestricted whether payloadTypes is a complete constraint\n @param routeRestricted whether routes is a complete constraint\n @param upcastInputs inputs that must bypass both constraints because upcasting may change type or metadata\n @param referenceOnly whether this read refers to a previously supplied snapshot instead of carrying its constraints\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "VERSION",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.VERSION",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 2
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.format",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "payloadRestricted",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.payloadRestricted",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "payloadTypes",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.payloadTypes",
+    "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "referenceOnly",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.referenceOnly",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "revision",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.revision",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "routeRestricted",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.routeRestricted",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "routes",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.routes",
+    "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.RoutePattern>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "subscriptionId",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.subscriptionId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "upcastInputs",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.upcastInputs",
+    "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "version",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter.version",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ConsumerFilter",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "subscriptionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "version",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadTypes",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routes",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.RoutePattern>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "upcastInputs",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadRestricted",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routeRestricted",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "referenceOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "asReference",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#asReference",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compact reference to a full snapshot. An unknown reference must be resolved before claiming or scanning. "
+  }, {
+    "name" : "compile",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#compile",
+    "returnType" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compiles once at the subscription boundary; no regex compilation or application class loading occurs per message. "
+  }, {
+    "name" : "compilePayloads",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#compilePayloads",
+    "returnType" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "inputs",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forRevision",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#forRevision",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "subscriptionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "upcastInputs",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the same contract with its lifecycle revision and current serializer migration inputs. "
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#format",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "payloadRestricted",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#payloadRestricted",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "payloadTypes",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#payloadTypes",
+    "returnType" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "referenceOnly",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#referenceOnly",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "revision",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#revision",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "routeRestricted",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#routeRestricted",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "routes",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#routes",
+    "returnType" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.RoutePattern>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "select",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#select",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "subscriptionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "version",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadTypes",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routes",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.RoutePattern>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "upcastInputs",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Builds a selection from complete handler facts. Null lists indicate unknown constraints; explicit flags on the\n wire preserve that distinction even for peers whose JSON collection handling normalizes null to empty.\n"
+  }, {
+    "name" : "subscriptionId",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#subscriptionId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "union",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#union",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "filters",
+      "type" : "java.util.Collection<io.fluxzero.common.api.tracking.ConsumerFilter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Combines alternative handlers; an unknown constraint widens the corresponding selection. "
+  }, {
+    "name" : "unrestricted",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#unrestricted",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Builds an unrestricted projection for metadata that cannot safely be narrowed. "
+  }, {
+    "name" : "upcastInputs",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#upcastInputs",
+    "returnType" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "version",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter#version",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "format",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "payloadRestricted",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "payloadTypes",
+    "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "referenceOnly",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "revision",
+    "type" : "long",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "routeRestricted",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "routes",
+    "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.RoutePattern>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "subscriptionId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "upcastInputs",
+    "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "version",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ {
+    "name" : "PayloadType",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter$PayloadType",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "RouteGroup",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter$RouteGroup",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "RoutePattern",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter$RoutePattern",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

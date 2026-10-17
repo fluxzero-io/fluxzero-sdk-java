@@ -370,6 +370,11 @@
       "type" : "io.fluxzero.common.api.RequestBatch<?>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -565,6 +570,27 @@
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
     "documentation" : " Encodes a supported homogeneous request or result batch, returning {@code null} when the\n ordinary transport codec should be used.\n"
+  }, {
+    "name" : "tryEncode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec#tryEncode",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Encodes routed native envelopes only for a peer that explicitly supports them. "
   }, {
     "name" : "update",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec#update",

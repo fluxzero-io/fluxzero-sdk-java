@@ -1305,7 +1305,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads the aggregate root of type {@code <T>} with given aggregateId.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n Typed identifiers whose declared type is an independent {@link Model} are delegated to the model repository. This\n preserves source-compatible typed loads while migrating an aggregate root to an independent model.\n\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
+    "documentation" : " Loads the aggregate root of type {@code <T>} with given aggregateId.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n Typed identifiers whose declared type is an independent {@link Model} are delegated to the model repository. This\n preserves source-compatible typed loads while migrating an aggregate root to an independent model.\n\n @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit\n                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
   }, {
     "name" : "loadAggregate",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadAggregate",
@@ -1321,7 +1321,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads the aggregate root with the given aggregateId. If the aggregate exists, it will be loaded and returned with\n its respective type, if not, an empty {@link Entity} of type {@link Object} will be returned.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
+    "documentation" : " Loads the aggregate root with the given aggregateId. If the aggregate exists, it will be loaded and returned with\n its respective type, if not, an empty {@link Entity} of type {@link Object} will be returned.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit\n                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
   }, {
     "name" : "loadAggregate",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadAggregate",
@@ -1342,7 +1342,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads the aggregate root of type {@code <T>} with given aggregateId.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
+    "documentation" : " Loads the aggregate root of type {@code <T>} with given aggregateId.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit\n                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
   }, {
     "name" : "loadAggregateFor",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadAggregateFor",
@@ -1358,7 +1358,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads the aggregate root that currently contains the entity with given entityId. If no such aggregate exists an\n empty aggregate root is returned of type {@code Object}. In that case be aware that applying events to create the\n aggregate may yield an undesired result; to prevent this use {@link #loadAggregateFor(Object, Class)}.\n <p>\n This method can also be used if the entity is the aggregate root (aggregateId is equal to entityId). If the\n entity is associated with more than one aggregate the behavior of this method is unpredictable, though the\n default behavior is that any one of the associated aggregates is returned.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
+    "documentation" : " Loads the aggregate root that currently contains the entity with given entityId. If no such aggregate exists an\n empty aggregate root is returned of type {@code Object}. In that case be aware that applying events to create the\n aggregate may yield an undesired result; to prevent this use {@link #loadAggregateFor(Object, Class)}.\n <p>\n This method can also be used if the entity is the aggregate root (aggregateId is equal to entityId). If the\n entity is associated with more than one aggregate the behavior of this method is unpredictable, though the\n default behavior is that any one of the associated aggregates is returned.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit\n                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
   }, {
     "name" : "loadAggregateFor",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadAggregateFor",
@@ -1379,7 +1379,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads the aggregate root of type {@code <T>} that currently contains the entity with given entityId. If no such\n aggregate exists an empty aggregate root is returned with given {@code defaultType} as its type.\n <p>\n This method can also be used if the entity is the aggregate root (aggregateId is equal to entityId). If the\n entity is associated with more than one aggregate the behavior of this method is unpredictable, though the\n default behavior is that any one of the associated aggregates is returned.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
+    "documentation" : " Loads the aggregate root of type {@code <T>} that currently contains the entity with given entityId. If no such\n aggregate exists an empty aggregate root is returned with given {@code defaultType} as its type.\n <p>\n This method can also be used if the entity is the aggregate root (aggregateId is equal to entityId). If the\n entity is associated with more than one aggregate the behavior of this method is unpredictable, though the\n default behavior is that any one of the associated aggregates is returned.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @throws IllegalArgumentException if a known legacy aggregate root type does not declare or inherit\n                                  {@link Aggregate}; an empty untyped root is checked when its type becomes known\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
   }, {
     "name" : "loadCurrentGraph",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadCurrentGraph",

@@ -239,6 +239,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasRoutes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#hasRoutes",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "readByteBlocks",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#readByteBlocks",
     "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventDataBlock>",
@@ -330,6 +346,11 @@
       "type" : "io.fluxzero.common.api.ResultBatch",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -366,6 +387,27 @@
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
     "documentation" : " Encodes a homogeneous compact model-event request or result batch.\n"
+  }, {
+    "name" : "tryEncode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#tryEncode",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Encodes routed native envelopes only for a peer that explicitly supports them. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

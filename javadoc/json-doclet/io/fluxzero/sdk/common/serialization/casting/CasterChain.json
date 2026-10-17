@@ -52,7 +52,18 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Casts a single input and returns the first resulting output, or {@code null} if the input is dropped.\n\n <p>This is equivalent to {@code cast(Stream.of(input), rev).findAny().orElse(null)}, but implementations may\n optimize the common no-caster path without constructing a stream pipeline.\n\n @param input the input value\n @param rev   the target revision number (nullable)\n @return the first casted result, or {@code null} when no result is produced\n"
+    "documentation" : null
+  }, {
+    "name" : "inputRevisions",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CasterChain#inputRevisions",
+    "returnType" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Complete registered input revisions, or null for an unknown/custom casting implementation. "
   }, {
     "name" : "intercept",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CasterChain#intercept",

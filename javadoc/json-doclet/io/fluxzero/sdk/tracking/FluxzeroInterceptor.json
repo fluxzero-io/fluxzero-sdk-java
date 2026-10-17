@@ -33,6 +33,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "describeConsumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.FluxzeroInterceptor#describeConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "downstream",
+      "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "intercept",
     "qualifiedName" : "io.fluxzero.sdk.tracking.FluxzeroInterceptor#intercept",
     "returnType" : "java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch>",

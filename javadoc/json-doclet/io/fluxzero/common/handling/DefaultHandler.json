@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.Handler<M>" ],
   "fields" : [ {
+    "name" : "consumerFilter",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler.consumerFilter",
+    "type" : "java.util.function.Supplier<io.fluxzero.common.api.tracking.ConsumerFilter>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "handlerMatcher",
     "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler.handlerMatcher",
     "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>",
@@ -167,6 +175,20 @@
     "varArgs" : false,
     "documentation" : " Creates a handler bound to the supplied target and matcher, preparing its method binding and invocation\n planner.\n"
   }, {
+    "name" : "getConsumerFilter",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#getConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getHandlerMethodOrNull",
     "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#getHandlerMethodOrNull",
     "returnType" : "io.fluxzero.common.handling.HandlerMethod<M>",
@@ -284,6 +306,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withConsumerFilter",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#withConsumerFilter",
+    "returnType" : "io.fluxzero.common.handling.DefaultHandler<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "filter",
+      "type" : "java.util.function.Supplier<io.fluxzero.common.api.tracking.ConsumerFilter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Attaches conservative metadata while preserving the existing invocation plans. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

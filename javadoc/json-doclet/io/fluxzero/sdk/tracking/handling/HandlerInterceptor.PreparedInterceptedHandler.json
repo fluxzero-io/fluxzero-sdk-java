@@ -126,6 +126,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getConsumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#getConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getHandlerMethodOrNull",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#getHandlerMethodOrNull",
     "returnType" : "io.fluxzero.common.handling.HandlerMethod<io.fluxzero.sdk.common.serialization.DeserializingMessage>",

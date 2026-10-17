@@ -1,0 +1,211 @@
+{
+  "name" : "ConsumerBlueprint",
+  "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint",
+  "packageName" : "io.fluxzero.sdk.registry",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Lifecycle-bound projection of the effective handlers assigned to one consumer. The same contract can later be\n supplied by generated metadata; it contains no application objects or executable code on the wire.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "handlers",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint.handlers",
+    "type" : "java.util.function.Supplier<io.fluxzero.common.api.tracking.ConsumerFilter>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "inputProjection",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint.inputProjection",
+    "type" : "java.util.function.UnaryOperator<io.fluxzero.common.api.tracking.ConsumerFilter>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "listeners",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint.listeners",
+    "type" : "java.util.List<java.util.function.Consumer<io.fluxzero.common.api.tracking.ConsumerFilter>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "projection",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint.projection",
+    "type" : "io.fluxzero.sdk.registry.ConsumerBlueprint.Projection",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "revisions",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint.revisions",
+    "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint.serializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializerRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint.serializerRegistration",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "subscriptionId",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint.subscriptionId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ConsumerBlueprint",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint#ConsumerBlueprint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.function.Supplier<io.fluxzero.common.api.tracking.ConsumerFilter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revisions",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ConsumerBlueprint",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint#ConsumerBlueprint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.function.Supplier<io.fluxzero.common.api.tracking.ConsumerFilter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revisions",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inputProjection",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.common.api.tracking.ConsumerFilter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Projects the serializer's required inputs through an upstream serialized-message transformation, such as a\n batch interceptor chain. A null projection result means unknown selection and retains broad delivery.\n"
+  } ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getFilter",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint#getFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Current immutable projection, including its monotonic application-local revision. "
+  }, {
+    "name" : "mayHandle",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint#mayHandle",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether the current conservative projection admits this serialized input, without executing application code. "
+  }, {
+    "name" : "observe",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint#observe",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "listener",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.api.tracking.ConsumerFilter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Observes future projections. Newly opened reads always carry {@link #getFilter()} themselves. "
+  }, {
+    "name" : "refresh",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint#refresh",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Publishes a new projection after registration changes; listeners establish the remote activation boundary.\n Every listener is notified even when another fails. Activation failures remain visible to the caller.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Projection",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

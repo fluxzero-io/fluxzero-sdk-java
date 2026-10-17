@@ -133,7 +133,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Load an aggregate by its identifier. If the aggregate exists, it will be loaded and returned with its respective\n type, if not, an empty {@link Entity} of type {@link Object} will be returned.\n\n @param aggregateId   the aggregate identifier.\n @param <T>           the aggregate type.\n @return the loaded aggregate wrapped in an {@link Entity}.\n"
+    "documentation" : " Load an aggregate by its identifier. If the aggregate exists, it will be loaded and returned with its respective\n type, if not, an empty {@link Entity} of type {@link Object} will be returned.\n\n @param aggregateId   the aggregate identifier.\n @param <T>           the aggregate type.\n @return the loaded aggregate wrapped in an {@link Entity}.\n @throws IllegalArgumentException if the known root type has no aggregate marker\n"
   }, {
     "name" : "load",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.AggregateRepository#load",
@@ -157,7 +157,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Load an aggregate by its identifier and type.\n\n @param aggregateId   the aggregate identifier.\n @param aggregateType the expected class type.\n @param <T>           the aggregate type.\n @return the loaded aggregate wrapped in an {@link Entity}.\n"
+    "documentation" : " Load an aggregate by its identifier and type. The root type must declare or inherit\n {@link io.fluxzero.sdk.modeling.Aggregate @Aggregate}. An empty, untyped {@link Object} root is allowed until\n its type becomes known; the default repository validates inferred types and newly created roots as well.\n\n @param aggregateId   the aggregate identifier.\n @param aggregateType the expected class type.\n @param <T>           the aggregate type.\n @return the loaded aggregate wrapped in an {@link Entity}.\n @throws IllegalArgumentException if the known root type has no aggregate marker\n"
   }, {
     "name" : "loadFor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.AggregateRepository#loadFor",

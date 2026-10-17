@@ -207,6 +207,38 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "route",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage.route",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "routeChanged",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage.routeChanged",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "routeDecoded",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage.routeDecoded",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "routeLength",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage.routeLength",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "source",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage.source",
     "type" : "java.lang.String",
@@ -569,6 +601,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getRoute",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage#getRoute",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getSource",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage#getSource",
     "returnType" : "java.lang.String",
@@ -741,6 +787,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "routeOffset",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage#routeOffset",
+    "returnType" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "serializationView",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage#serializationView",
     "returnType" : "io.fluxzero.common.api.internal.BinaryWire.EncodedMessage",
@@ -821,6 +878,25 @@
     "parameters" : [ {
       "name" : "originalRevision",
       "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setRoute",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage#setRoute",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "route",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

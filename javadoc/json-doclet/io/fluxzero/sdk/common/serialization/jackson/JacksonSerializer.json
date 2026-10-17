@@ -225,7 +225,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns a canonical string name for the given type.\n"
+    "documentation" : null
   }, {
     "name" : "deserializeUnknownType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#deserializeUnknownType",
@@ -597,6 +597,20 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Maps standard bean properties using this mapper's naming, alias and unwrapping configuration. Custom codecs,\n dynamic output and type/root wrappers require an explicit mapping override; unsupported mappings fail closed.\n"
+  }, {
+    "name" : "supportsConsumerFiltering",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#supportsConsumerFiltering",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a canonical string name for the given type.\n"
   }, {
     "name" : "toDocument",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#toDocument",

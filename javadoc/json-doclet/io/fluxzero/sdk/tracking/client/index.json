@@ -39,6 +39,11 @@
     "name" : "WebsocketTrackingClient",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient",
     "kind" : "class"
+  }, {
+    "file" : "WebsocketTrackingClient.PendingRead.json",
+    "name" : "WebsocketTrackingClient.PendingRead",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient$PendingRead",
+    "kind" : "record"
   } ],
   "subdirectories" : [ ]
 }

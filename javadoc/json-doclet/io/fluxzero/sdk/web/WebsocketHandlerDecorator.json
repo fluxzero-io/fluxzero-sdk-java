@@ -108,6 +108,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "consumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#consumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "additionalRoutes",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.RoutePattern>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "enableHandshake",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#enableHandshake",
     "returnType" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",

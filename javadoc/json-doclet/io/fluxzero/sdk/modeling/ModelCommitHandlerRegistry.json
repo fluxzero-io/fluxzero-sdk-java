@@ -243,6 +243,17 @@
     "varArgs" : false,
     "documentation" : "Runs interceptors and immediate assertions without applying or committing. "
   }, {
+    "name" : "automaticHandlerTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#automaticHandlerTarget",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Framework target of the automatic local command handler; its effective consumer target is the payload class. "
+  }, {
     "name" : "canHandle",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#canHandle",
     "returnType" : "boolean",

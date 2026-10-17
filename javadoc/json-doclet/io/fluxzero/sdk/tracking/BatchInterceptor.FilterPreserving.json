@@ -1,0 +1,157 @@
+{
+  "name" : "FilterPreserving",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Explicit selection-preserving wrapper; use {@link #preservingConsumerFilter(BatchInterceptor)}. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.BatchInterceptor" ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving.delegate",
+    "type" : "io.fluxzero.sdk.tracking.BatchInterceptor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "FilterPreserving",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving#FilterPreserving",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.tracking.BatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving#delegate",
+    "returnType" : "io.fluxzero.sdk.tracking.BatchInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "describeConsumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving#describeConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "downstream",
+      "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "intercept",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving#intercept",
+    "returnType" : "java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "tracker",
+      "type" : "io.fluxzero.sdk.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutdown",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving#shutdown",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.sdk.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "delegate",
+    "type" : "io.fluxzero.sdk.tracking.BatchInterceptor",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -18,6 +18,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "consumerFilters",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient.consumerFilters",
+    "type" : "io.fluxzero.sdk.tracking.client.ConsumerFilterUpdates",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "initialPositionLag",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient.initialPositionLag",
     "type" : "java.time.Duration",
@@ -629,6 +637,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "sendRead",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#sendRead",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "read",
+      "type" : "io.fluxzero.common.api.tracking.Read",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "setRetentionTime",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#setRetentionTime",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -683,6 +707,20 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsConsumerFiltering",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#supportsConsumerFiltering",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

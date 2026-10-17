@@ -1,0 +1,139 @@
+{
+  "name" : "WebRequestRoute",
+  "qualifiedName" : "io.fluxzero.sdk.web.WebRequestRoute",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Producer-side projection of web addressing onto the generic message route field. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "WebRequestRoute",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestRoute#WebRequestRoute",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "anyRoute",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestRoute#anyRoute",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter.RoutePattern",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Session-correlated socket inputs are not restricted by their URL. "
+  }, {
+    "name" : "describe",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestRoute#describe",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns method plus origin/raw path; query, fragment and percent-decoding never participate in selection. "
+  }, {
+    "name" : "origin",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestRoute#origin",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "pattern",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestRoute#pattern",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter.RoutePattern",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "origin",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pathRegex",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Exports a compiled web path without changing the path regex's anchors or lookaround scope. "
+  }, {
+    "name" : "patternForAnyOrigin",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestRoute#patternForAnyOrigin",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter.RoutePattern",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pathRegex",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Matches the same raw path with any producer-side origin, as used by automatic socket handshakes. "
+  }, {
+    "name" : "update",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestRoute#update",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Refreshes the route from the final serialized request metadata. Missing or malformed addressing clears the\n route, retaining the ordinary web error path. Call this after serialized dispatch interceptors.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

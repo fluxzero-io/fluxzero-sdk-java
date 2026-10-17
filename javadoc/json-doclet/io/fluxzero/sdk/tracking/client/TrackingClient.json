@@ -435,6 +435,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Stores the last successfully processed position for a consumer with a specific delivery guarantee.\n\n @param consumer  the name of the consumer\n @param segment   the segment the tracker is processing\n @param lastIndex the last message index processed\n @param guarantee delivery guarantee (e.g., STORED, SENT)\n @return a future indicating completion\n"
+  }, {
+    "name" : "supportsConsumerFiltering",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#supportsConsumerFiltering",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether an established peer can filter consumer deliveries. Custom clients conservatively default to false;\n websocket implementations may establish their first connection to discover this capability.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

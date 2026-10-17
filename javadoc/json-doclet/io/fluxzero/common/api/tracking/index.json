@@ -20,6 +20,26 @@
     "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegmentResult$Metric",
     "kind" : "class"
   }, {
+    "file" : "ConsumerFilter.json",
+    "name" : "ConsumerFilter",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "kind" : "record"
+  }, {
+    "file" : "ConsumerFilter.PayloadType.json",
+    "name" : "ConsumerFilter.PayloadType",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter$PayloadType",
+    "kind" : "record"
+  }, {
+    "file" : "ConsumerFilter.RouteGroup.json",
+    "name" : "ConsumerFilter.RouteGroup",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter$RouteGroup",
+    "kind" : "record"
+  }, {
+    "file" : "ConsumerFilter.RoutePattern.json",
+    "name" : "ConsumerFilter.RoutePattern",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ConsumerFilter$RoutePattern",
+    "kind" : "record"
+  }, {
     "file" : "DisconnectTracker.json",
     "name" : "DisconnectTracker",
     "qualifiedName" : "io.fluxzero.common.api.tracking.DisconnectTracker",
@@ -38,6 +58,11 @@
     "file" : "MessageBatch.json",
     "name" : "MessageBatch",
     "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch",
+    "kind" : "class"
+  }, {
+    "file" : "MessageBatch.ConsumerFilterRequired.json",
+    "name" : "MessageBatch.ConsumerFilterRequired",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch$ConsumerFilterRequired",
     "kind" : "class"
   }, {
     "file" : "MessageBatch.Metric.json",

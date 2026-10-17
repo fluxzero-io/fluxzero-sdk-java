@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "consumerFilters",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.consumerFilters",
+    "type" : "java.util.concurrent.ConcurrentHashMap<io.fluxzero.common.tracking.DefaultTrackingStrategy.FilterScope,io.fluxzero.common.tracking.DefaultTrackingStrategy.FilterState>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "frozenForHandover",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.frozenForHandover",
     "type" : "boolean",
@@ -924,6 +932,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasFilterScope",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#hasFilterScope",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scope",
+      "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.FilterScope",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "indexFromMillis",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#indexFromMillis",
     "returnType" : "long",
@@ -1303,6 +1327,18 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "FilterScope",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$FilterScope",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "FilterState",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$FilterState",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "TrackerRequest",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest",
     "kind" : "class",

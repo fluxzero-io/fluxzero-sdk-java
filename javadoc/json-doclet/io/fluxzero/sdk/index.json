@@ -51,6 +51,9 @@
     "name" : "publishing",
     "path" : "publishing"
   }, {
+    "name" : "registry",
+    "path" : "registry"
+  }, {
     "name" : "scheduling",
     "path" : "scheduling"
   }, {

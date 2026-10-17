@@ -7,6 +7,9 @@
   "annotations" : [ {
     "annotationType" : "lombok.Value",
     "values" : {}
+  }, {
+    "annotationType" : "lombok.experimental.NonFinal",
+    "values" : {}
   } ],
   "documentation" : " Represents a batch of messages retrieved from the message store for a specific segment range.\n <p>\n A message batch contains a list of {@link SerializedMessage} instances and metadata such as the last known index and\n the {@link Position} of the consumer when this batch was read.\n <p>\n The {@code segment} and {@code position} fields are especially relevant when the tracker operates with\n {@code ignoreSegment=true}, meaning segment filtering is handled on the client side. In such cases, the Runtime\n returns all potentially matching messages, and the client uses the {@link Position} and {@code segment} range to\n determine which messages are truly relevant for processing.\n",
   "typeParameters" : [ ],
@@ -60,14 +63,118 @@
     "name" : "MessageBatch",
     "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch#MessageBatch",
     "modifiers" : [ "public" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonCreator",
+      "values" : {
+        "mode" : "DISABLED"
+      }
+    } ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "position",
+      "type" : "io.fluxzero.common.api.tracking.Position",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "caughtUp",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates an ordinary data batch; the optional filter-control flag is handled by the JSON factory. "
+  } ],
+  "methods" : [ {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch#fromJson",
+    "returnType" : "io.fluxzero.common.api.tracking.MessageBatch",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonCreator",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "segment"
+        }
+      } ]
+    }, {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "messages"
+        }
+      } ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "lastIndex"
+        }
+      } ]
+    }, {
+      "name" : "position",
+      "type" : "io.fluxzero.common.api.tracking.Position",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "position"
+        }
+      } ]
+    }, {
+      "name" : "caughtUp",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "caughtUp"
+        }
+      } ]
+    }, {
+      "name" : "consumerFilterRequired",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "consumerFilterRequired"
+        }
+      } ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
-  } ],
-  "methods" : [ {
+  }, {
     "name" : "getBytes",
     "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch#getBytes",
     "returnType" : "long",
@@ -96,6 +203,22 @@
     "varArgs" : false,
     "documentation" : " Returns the number of messages contained in this batch.\n"
   }, {
+    "name" : "isConsumerFilterRequired",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch#isConsumerFilterRequired",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this response requests a full snapshot instead of delivering a message batch. "
+  }, {
     "name" : "isEmpty",
     "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch#isEmpty",
     "returnType" : "boolean",
@@ -109,6 +232,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Indicates whether this message batch is empty.\n"
+  }, {
+    "name" : "requireConsumerFilter",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch#requireConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.MessageBatch",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Requests a full consumer filter snapshot before this read can be admitted. No segment has been claimed and no\n position has advanced. Tracking clients absorb this control response and retry with the current full snapshot.\n"
   }, {
     "name" : "toMetric",
     "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch#toMetric",
@@ -141,6 +275,17 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "ConsumerFilterRequired",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch$ConsumerFilterRequired",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.EqualsAndHashCode",
+      "values" : {
+        "callSuper" : "true"
+      }
+    } ]
+  }, {
     "name" : "Metric",
     "qualifiedName" : "io.fluxzero.common.api.tracking.MessageBatch$Metric",
     "kind" : "class",

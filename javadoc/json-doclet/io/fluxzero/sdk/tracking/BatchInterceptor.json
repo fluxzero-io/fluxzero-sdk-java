@@ -39,6 +39,48 @@
     "varArgs" : false,
     "documentation" : " Composes this interceptor with another, returning a new interceptor that applies both in sequence. The\n {@code nextInterceptor} is applied first, followed by this interceptor.\n\n @param nextInterceptor the interceptor to apply before this one\n @return a combined interceptor\n"
   }, {
+    "name" : "describeConsumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor#describeConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "downstream",
+      "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Describes serialized inputs needed by this interceptor and its downstream consumer. The default is\n unrestricted because interceptors can transform messages or require inputs that no handler accepts.\n Implementations may return {@code downstream} only when excluded inputs are irrelevant to their behavior and\n they never transform an excluded input into one the downstream filter admits. Custom inverse projections\n describe the input side of a transformation; this method runs after serializer/upcaster projection.\n"
+  }, {
+    "name" : "effectiveInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor#effectiveInterceptors",
+    "returnType" : "java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Ordered application and consumer interceptors, shared by execution and input selection. "
+  }, {
     "name" : "intercept",
     "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor#intercept",
     "returnType" : "java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch>",
@@ -87,6 +129,22 @@
     "varArgs" : false,
     "documentation" : " Returns a no-op interceptor that does not alter the consumer behavior.\n"
   }, {
+    "name" : "preservingConsumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor#preservingConsumerFilter",
+    "returnType" : "io.fluxzero.sdk.tracking.BatchInterceptor",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "interceptor",
+      "type" : "io.fluxzero.sdk.tracking.BatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Marks an interceptor as preserving downstream selection. Use for observers that only need handler-relevant\n messages and do not expand the accepted inputs. This is an explicit promise, not an analysis of the lambda.\n Invocation, shutdown and the wrapped interceptor's {@link io.fluxzero.sdk.common.Order} are preserved.\n"
+  }, {
     "name" : "shutdown",
     "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor#shutdown",
     "returnType" : "void",
@@ -105,5 +163,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "FilterPreserving",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
 }

@@ -73,6 +73,32 @@
     "varArgs" : false,
     "documentation" : " Returns {@code true} if this resolver might apply to the given method. Implementations should perform only\n inexpensive checks and never throw.\n\n @param method      the handler method or constructor\n @param targetClass the declaring or target class\n @return {@code true} if this resolver could apply, {@code false} otherwise\n"
   }, {
+    "name" : "mayApply",
+    "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver#mayApply",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Conservative per-parameter applicability used to derive delivery metadata. Returning false promises that this\n resolver never supplies this parameter. The default preserves unknown/custom resolver behavior.\n"
+  }, {
     "name" : "prepare",
     "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver#prepare",
     "returnType" : "java.util.function.Function<M,java.lang.Object>",

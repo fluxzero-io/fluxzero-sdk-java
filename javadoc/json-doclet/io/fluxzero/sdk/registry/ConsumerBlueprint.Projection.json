@@ -1,0 +1,124 @@
+{
+  "name" : "Projection",
+  "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection",
+  "packageName" : "io.fluxzero.sdk.registry",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "filter",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection.filter",
+    "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "predicate",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection.predicate",
+    "type" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Projection",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection#Projection",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "filter",
+      "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "filter",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection#filter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "predicate",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection#predicate",
+    "returnType" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "filter",
+    "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "predicate",
+    "type" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

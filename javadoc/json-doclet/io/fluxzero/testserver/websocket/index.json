@@ -114,6 +114,11 @@
     "name" : "WebsocketEndpoint.SessionBacklog",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$SessionBacklog",
     "kind" : "class"
+  }, {
+    "file" : "WebsocketEndpoint.TransportCodecKey.json",
+    "name" : "WebsocketEndpoint.TransportCodecKey",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$TransportCodecKey",
+    "kind" : "record"
   } ],
   "subdirectories" : [ ]
 }

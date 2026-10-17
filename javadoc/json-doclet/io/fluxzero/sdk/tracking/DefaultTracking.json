@@ -37,6 +37,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "blueprintRevisions",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.blueprintRevisions",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "closed",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.closed",
     "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -65,6 +73,14 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.completedReport",
     "type" : "java.util.concurrent.CompletionStage<java.lang.Void>",
     "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "consumerBlueprints",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.consumerBlueprints",
+    "type" : "java.util.Map<io.fluxzero.sdk.tracking.ConsumerConfiguration,io.fluxzero.sdk.registry.ConsumerBlueprint>",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -1309,6 +1325,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "observeConsumers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#observeConsumers",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "observer",
+      "type" : "java.util.function.BiFunction<io.fluxzero.sdk.tracking.ConsumerConfiguration,java.util.List<io.fluxzero.sdk.tracking.DefaultTracking.PreparedHandler>,io.fluxzero.common.Registration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Describes effective consumers using the ordinary tracking preparation without starting trackers, initializing\n schedules, or opening document readers. The observer owns its returned registration; this instance also\n cancels it on shutdown. Intended for synchronous test infrastructure validating consumer admission.\n"
+  }, {
     "name" : "parseUnconfiguredHandlerConsumerMode",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#parseUnconfiguredHandlerConsumerMode",
     "returnType" : "io.fluxzero.sdk.tracking.DefaultTracking.UnconfiguredHandlerConsumerMode",
@@ -1462,6 +1504,40 @@
     }, {
       "name" : "maxFetchSize",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#register",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Synchronized",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "activation",
+      "type" : "java.util.function.BiFunction<io.fluxzero.sdk.tracking.ConsumerConfiguration,java.util.List<io.fluxzero.sdk.tracking.DefaultTracking.PreparedHandler>,io.fluxzero.common.Registration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialize",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1814,6 +1890,16 @@
       "type" : "java.util.Set<java.lang.Class<?>>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "activation",
+      "type" : "java.util.function.BiFunction<io.fluxzero.sdk.tracking.ConsumerConfiguration,java.util.List<io.fluxzero.sdk.tracking.DefaultTracking.PreparedHandler>,io.fluxzero.common.Registration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialize",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -1843,6 +1929,16 @@
     }, {
       "name" : "assignedHandlers",
       "type" : "java.util.Map<io.fluxzero.sdk.tracking.ConsumerConfiguration,java.util.List<java.lang.Object>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "activation",
+      "type" : "java.util.function.BiFunction<io.fluxzero.sdk.tracking.ConsumerConfiguration,java.util.List<io.fluxzero.sdk.tracking.DefaultTracking.PreparedHandler>,io.fluxzero.common.Registration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialize",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -2089,6 +2185,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "PreparedHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$PreparedHandler",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "SegmentedBatchHandlerQueue",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue",
     "kind" : "class",

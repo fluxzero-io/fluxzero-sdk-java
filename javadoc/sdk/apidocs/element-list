@@ -23,6 +23,7 @@ io.fluxzero.sdk.publishing.client
 io.fluxzero.sdk.publishing.correlation
 io.fluxzero.sdk.publishing.dataprotection
 io.fluxzero.sdk.publishing.routing
+io.fluxzero.sdk.registry
 io.fluxzero.sdk.scheduling
 io.fluxzero.sdk.scheduling.client
 io.fluxzero.sdk.tracking

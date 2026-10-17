@@ -748,6 +748,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "supportsConsumerFiltering",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#supportsConsumerFiltering",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "waitForCachedBatch",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#waitForCachedBatch",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",

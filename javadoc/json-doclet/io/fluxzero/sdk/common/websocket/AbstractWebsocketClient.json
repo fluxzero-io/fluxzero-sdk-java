@@ -436,7 +436,7 @@
   }, {
     "name" : "transportCodecs",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.transportCodecs",
-    "type" : "java.util.Map<io.fluxzero.common.websocket.WebSocketTransportFormat,io.fluxzero.common.websocket.WebSocketTransportCodec>",
+    "type" : "java.util.Map<io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.TransportCodecKey,io.fluxzero.common.websocket.WebSocketTransportCodec>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -686,6 +686,27 @@
     "thrownTypes" : [ "java.lang.InterruptedException" ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "adaptRequestForSession",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#adaptRequestForSession",
+    "returnType" : "io.fluxzero.common.api.Request",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Adapts an outgoing request to the selected peer on every attempt, including reconnect replay. "
   }, {
     "name" : "applyCorrelationData",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#applyCorrelationData",
@@ -1653,6 +1674,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Classifies decoded results for optional protocol-specific JFR diagnostics. "
+  }, {
+    "name" : "localResponseForSession",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#localResponseForSession",
+    "returnType" : "io.fluxzero.common.api.RequestResult",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns a local response for a peer-specific no-op, or null when the request must be sent. "
   }, {
     "name" : "logConnectionRetryStatus",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#logConnectionRetryStatus",
@@ -2776,6 +2818,48 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "sendRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendRequest",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resultContext",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialSession",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendToAllSessions",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendToAllSessions",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<R>>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "requestFactory",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.common.api.Request>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sends one independently correlated request to each established peer, awaiting every acknowledgement. "
+  }, {
     "name" : "sendUntracked",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendUntracked",
     "returnType" : "void",
@@ -2817,6 +2901,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "sessionsForCapabilities",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sessionsForCapabilities",
+    "returnType" : "java.util.List<io.fluxzero.sdk.common.websocket.WebsocketSession>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Existing open peers, establishing one connection only when capability discovery has no peer yet. "
   }, {
     "name" : "shouldEmitTransportMetrics",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#shouldEmitTransportMetrics",
@@ -3098,6 +3193,12 @@
     "modifiers" : [ "final", "protected" ],
     "annotations" : [ ]
   }, {
+    "name" : "QueuedRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "ResultHandlingContext",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ResultHandlingContext",
     "kind" : "class",
@@ -3113,6 +3214,18 @@
     "name" : "RuntimeMessageDispatchCapture",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$RuntimeMessageDispatchCapture",
     "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SendAttempt",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "TransportCodecKey",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$TransportCodecKey",
+    "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   }, {

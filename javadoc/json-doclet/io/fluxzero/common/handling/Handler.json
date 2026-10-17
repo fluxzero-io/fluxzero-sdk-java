@@ -12,6 +12,17 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "getConsumerFilter",
+    "qualifiedName" : "io.fluxzero.common.handling.Handler#getConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Conservative delivery metadata for this handler. Null means that matching cannot safely be narrowed.\n Custom handlers and decorators may opt in only when this describes every input they can accept.\n"
+  }, {
     "name" : "getHandlerMethodOrNull",
     "qualifiedName" : "io.fluxzero.common.handling.Handler#getHandlerMethodOrNull",
     "returnType" : "io.fluxzero.common.handling.HandlerMethod<M>",

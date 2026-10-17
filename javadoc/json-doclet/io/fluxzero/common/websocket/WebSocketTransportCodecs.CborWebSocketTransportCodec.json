@@ -33,6 +33,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "routedEnvelopes",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec.routedEnvelopes",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "CborWebSocketTransportCodec",
@@ -53,6 +61,11 @@
     }, {
       "name" : "payloadCodecs",
       "type" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -159,6 +172,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "routedEnvelopes",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec#routedEnvelopes",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec#toString",
     "returnType" : "java.lang.String",
@@ -184,6 +208,11 @@
   }, {
     "name" : "payloadCodecs",
     "type" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "routedEnvelopes",
+    "type" : "boolean",
     "annotations" : [ ],
     "documentation" : null
   } ],

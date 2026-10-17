@@ -1,0 +1,124 @@
+{
+  "name" : "QueuedRequest",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "owner",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest.owner",
+    "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "wireRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest.wireRequest",
+    "type" : "io.fluxzero.common.api.Request",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "QueuedRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest#QueuedRequest",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "owner",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "wireRequest",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "owner",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest#owner",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "wireRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest#wireRequest",
+    "returnType" : "io.fluxzero.common.api.Request",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "owner",
+    "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "wireRequest",
+    "type" : "io.fluxzero.common.api.Request",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

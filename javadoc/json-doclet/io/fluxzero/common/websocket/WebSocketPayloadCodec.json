@@ -53,6 +53,32 @@
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
     "documentation" : "Returns a compact representation, or {@code null} when this codec does not own the value. "
+  }, {
+    "name" : "tryEncode",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketPayloadCodec#tryEncode",
+    "returnType" : "byte[]",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Encodes with the peer's native envelope capability; existing custom codecs keep their own representation. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor",
     "kind" : "interface"
   }, {
+    "file" : "BatchInterceptor.FilterPreserving.json",
+    "name" : "BatchInterceptor.FilterPreserving",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor$FilterPreserving",
+    "kind" : "record"
+  }, {
     "file" : "BatchProcessingException.json",
     "name" : "BatchProcessingException",
     "qualifiedName" : "io.fluxzero.sdk.tracking.BatchProcessingException",
@@ -34,6 +39,11 @@
     "name" : "DefaultTracking",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking",
     "kind" : "class"
+  }, {
+    "file" : "DefaultTracking.PreparedHandler.json",
+    "name" : "DefaultTracking.PreparedHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$PreparedHandler",
+    "kind" : "record"
   }, {
     "file" : "DefaultTracking.SegmentedBatchHandlerQueue.json",
     "name" : "DefaultTracking.SegmentedBatchHandlerQueue",

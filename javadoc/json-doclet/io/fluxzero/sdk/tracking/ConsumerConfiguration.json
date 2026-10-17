@@ -19,6 +19,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.configuration.Substitutable<io.fluxzero.sdk.tracking.ConsumerConfiguration>" ],
   "fields" : [ {
+    "name" : "CONSUMER_FILTERING_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.CONSUMER_FILTERING_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Enables conservative server filtering. Environment: {@code FLUXZERO_TRACKING_CONSUMER_FILTERING}. ",
+    "constantValue" : "fluxzero.tracking.consumerFiltering"
+  }, {
     "name" : "DEFAULT_APP_CONSUMER_MODE",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE",
     "type" : "java.lang.String",
@@ -58,6 +66,14 @@
     "annotations" : [ ],
     "documentation" : " Configures the default complete serialized message byte limit per tracking fetch. Consumers can override this\n default with the {@code Builder} method {@code maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.\n",
     "constantValue" : "fluxzero.tracking.maxFetchBytes"
+  }, {
+    "name" : "MAX_WAIT_DURATION_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.MAX_WAIT_DURATION_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Default ISO-8601 read wait, e.g. {@code PT15M}. Environment: {@code FLUXZERO_TRACKING_MAX_WAIT_DURATION}. ",
+    "constantValue" : "fluxzero.tracking.maxWaitDuration"
   }, {
     "name" : "PER_HANDLER_CONSUMER_MODE",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE",
@@ -131,7 +147,7 @@
       "annotationType" : "lombok.Singular",
       "values" : {}
     } ],
-    "documentation" : " Interceptors that are invoked before and after a batch of messages is processed.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. When a\n tracker is started with a {@link io.fluxzero.sdk.Fluxzero} instance, the ordered consumer interceptors wrap the\n globally configured batch interceptors for that message type.\n",
+    "documentation" : " Interceptors that are invoked before and after a batch of messages is processed.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. When a\n tracker is started with a {@link io.fluxzero.sdk.Fluxzero} instance, the ordered consumer interceptors wrap the\n globally configured batch interceptors for that message type.\n Unknown interceptors keep server-side consumer selection unrestricted. Use\n {@link BatchInterceptor#describeConsumerFilter(io.fluxzero.common.api.tracking.ConsumerFilter)} to describe\n required inputs, or {@link BatchInterceptor#preservingConsumerFilter(BatchInterceptor)} for observers that only\n need messages accepted by the downstream handlers.\n",
     "constantValue" : null
   }, {
     "name" : "clientControlledIndex",
@@ -148,6 +164,31 @@
       }
     } ],
     "documentation" : " If true, the consumer's position in the log will be controlled by the client (not automatically). Allows handling\n messages manually or out of order.\n",
+    "constantValue" : null
+  }, {
+    "name" : "consumerBlueprint",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.consumerBlueprint",
+    "type" : "io.fluxzero.sdk.registry.ConsumerBlueprint",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : "Effective lifecycle metadata, supplied automatically when tracking registered handlers. ",
+    "constantValue" : null
+  }, {
+    "name" : "consumerFiltering",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.consumerFiltering",
+    "type" : "java.lang.Boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : "Programmatic override for server filtering; null inherits the application property (enabled by default on supporting peers). ",
     "constantValue" : null
   }, {
     "name" : "dispatchInterceptors",
@@ -377,15 +418,23 @@
     "documentation" : " Optional exclusive upper limit for message index (messages with this index or higher will be skipped).\n",
     "constantValue" : null
   }, {
-    "name" : "maxWaitDuration",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.maxWaitDuration",
-    "type" : "java.time.@lombok.NonNull Duration",
+    "name" : "maxScanLookBack",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.maxScanLookBack",
+    "type" : "java.lang.Long",
     "modifiers" : [ ],
     "annotations" : [ {
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
-    }, {
-      "annotationType" : "lombok.NonNull",
+    } ],
+    "documentation" : "Internal compatibility scan boundary, separate from the idle read wait. ",
+    "constantValue" : null
+  }, {
+    "name" : "maxWaitDuration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.maxWaitDuration",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
     "documentation" : " Maximum wait time for polling new messages. Use {@link Duration#ZERO} to return immediately when no messages or\n segment claim are available.\n",
@@ -638,6 +687,28 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getMaxScanLookBack",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#getMaxScanLookBack",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Keeps the inherited idle wait independent of scanning, including direct low-level client reads. "
+  }, {
+    "name" : "getMaxWaitDuration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#getMaxWaitDuration",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the explicit/resolved wait, or the fifteen-minute default before application resolution. "
+  }, {
     "name" : "ordered",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#ordered",
     "returnType" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
@@ -680,6 +751,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "resolveTrackingDefaults",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#resolveTrackingDefaults",
+    "returnType" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves tracking defaults from the owning application's property source. Explicit builder values win. "
   }, {
     "name" : "substituteProperties",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#substituteProperties",

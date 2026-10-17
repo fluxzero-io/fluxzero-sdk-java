@@ -154,6 +154,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "inputRevisions",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#inputRevisions",
+    "returnType" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "prepareForSkippingCast",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#prepareForSkippingCast",
     "returnType" : "io.fluxzero.common.api.SerializedObject<BEFORE>",

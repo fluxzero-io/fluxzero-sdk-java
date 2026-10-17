@@ -70,6 +70,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "tryEncode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelWebSocketCodec#tryEncode",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "valueOf",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelWebSocketCodec#valueOf",
     "returnType" : "io.fluxzero.common.api.modeling.ModelWebSocketCodec",

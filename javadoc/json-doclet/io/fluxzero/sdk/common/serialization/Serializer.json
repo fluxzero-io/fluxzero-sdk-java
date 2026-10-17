@@ -49,6 +49,43 @@
     "varArgs" : false,
     "documentation" : " Converts a given object to another type using the serializer's object mapping rules.\n\n @param value the input value\n @param type  the target type\n @param <V>   the result type\n @return the converted value\n"
   }, {
+    "name" : "describeConsumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#describeConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlers",
+      "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Completes handler delivery metadata with this serializer's type names, aliases and migration inputs.\n Unknown/custom serializers remain unrestricted unless they explicitly provide this guarantee.\n"
+  }, {
+    "name" : "describeSerialization",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#describeSerialization",
+    "returnType" : "java.util.Optional<io.fluxzero.common.api.Data<byte[]>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Describes the type, revision and format produced by {@link #serialize(Object, String)} without reading the\n payload body, evaluating its getters or running custom codecs. The returned data has an empty body and must\n only be used for consumer admission. An empty result means the header cannot be known safely in advance;\n callers must retain broad admission, rather than guess or serialize the payload as a fallback.\n\n @param object the logical payload\n @param format the requested format, or {@code null} for the serializer default\n @return a header-only description, or empty for an unsupported/custom serialization contract\n"
+  }, {
     "name" : "deserialize",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#deserialize",
     "returnType" : "T",
@@ -368,6 +405,22 @@
     "varArgs" : false,
     "documentation" : " Normalizes an already-serialized object to the target byte-based representation of this serializer.\n\n @param serializedObject the serialized object to normalize\n @return the normalized byte-based serialized object\n"
   }, {
+    "name" : "observeConsumerFilters",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#observeConsumerFilters",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "listener",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Observes changes that can widen a consumer's accepted serialized inputs. "
+  }, {
     "name" : "registerCasters",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#registerCasters",
     "returnType" : "io.fluxzero.common.Registration",
@@ -567,7 +620,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Resolves a slash-separated Java property path to its serialized names, with the canonical name first and any\n accepted aliases following it. Data protection uses this when editing an intermediate payload without losing\n unrelated serialized fields. An empty list means the property is not serialized.\n\n <p>Serializers that rename, flatten, or alias properties must override this method using their own\n configuration. Returned path segments use JSON Pointer escaping ({@code ~0} and {@code ~1}), without a leading\n slash. Implementations must reject configurations whose mapping cannot be established safely. The default\n throws rather than guessing a mapping that could leave private values in the serialized payload.</p>\n\n @param payload the logical payload, used to resolve polymorphic nested values\n @param propertyPath the Java property path\n @return canonical serialized path and aliases, or an empty list for an omitted property\n @throws UnsupportedOperationException if safe property mapping is not supported\n"
+    "documentation" : null
   }, {
     "name" : "upcastType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#upcastType",

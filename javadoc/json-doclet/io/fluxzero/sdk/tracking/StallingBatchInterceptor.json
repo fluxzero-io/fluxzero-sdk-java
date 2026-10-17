@@ -81,6 +81,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "describeConsumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor#describeConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "downstream",
+      "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Only handler-relevant inputs are needed. Filtering may reduce the batch size and therefore delay reaching\n {@code desiredBatchSize}; the existing maximum stalling duration still bounds that delay.\n"
+  }, {
     "name" : "hasPassedDeadline",
     "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor#hasPassedDeadline",
     "returnType" : "boolean",

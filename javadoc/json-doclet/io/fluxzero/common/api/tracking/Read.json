@@ -37,6 +37,20 @@
     "documentation" : " The logical name of the consumer performing the read.\n",
     "constantValue" : null
   }, {
+    "name" : "consumerFilter",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Read.consumerFilter",
+    "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "volatile" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Setter",
+      "values" : {}
+    } ],
+    "documentation" : " Optional conservative consumer blueprint projection. A filtered read with {@code maxSize == 0} only refreshes\n the session's active filter; it does not claim segments or advance positions. Older peers ignore this field.\n",
+    "constantValue" : null
+  }, {
     "name" : "filterMessageTarget",
     "qualifiedName" : "io.fluxzero.common.api.tracking.Read.filterMessageTarget",
     "type" : "boolean",
@@ -75,6 +89,20 @@
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : " Maximum number of complete serialized message bytes to return in a single batch. A value of {@code 0} disables\n this limit.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxScanLookBack",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Read.maxScanLookBack",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Setter",
+      "values" : {}
+    } ],
+    "documentation" : "Optional scan-yield look-back in milliseconds; absent retains the historic maxTimeout-based boundary. ",
     "constantValue" : null
   }, {
     "name" : "maxSize",
@@ -530,6 +558,17 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "forLegacyPeer",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Read#forLegacyPeer",
+    "returnType" : "io.fluxzero.common.api.tracking.Read",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adapts this request to a peer without consumer-filter support, retaining its identity and explicit cursor.\n An independently bounded long idle wait falls back to the historic scan window on that peer.\n"
+  }, {
     "name" : "isIgnoreMessageTarget",
     "qualifiedName" : "io.fluxzero.common.api.tracking.Read#isIgnoreMessageTarget",
     "returnType" : "boolean",
@@ -545,6 +584,20 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " @return {@code true} if messages should not be filtered by target client/tracker ID. This is the inverse of\n {@link #filterMessageTarget}.\n"
+  }, {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Read#toMetric",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Keeps the historical Read metric shape without copying complete filter snapshots into telemetry. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

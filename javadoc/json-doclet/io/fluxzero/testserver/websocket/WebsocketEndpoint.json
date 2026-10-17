@@ -237,7 +237,7 @@
   }, {
     "name" : "transportCodecs",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint.transportCodecs",
-    "type" : "java.util.Map<io.fluxzero.common.websocket.WebSocketTransportFormat,io.fluxzero.common.websocket.WebSocketTransportCodec>",
+    "type" : "java.util.Map<io.fluxzero.testserver.websocket.WebsocketEndpoint.TransportCodecKey,io.fluxzero.common.websocket.WebSocketTransportCodec>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -1660,5 +1660,11 @@
       "annotationType" : "lombok.Value",
       "values" : {}
     } ]
+  }, {
+    "name" : "TransportCodecKey",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$TransportCodecKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
   } ]
 }

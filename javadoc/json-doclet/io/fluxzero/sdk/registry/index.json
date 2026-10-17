@@ -1,0 +1,19 @@
+{
+  "package" : {
+    "name" : "registry",
+    "qualifiedName" : "io.fluxzero.sdk.registry",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ConsumerBlueprint.json",
+    "name" : "ConsumerBlueprint",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint",
+    "kind" : "class"
+  }, {
+    "file" : "ConsumerBlueprint.Projection.json",
+    "name" : "ConsumerBlueprint.Projection",
+    "qualifiedName" : "io.fluxzero.sdk.registry.ConsumerBlueprint$Projection",
+    "kind" : "record"
+  } ],
+  "subdirectories" : [ ]
+}

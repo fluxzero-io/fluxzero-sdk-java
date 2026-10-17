@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.serialization.Serializer" ],
   "fields" : [ {
+    "name" : "consumerFilterListeners",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer.consumerFilterListeners",
+    "type" : "java.util.List<java.lang.Runnable>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "downcasterChain",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer.downcasterChain",
     "type" : "io.fluxzero.sdk.common.serialization.casting.CasterChain<io.fluxzero.common.api.Data<I>,io.fluxzero.common.api.Data<I>>",
@@ -99,6 +107,63 @@
     "documentation" : " Constructs a new serializer with the provided caster candidates and converter.\n\n @param casterCandidates a collection of objects providing up/down-casting functionality\n @param converter        a converter used to assist in interpreting serialized data\n @param format           the default serialization format name (e.g., \"json\")\n"
   } ],
   "methods" : [ {
+    "name" : "addConsumerTypeNames",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#addConsumerTypeNames",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "addConsumerTypeNames",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#addConsumerTypeNames",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "prefix",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "asIntermediateValue",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#asIntermediateValue",
     "returnType" : "I",
@@ -171,6 +236,27 @@
     "varArgs" : false,
     "documentation" : " Creates a deep copy of the object. For known types (collections, maps, etc.) a shallow copy is made; otherwise,\n uses {@link #doClone(Object)}.\n"
   }, {
+    "name" : "containsConsumerType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#containsConsumerType",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "inputs",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "convert",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#convert",
     "returnType" : "V",
@@ -199,6 +285,49 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Converts the given object to the specified target type.\n"
+  }, {
+    "name" : "describeConsumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#describeConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlers",
+      "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "describeSerialization",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#describeSerialization",
+    "returnType" : "java.util.Optional<io.fluxzero.common.api.Data<byte[]>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "deserialize",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#deserialize",
@@ -624,6 +753,27 @@
     "varArgs" : false,
     "documentation" : " Checks whether a given serialized type is recognized on the classpath.\n"
   }, {
+    "name" : "matchesConsumerType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#matchesConsumerType",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "normalize",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#normalize",
     "returnType" : "io.fluxzero.common.api.SerializedObject<byte[]>",
@@ -641,6 +791,73 @@
     "parameters" : [ {
       "name" : "serializedObject",
       "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "notifyConsumerFilters",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#notifyConsumerFilters",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "observeConsumerFilters",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#observeConsumerFilters",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "listener",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "pureAliasTarget",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#pureAliasTarget",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migrations",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "refreshConsumerFilters",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#refreshConsumerFilters",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "registration",
+      "type" : "io.fluxzero.common.Registration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -871,6 +1088,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "supportsConsumerFiltering",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#supportsConsumerFiltering",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether this concrete serializer preserves the standard declared-type contract for delivery filtering and\n header-only serialization descriptions. Custom serialization overrides must keep both descriptions consistent.\n"
   }, {
     "name" : "upcastType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#upcastType",

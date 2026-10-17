@@ -39,6 +39,25 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "consumerFilter",
+    "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker.consumerFilter",
+    "type" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "consumerFilterPredicate",
+    "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker.consumerFilterPredicate",
+    "type" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "consumerName",
     "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker.consumerName",
     "type" : "java.lang.String",
@@ -113,6 +132,19 @@
     "type" : "long",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxScanLookBack",
+    "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker.maxScanLookBack",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    } ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -230,6 +262,30 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "canHandle",
+    "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker#canHandle",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segmentRange",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "equals",
     "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker#equals",
     "returnType" : "boolean",

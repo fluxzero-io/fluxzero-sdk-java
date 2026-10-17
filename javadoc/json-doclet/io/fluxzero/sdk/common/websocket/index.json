@@ -35,6 +35,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PreparedRequest",
     "kind" : "class"
   }, {
+    "file" : "AbstractWebsocketClient.QueuedRequest.json",
+    "name" : "AbstractWebsocketClient.QueuedRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$QueuedRequest",
+    "kind" : "record"
+  }, {
     "file" : "AbstractWebsocketClient.ResultHandlingContext.json",
     "name" : "AbstractWebsocketClient.ResultHandlingContext",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ResultHandlingContext",
@@ -49,6 +54,16 @@
     "name" : "AbstractWebsocketClient.RuntimeMessageDispatchCapture",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$RuntimeMessageDispatchCapture",
     "kind" : "class"
+  }, {
+    "file" : "AbstractWebsocketClient.SendAttempt.json",
+    "name" : "AbstractWebsocketClient.SendAttempt",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt",
+    "kind" : "record"
+  }, {
+    "file" : "AbstractWebsocketClient.TransportCodecKey.json",
+    "name" : "AbstractWebsocketClient.TransportCodecKey",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$TransportCodecKey",
+    "kind" : "record"
   }, {
     "file" : "AbstractWebsocketClient.WebSocketRequest.json",
     "name" : "AbstractWebsocketClient.WebSocketRequest",

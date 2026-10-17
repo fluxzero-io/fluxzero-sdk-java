@@ -605,6 +605,11 @@
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequestContext",
     "kind" : "interface"
   }, {
+    "file" : "WebRequestRoute.json",
+    "name" : "WebRequestRoute",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestRoute",
+    "kind" : "class"
+  }, {
     "file" : "WebRequestSettings.json",
     "name" : "WebRequestSettings",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings",

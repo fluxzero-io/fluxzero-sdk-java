@@ -283,6 +283,17 @@
     "varArgs" : false,
     "documentation" : " Internal helper to check type filter.\n"
   }, {
+    "name" : "maxScanLookBack",
+    "qualifiedName" : "io.fluxzero.common.tracking.Tracker#maxScanLookBack",
+    "returnType" : "long",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Historic scan-yield look-back, independent of how long an idle request may wait. "
+  }, {
     "name" : "maxTimeout",
     "qualifiedName" : "io.fluxzero.common.tracking.Tracker#maxTimeout",
     "returnType" : "long",

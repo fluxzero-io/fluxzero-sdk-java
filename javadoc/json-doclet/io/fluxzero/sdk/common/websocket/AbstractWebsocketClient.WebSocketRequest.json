@@ -37,6 +37,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "initialSession",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest.initialSession",
+    "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "request",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest.request",
     "type" : "io.fluxzero.common.api.Request",
@@ -115,7 +123,7 @@
   }, {
     "name" : "prepareSend",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest#prepareSend",
-    "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.SendAttempt",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

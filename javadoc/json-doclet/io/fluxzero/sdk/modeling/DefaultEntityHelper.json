@@ -468,7 +468,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns the shared persistence configuration for a model or aggregate root.\n <p>\n Unannotated values retain the legacy default aggregate configuration. An unknown {@link Object} root keeps the\n historical non-caching default used while an aggregate type is still being inferred from its first event.\n"
+    "documentation" : " Returns the shared persistence configuration for a model or aggregate root.\n <p>\n Unannotated side-effect-free values retain the default configuration. An unknown {@link Object} root keeps the\n historical non-caching default used while an aggregate type is still being inferred from its first event.\n"
   }, {
     "name" : "hasSelfReferentialMember",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#hasSelfReferentialMember",
@@ -578,6 +578,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "requireAggregateRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#requireAggregateRoot",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "root",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Validates a persistent aggregate root once its type is known. Only an empty, untyped root may temporarily use\n {@link Object}; its first non-null value must have an aggregate marker.\n\n @throws IllegalArgumentException if the root's known type has no aggregate marker\n"
+  }, {
+    "name" : "requireAggregateType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#requireAggregateType",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Requires a persistent aggregate root type to declare or inherit {@link Aggregate}. An annotation on an enclosing\n class does not mark a nested type. Plain members and side-effect-free entity wrappers need no such marker.\n\n @throws IllegalArgumentException if the type has no aggregate marker\n"
   }, {
     "name" : "validateModelApplyMethods",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#validateModelApplyMethods",

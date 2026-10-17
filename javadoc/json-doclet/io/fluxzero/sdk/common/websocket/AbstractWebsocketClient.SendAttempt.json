@@ -1,0 +1,124 @@
+{
+  "name" : "SendAttempt",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "request",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt.request",
+    "type" : "io.fluxzero.common.api.Request",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "session",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt.session",
+    "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SendAttempt",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt#SendAttempt",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "request",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt#request",
+    "returnType" : "io.fluxzero.common.api.Request",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "session",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt#session",
+    "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$SendAttempt#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "request",
+    "type" : "io.fluxzero.common.api.Request",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "session",
+    "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

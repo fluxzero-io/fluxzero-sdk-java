@@ -15,6 +15,16 @@
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy",
     "kind" : "class"
   }, {
+    "file" : "DefaultTrackingStrategy.FilterScope.json",
+    "name" : "DefaultTrackingStrategy.FilterScope",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$FilterScope",
+    "kind" : "record"
+  }, {
+    "file" : "DefaultTrackingStrategy.FilterState.json",
+    "name" : "DefaultTrackingStrategy.FilterState",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$FilterState",
+    "kind" : "class"
+  }, {
     "file" : "DefaultTrackingStrategy.TrackerRequest.json",
     "name" : "DefaultTrackingStrategy.TrackerRequest",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest",

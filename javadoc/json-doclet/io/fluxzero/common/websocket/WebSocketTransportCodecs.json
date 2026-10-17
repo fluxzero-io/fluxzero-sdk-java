@@ -122,6 +122,37 @@
     "varArgs" : false,
     "documentation" : "Creates a codec with optional protocol-specific compact payload representations. "
   }, {
+    "name" : "forFormat",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#forFormat",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "format",
+      "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadCodecs",
+      "type" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a codec after negotiating the peer's ability to read native routed envelopes. "
+  }, {
     "name" : "json",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#json",
     "returnType" : "io.fluxzero.common.websocket.WebSocketTransportCodec",

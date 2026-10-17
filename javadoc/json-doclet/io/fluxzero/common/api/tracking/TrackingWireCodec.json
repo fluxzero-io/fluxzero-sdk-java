@@ -389,6 +389,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasRoutes",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.TrackingWireCodec#hasRoutes",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "readPosition",
     "qualifiedName" : "io.fluxzero.common.api.tracking.TrackingWireCodec#readPosition",
     "returnType" : "io.fluxzero.common.api.tracking.Position",
@@ -484,6 +500,27 @@
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
     "documentation" : " Encodes a supported tracking value, or returns {@code null} when the regular codec should be used.\n"
+  }, {
+    "name" : "tryEncode",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.TrackingWireCodec#tryEncode",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Encodes routed native envelopes only for a peer that explicitly supports them. "
   }, {
     "name" : "writePosition",
     "qualifiedName" : "io.fluxzero.common.api.tracking.TrackingWireCodec#writePosition",
