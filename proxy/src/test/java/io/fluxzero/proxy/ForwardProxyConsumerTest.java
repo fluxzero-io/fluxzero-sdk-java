@@ -32,6 +32,7 @@ import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.web.HttpVersion;
 import io.fluxzero.sdk.web.RedirectPolicy;
+import io.fluxzero.sdk.web.RetryPolicy;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.sdk.web.WebResponse;
@@ -1147,6 +1148,64 @@ class ForwardProxyConsumerTest {
             restoreProperty(ForwardProxyConsumer.MAX_CONCURRENT_REQUESTS_PROPERTY, previousConcurrent);
             restoreProperty(ForwardProxyConsumer.MAX_OUTSTANDING_REQUESTS_PROPERTY, previousOutstanding);
             restoreProperty(ForwardProxyConsumer.BATCH_COMPLETION_GRACE_MILLIS_PROPERTY, previousGrace);
+        }
+    }
+
+    @Test
+    void originLimitAllowsOtherOriginAndUsesRemainingDeadlineAfterQueueing() throws Exception {
+        Client client = mockForwardingClient();
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<HttpResponse<byte[]>> firstAttempt = new CompletableFuture<>();
+        var ok = httpResponse(200, "ok");
+        List<HttpRequest> started = new java.util.concurrent.CopyOnWriteArrayList<>();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenAnswer(call -> {
+            HttpRequest request = call.getArgument(0);
+            started.add(request);
+            return request.uri().getPath().equals("/first") ? firstAttempt : CompletableFuture.completedFuture(ok);
+        });
+        var consumer = new ForwardProxyConsumer(client, CONSUMER_NAME, 0L, true, false, httpClient,
+                new AtomicBoolean(), 3, 10, Duration.ZERO, 1);
+        var first = serializedRequest("first", CONSUMER_NAME);
+        first.setSegment(1);
+        var queued = serializedRequest("queued", CONSUMER_NAME);
+        queued.setSegment(2);
+        queued.setIndex(IndexUtils.indexFromTimestamp(java.time.Instant.now().minusSeconds(2)));
+        var other = WebRequest.get("https://other.example/healthy")
+                .metadata(requestSettingsMetadata).build().serialize(ForwardProxyConsumer.serializer);
+        other.setIndex(IndexUtils.indexForCurrentTime());
+        other.setSegment(3);
+        other.setRequestId(3);
+        other.setSource("requester");
+        consumer.accept(List.of(first, queued, other));
+        assertEquals(List.of("/first", "/healthy"), started.stream().map(r -> r.uri().getPath()).toList());
+        firstAttempt.complete(ok);
+        consumer.awaitActiveRequests();
+        assertEquals(List.of("/first", "/healthy", "/queued"), started.stream().map(r -> r.uri().getPath()).toList());
+        assertTrue(started.get(2).timeout().orElseThrow().compareTo(Duration.ofSeconds(3)) <= 0);
+    }
+
+    @Test
+    void proxyAlsoEnforcesSafePostPolicyWhenProducerDidNotResolveIt() {
+        for (boolean withKey : List.of(false, true)) {
+            Client client = mockForwardingClient();
+            HttpClient httpClient = mock(HttpClient.class);
+            var busy = httpResponse(503, "busy");
+            var ok = httpResponse(200, "ok");
+            when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                    .thenReturn(CompletableFuture.completedFuture(busy), CompletableFuture.completedFuture(ok));
+            var consumer = new ForwardProxyConsumer(client, CONSUMER_NAME, 0L, true, false, httpClient,
+                    new AtomicBoolean());
+            var settings = WebRequestSettings.builder().consumer(CONSUMER_NAME).maxRetries(1)
+                    .retryPolicy(RetryPolicy.SAFE).retryDelay(Duration.ZERO).build();
+            var builder = WebRequest.post("https://example.com/write").body("stable-payload".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                    .metadata(Metadata.of("settings", settings));
+            if (withKey) { builder.header("Idempotency-Key", "stable-key"); }
+            var request = builder.build().serialize(ForwardProxyConsumer.serializer);
+            request.setIndex(IndexUtils.indexForCurrentTime());
+            request.setRequestId(1);
+            request.setSource("requester");
+            consumer.handle(request, URI.create("https://example.com/write"), settings);
+            verify(httpClient, times(withKey ? 2 : 1)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
         }
     }
 

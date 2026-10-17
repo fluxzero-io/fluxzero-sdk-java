@@ -377,6 +377,7 @@ io.fluxzero.sdk.web.WebPayloadParameterResolver
 io.fluxzero.sdk.web.WebRequest
 io.fluxzero.sdk.web.WebRequest.Builder
 io.fluxzero.sdk.web.WebRequestContext
+io.fluxzero.sdk.web.RetryPolicy
 io.fluxzero.sdk.web.WebRequestSettings
 io.fluxzero.sdk.web.WebResponse
 io.fluxzero.sdk.web.WebResponse.Builder
