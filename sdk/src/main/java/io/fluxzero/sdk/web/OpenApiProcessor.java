@@ -364,9 +364,10 @@ public class OpenApiProcessor extends AbstractProcessor {
                                            mapping.autoHead(), mapping.autoOptions());
                     for (WebRouteMatcher.RouteVariant variant :
                             WebRouteMatcher.RouteVariants.expand(pattern.getPath())) {
+                        String path = WebRouteMatcher.normalizePath(variant.path());
                         endpoints.add(new Endpoint(
-                                handlerType, method, pattern.getOrigin(), variant.path(), pattern.getMethod(),
-                                documentation, parameters(method, variant.path()), requestBodies(method),
+                                handlerType, method, pattern.getOrigin(), path, pattern.getMethod(),
+                                documentation, parameters(method, path), requestBodies(method),
                                 method.getReturnType(), responses));
                     }
                 }
