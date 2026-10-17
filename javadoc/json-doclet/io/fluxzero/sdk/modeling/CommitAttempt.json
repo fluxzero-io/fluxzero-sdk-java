@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "afterAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.afterAssertions",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.ModelReducer.DeferredAssertion>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "aliasResolutions",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.aliasResolutions",
     "type" : "java.util.Map<java.lang.String,java.lang.String>",
@@ -100,7 +108,7 @@
   }, {
     "name" : "currentAssertions",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.currentAssertions",
-    "type" : "java.util.List<io.fluxzero.sdk.modeling.ModelReducer.CurrentAssertion>",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.ModelReducer.DeferredAssertion>",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -366,6 +374,17 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "afterAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#afterAssertions",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.ModelReducer.DeferredAssertion>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "aliasReadProof",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#aliasReadProof",
     "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt.GraphReadProof",
@@ -686,7 +705,7 @@
   }, {
     "name" : "currentAssertions",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#currentAssertions",
-    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.ModelReducer.CurrentAssertion>",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.ModelReducer.DeferredAssertion>",
     "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -1843,6 +1862,22 @@
     "varArgs" : false,
     "documentation" : "Resolves a read binding without weakening the exact identity contract of entity(String). "
   }, {
+    "name" : "retainAfterAssertion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#retainAfterAssertion",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "check",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer.DeferredAssertion",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "retainCurrentAssertion",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#retainCurrentAssertion",
     "returnType" : "void",
@@ -1851,7 +1886,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "check",
-      "type" : "io.fluxzero.sdk.modeling.ModelReducer.CurrentAssertion",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer.DeferredAssertion",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -406,6 +406,11 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "deferred",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -512,6 +517,11 @@
     }, {
       "name" : "currentAsserted",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deferred",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -627,6 +637,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "assertAfter",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#assertAfter",
+    "returnType" : "void",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "attempt",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "assertAll",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#assertAll",
     "returnType" : "void",
@@ -719,22 +745,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Validates opted-in Model rules against each logical before-state and the complete final state. "
-  }, {
-    "name" : "assertCurrentAfter",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#assertCurrentAfter",
-    "returnType" : "void",
-    "modifiers" : [ "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "attempt",
-      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   }, {
     "name" : "assertEmbedded",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#assertEmbedded",
@@ -1436,6 +1446,47 @@
     }, {
       "name" : "assertionLoader",
       "type" : "io.fluxzero.sdk.modeling.ModelReducer.DependencyLoader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "finishApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#finishApply",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "beginState",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "transitions",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assertions",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assertionLoader",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer.DependencyLoader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deferred",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -2267,8 +2318,8 @@
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   }, {
-    "name" : "CurrentAssertion",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion",
+    "name" : "DeferredAssertion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion",
     "kind" : "record",
     "modifiers" : [ "final", "static" ],
     "annotations" : [ ]

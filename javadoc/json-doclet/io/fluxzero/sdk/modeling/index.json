@@ -690,9 +690,9 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeOwner",
     "kind" : "record"
   }, {
-    "file" : "ModelReducer.CurrentAssertion.json",
-    "name" : "ModelReducer.CurrentAssertion",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion",
+    "file" : "ModelReducer.DeferredAssertion.json",
+    "name" : "ModelReducer.DeferredAssertion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion",
     "kind" : "record"
   }, {
     "file" : "ModelReducer.DependencyLoader.json",

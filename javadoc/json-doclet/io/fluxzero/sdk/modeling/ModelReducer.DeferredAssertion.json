@@ -1,6 +1,6 @@
 {
-  "name" : "CurrentAssertion",
-  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion",
+  "name" : "DeferredAssertion",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion",
   "packageName" : "io.fluxzero.sdk.modeling",
   "kind" : "record",
   "modifiers" : [ "final", "static" ],
@@ -11,7 +11,7 @@
   "interfaces" : [ ],
   "fields" : [ {
     "name" : "message",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion.message",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion.message",
     "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
@@ -19,7 +19,7 @@
     "constantValue" : null
   }, {
     "name" : "reducer",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion.reducer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion.reducer",
     "type" : "io.fluxzero.sdk.modeling.ModelReducer",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
@@ -27,8 +27,8 @@
     "constantValue" : null
   } ],
   "constructors" : [ {
-    "name" : "CurrentAssertion",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion#CurrentAssertion",
+    "name" : "DeferredAssertion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion#DeferredAssertion",
     "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -49,7 +49,7 @@
   } ],
   "methods" : [ {
     "name" : "equals",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion#equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion#equals",
     "returnType" : "boolean",
     "modifiers" : [ "final", "public" ],
     "annotations" : [ ],
@@ -65,7 +65,7 @@
     "documentation" : null
   }, {
     "name" : "hashCode",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion#hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion#hashCode",
     "returnType" : "int",
     "modifiers" : [ "final", "public" ],
     "annotations" : [ ],
@@ -76,7 +76,7 @@
     "documentation" : null
   }, {
     "name" : "message",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion#message",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion#message",
     "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
@@ -87,7 +87,7 @@
     "documentation" : null
   }, {
     "name" : "reducer",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion#reducer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion#reducer",
     "returnType" : "io.fluxzero.sdk.modeling.ModelReducer",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
@@ -98,7 +98,7 @@
     "documentation" : null
   }, {
     "name" : "toString",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion#toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DeferredAssertion#toString",
     "returnType" : "java.lang.String",
     "modifiers" : [ "final", "public" ],
     "annotations" : [ ],
