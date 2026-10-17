@@ -21,6 +21,14 @@
     "documentation" : null,
     "constantValue" : "fluxzero.web.defaultRedirectPolicy"
   }, {
+    "name" : "MAX_CONCURRENT_PER_ORIGIN_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway.MAX_CONCURRENT_PER_ORIGIN_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.web.native.maxConcurrentPerOrigin"
+  }, {
     "name" : "SAME_ORIGIN_DEFAULTS_VERSION",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway.SAME_ORIGIN_DEFAULTS_VERSION",
     "type" : "java.time.LocalDate",
@@ -355,6 +363,27 @@
     "parameters" : [ {
       "name" : "namespace",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nativeClientFactory",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#nativeClientFactory",
+    "returnType" : "java.util.function.Supplier<io.fluxzero.sdk.web.NativeWebRequestClient>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "io.fluxzero.common.application.PropertySource",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -70,6 +70,11 @@
     "qualifiedName" : "io.fluxzero.common.Guarantee",
     "kind" : "enum"
   }, {
+    "file" : "HttpOrigin.json",
+    "name" : "HttpOrigin",
+    "qualifiedName" : "io.fluxzero.common.HttpOrigin",
+    "kind" : "record"
+  }, {
     "file" : "InMemoryTaskScheduler.json",
     "name" : "InMemoryTaskScheduler",
     "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler",
