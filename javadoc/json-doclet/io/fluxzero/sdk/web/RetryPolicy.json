@@ -1,0 +1,70 @@
+{
+  "name" : "RetryPolicy",
+  "qualifiedName" : "io.fluxzero.sdk.web.RetryPolicy",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Determines when configured outbound HTTP retries are safe to execute. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.web.RetryPolicy>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "RetryPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.web.RetryPolicy#RetryPolicy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.RetryPolicy#valueOf",
+    "returnType" : "io.fluxzero.sdk.web.RetryPolicy",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.web.RetryPolicy#values",
+    "returnType" : "io.fluxzero.sdk.web.RetryPolicy[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "IDEMPOTENT",
+    "qualifiedName" : "io.fluxzero.sdk.web.RetryPolicy.IDEMPOTENT",
+    "annotations" : [ ],
+    "documentation" : "The application explicitly guarantees idempotent semantics for this request. "
+  }, {
+    "name" : "LEGACY",
+    "qualifiedName" : "io.fluxzero.sdk.web.RetryPolicy.LEGACY",
+    "annotations" : [ ],
+    "documentation" : "Preserves existing retry behavior for every method, including POST. "
+  }, {
+    "name" : "SAFE",
+    "qualifiedName" : "io.fluxzero.sdk.web.RetryPolicy.SAFE",
+    "annotations" : [ ],
+    "documentation" : "Retries HTTP-idempotent methods or requests carrying one nonblank Idempotency-Key header. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

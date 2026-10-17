@@ -460,6 +460,11 @@
     "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy",
     "kind" : "enum"
   }, {
+    "file" : "RetryPolicy.json",
+    "name" : "RetryPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.web.RetryPolicy",
+    "kind" : "enum"
+  }, {
     "file" : "ServeStatic.json",
     "name" : "ServeStatic",
     "qualifiedName" : "io.fluxzero.sdk.web.ServeStatic",

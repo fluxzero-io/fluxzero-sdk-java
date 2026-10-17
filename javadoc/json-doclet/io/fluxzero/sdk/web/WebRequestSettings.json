@@ -82,6 +82,31 @@
     "documentation" : " Fixed delay before each retry. Defaults to one second. The delay counts toward {@link #timeout}; no new attempt\n starts when the delay no longer fits before the request deadline. Negative values are treated as zero.\n",
     "constantValue" : null
   }, {
+    "name" : "retryJitter",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings.retryJitter",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Randomize each retry delay uniformly between half and all of retryDelay, within the existing timeout budget.\n Disabled by default to preserve fixed-delay configurations. Does not change fixture execution time.\n",
+    "constantValue" : null
+  }, {
+    "name" : "retryPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings.retryPolicy",
+    "type" : "io.fluxzero.sdk.web.@lombok.NonNull RetryPolicy",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " Retry safety policy. LEGACY preserves existing behavior. SAFE permits HTTP-idempotent methods or a single\n nonblank Idempotency-Key whose deduplication semantics the upstream supports. IDEMPOTENT is an explicit\n application guarantee. Neither policy enables retries without a positive maxRetries.\n",
+    "constantValue" : null
+  }, {
     "name" : "retryableStatusCodes",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings.retryableStatusCodes",
     "type" : "java.util.@lombok.NonNull Set<java.lang.Integer>",
@@ -129,7 +154,55 @@
     "varArgs" : false,
     "documentation" : null
   } ],
-  "methods" : [ ],
+  "methods" : [ {
+    "name" : "nextRetryDelay",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings#nextRetryDelay",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Selects the next nonnegative retry delay; callers must still check their remaining timeout budget. "
+  }, {
+    "name" : "nextRetryDelay",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings#nextRetryDelay",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "random",
+      "type" : "java.util.random.RandomGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "retriesFor",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings#retriesFor",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the configured retry count after applying this request's safety policy. "
+  } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]
