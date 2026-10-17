@@ -164,6 +164,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "errorResponse",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultSocketSession#errorResponse",
+    "returnType" : "io.fluxzero.sdk.web.SocketResponse",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getUser",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultSocketSession#getUser",
     "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
@@ -328,7 +349,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Prepares an invoker for a valid socket request, wrapping synchronous or asynchronous results and failures in\n correlated socket responses. Returns empty for invalid requests or when no handler matches.\n"
+    "documentation" : " Prepares an invoker for a valid socket request, wrapping synchronous or asynchronous results and failures in\n correlated socket responses. Functional exception messages are preserved; other failures receive\n {@code Request failed} while the original cause is logged with the request ID for diagnosis.\n Returns empty for invalid requests or when no handler matches.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
