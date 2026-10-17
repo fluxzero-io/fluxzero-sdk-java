@@ -26,7 +26,7 @@ import java.lang.annotation.Target;
  * has any of the specified roles.
  *
  * <h2>Usage</h2>
- * The same policy applies to handler methods, classes, packages, and payloads. By default, an absent user causes
+ * The same policy applies to handler methods, classes, packages, and payloads. With a nonempty role list, an absent user causes
  * {@link UnauthenticatedException}; a user with a forbidden role causes {@link UnauthorizedException}.
  * With {@link #throwIfUnauthorized()} set to {@code false}, the handler or payload is skipped instead.
  * Other eligible handlers can respond, but a denied payload is not passed to any handler.
@@ -60,7 +60,8 @@ import java.lang.annotation.Target;
 public @interface ForbidsAnyRole {
     /**
      * One or more roles that should be excluded. If the user has any of these roles, the handler or payload will not be
-     * used.
+     * used. An empty list allows every authenticated user and silently skips anonymous users, regardless of
+     * {@link #throwIfUnauthorized()}.
      */
     String[] value() default {};
 
@@ -69,7 +70,7 @@ public @interface ForbidsAnyRole {
      * <p>
      * If {@code true} (the default), an exception will be thrown when the user is unauthorized:
      * <ul>
-     *   <li>{@link UnauthenticatedException} – if no authenticated user is present</li>
+     *   <li>{@link UnauthenticatedException} – if no authenticated user is present and the role list is nonempty</li>
      *   <li>{@link UnauthorizedException} – if the user is present but has forbidden roles</li>
      * </ul>
      * <p>

@@ -48,6 +48,7 @@ public final class LocalExecution implements LocalHandlerInput {
     private Metadata metadata;
     private PreparedLocalDispatch dispatch;
     private User user;
+    private boolean skipped;
     private Message message;
     private DeserializingMessage deserializingMessage;
     private HandlerDescriptor handler;
@@ -100,6 +101,7 @@ public final class LocalExecution implements LocalHandlerInput {
         metadata = null;
         dispatch = nextDispatch;
         user = null;
+        skipped = false;
         message = null;
         deserializingMessage = null;
         handler = null;
@@ -119,6 +121,7 @@ public final class LocalExecution implements LocalHandlerInput {
             metadata = null;
             dispatch = null;
             user = null;
+            skipped = false;
             message = null;
             deserializingMessage = null;
             handler = null;
@@ -289,6 +292,16 @@ public final class LocalExecution implements LocalHandlerInput {
      */
     public void setUser(User user) {
         this.user = user;
+    }
+
+    /** Returns whether authorization skipped the current invocation without producing a result. */
+    public boolean wasSkipped() {
+        return skipped;
+    }
+
+    /** Records a silent refusal for this execution only; the pooled frame clears it on entry and exit. */
+    public void markSkipped() {
+        skipped = true;
     }
 
     /** {@inheritDoc} */

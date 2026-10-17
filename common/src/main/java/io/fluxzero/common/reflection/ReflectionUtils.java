@@ -1060,10 +1060,52 @@ public class ReflectionUtils {
         return result;
     }
 
+    /**
+     * Returns the package and its resolvable ancestors in the owning class's module and loader.
+     * Each ancestor first resolves its own module's {@code package-info}, matching {@link Package#getAnnotations()},
+     * then uses loader delegation when the module has no definition. Loading unrelated classes first does not change
+     * the policy. An already bound class identity remains authoritative. The thread context loader is not consulted.
+     *
+     * @param p the starting package, or {@code null}
+     * @param owner the module of the class whose package policy is being resolved
+     * @return nearest packages first, omitting ancestors that cannot be resolved
+     */
+    public static List<Package> getPackageAndParentPackages(Package p, Module owner) {
+        Objects.requireNonNull(owner);
+        List<Package> result = new ArrayList<>();
+        if (p != null) {
+            result.add(p);
+            for (String name = getParentPackageName(p.getName()); name != null; name = getParentPackageName(name)) {
+                Package ancestor = tryGetPackage(name, owner);
+                if (ancestor != null) {
+                    result.add(ancestor);
+                }
+            }
+        }
+        return result;
+    }
+
+    private static Package tryGetPackage(String name, Module owner) {
+        try {
+            Class<?> info = Class.forName(owner, name + ".package-info");
+            if (info != null) {
+                return info.getPackage();
+            }
+            return Class.forName(name + ".package-info", false, owner.getClassLoader()).getPackage();
+        } catch (Throwable ignored) {
+            ClassLoader loader = owner.getClassLoader();
+            return loader == null ? null : loader.getDefinedPackage(name);
+        }
+    }
+
     static Package getFirstKnownAncestorPackage(String childPackageName) {
+        return getFirstKnownAncestorPackage(childPackageName, ReflectionUtils.class.getClassLoader());
+    }
+
+    private static Package getFirstKnownAncestorPackage(String childPackageName, ClassLoader loader) {
         for (String parentName = getParentPackageName(childPackageName); parentName != null;
                 parentName = getParentPackageName(parentName)) {
-            Package result = tryGetPackage(parentName);
+            Package result = tryGetPackage(parentName, loader);
             if (result != null) {
                 return result;
             }
@@ -1076,13 +1118,13 @@ public class ReflectionUtils {
         return lastIndex < 0 ? null : name.substring(0, lastIndex);
     }
 
-    private static Package tryGetPackage(String name) {
-        Package definedPackage = ReflectionUtils.class.getClassLoader().getDefinedPackage(name);
+    private static Package tryGetPackage(String name, ClassLoader loader) {
+        Package definedPackage = loader == null ? null : loader.getDefinedPackage(name);
         if (definedPackage != null) {
             return definedPackage;
         }
         try {
-            return Class.forName(name + ".package-info", false, ReflectionUtils.class.getClassLoader()).getPackage();
+            return Class.forName(name + ".package-info", false, loader).getPackage();
         } catch (Throwable ignored) {
             return null;
         }

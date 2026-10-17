@@ -30,9 +30,14 @@ import io.fluxzero.sdk.publishing.LocalDispatchDescriptor;
 import io.fluxzero.sdk.publishing.PreparedLocalDispatch;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.LocalHandlerInput;
+import io.fluxzero.sdk.tracking.handling.LocalExecution;
 import lombok.AllArgsConstructor;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -101,15 +106,25 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
     @Override
     public PreparedHandlerInterceptor prepare(HandlerDescriptor handler) {
         return (message, descriptor, combiner, next) -> {
+            SkippableInvoker skippable = descriptor instanceof SkippableInvoker i ? i : null;
+            if (skippable != null) {
+                skippable.skipped = false;
+            }
             User previous = User.getCurrent();
-            User user = getCurrentUser(message);
             try {
+                User user = getCurrentUser(message);
                 User.current.set(user);
                 if (message.getType() != null && !assertAuthorized(message.getPayloadClass(), user)) {
+                    if (skippable != null) {
+                        skippable.skipped = true;
+                    }
                     return null;
                 }
                 return next.apply(message, descriptor, combiner);
             } finally {
+                if (skippable != null) {
+                    skippable.completeSkipDecision();
+                }
                 User.current.set(previous);
             }
         };
@@ -140,7 +155,11 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
             try {
                 User.current.set(user);
                 Object payload = input.getPayload();
-                if (authorizePayload && payload != null && !assertAuthorized(payload.getClass(), user)) {
+                if (authorizePayload && payload != null
+                    && !assertAuthorized(payload.getClass(), user)) {
+                    if (input instanceof LocalExecution execution) {
+                        execution.markSkipped();
+                    }
                     return null;
                 }
                 return next.apply(input, descriptor);
@@ -228,7 +247,103 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
 
     @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
-        return new AuthorizingHandler(HandlerInterceptor.super.wrap(handler));
+        if (!usesDefaultInterception()) {
+            // Custom interception owns its completion semantics; retain its existing wrapping contract.
+            return new AuthorizingHandler(HandlerInterceptor.super.wrap(handler));
+        }
+        Handler<DeserializingMessage> skippable = new Handler.DelegatingHandler<>(handler) {
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.ofNullable(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                HandlerInvoker invoker = delegate.getInvokerOrNull(message);
+                Class<?> payloadClass = message.getPayloadClass();
+                return invoker != null && payloadClass != null && canIgnoreSilently(payloadClass)
+                        ? new SkippableInvoker(invoker) : invoker;
+            }
+
+            @Override
+            public HandlerMethodPlanner<DeserializingMessage> getHandlerMethodPlanner() {
+                return delegate.getHandlerMethodPlanner();
+            }
+
+            @Override
+            public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
+                return delegate.getConsumerFilter();
+            }
+        };
+        return new AuthorizingHandler(HandlerInterceptor.super.wrap(skippable));
+    }
+
+    private boolean usesDefaultInterception() {
+        return usesDefaultInterception("prepare", HandlerDescriptor.class)
+               && usesDefaultInterception("interceptHandling", Function.class, HandlerInvoker.class);
+    }
+
+    private boolean usesDefaultInterception(String name, Class<?>... parameterTypes) {
+        return io.fluxzero.common.reflection.ReflectionUtils.getAllMethods(getClass()).stream()
+                .filter(m -> m.getName().equals(name) && Arrays.equals(m.getParameterTypes(), parameterTypes)).findFirst()
+                .filter(m -> m.getDeclaringClass() == AuthenticatingInterceptor.class).isPresent();
+    }
+
+    private static class SkippableInvoker extends HandlerInvoker.DelegatingHandlerInvoker {
+        private volatile boolean skipped;
+        private volatile boolean skipPending = true;
+        private CompletableFuture<Void> skipDecision;
+
+        private SkippableInvoker(HandlerInvoker delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public Object invoke(BiFunction<Object, Object, Object> combiner) {
+            return delegate.invoke(combiner);
+        }
+
+        @Override
+        public boolean maySkip() {
+            return true;
+        }
+
+        @Override
+        public boolean isSkipPending() {
+            return skipPending || delegate.isSkipPending();
+        }
+
+        @Override
+        public void onSkipDecision(Runnable callback) {
+            CompletableFuture<Void> decision;
+            synchronized (this) {
+                if (skipPending && skipDecision == null) {
+                    skipDecision = new CompletableFuture<>();
+                }
+                decision = skipDecision;
+            }
+            if (decision == null) {
+                delegate.onSkipDecision(callback);
+            } else {
+                decision.thenRun(() -> delegate.onSkipDecision(callback));
+            }
+        }
+
+        private void completeSkipDecision() {
+            CompletableFuture<Void> decision;
+            synchronized (this) {
+                skipPending = false;
+                decision = skipDecision;
+            }
+            if (decision != null) {
+                decision.complete(null);
+            }
+        }
+
+        @Override
+        public boolean wasSkipped() {
+            return skipped || delegate.wasSkipped();
+        }
     }
 
     @AllArgsConstructor
@@ -245,15 +360,18 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
             return delegate.getInvoker(m).flatMap(
                     i -> {
                         Class<?> payloadClass = m.getPayloadClass();
-                        if (payloadClass != null && canIgnoreSilently(payloadClass)
-                            && ignoreSilently(payloadClass, getCurrentUser(m))) {
+                        boolean silentPayload = payloadClass != null && canIgnoreSilently(payloadClass);
+                        User user = silentPayload ? getCurrentUser(m) : null;
+                        if (silentPayload && ignoreSilently(payloadClass, user)) {
                             return Optional.empty();
                         }
                         if (Optional.ofNullable(payloadClass)
                                 .map(c -> i.getTargetClass().isAssignableFrom(c)).orElse(false)) {
                             return Optional.of(i);
                         }
-                        User user = getAuthorizingUser(m);
+                        if (!silentPayload || AuthenticatingInterceptor.this.getClass() != AuthenticatingInterceptor.class) {
+                            user = getAuthorizingUser(m);
+                        }
                         try {
                             return assertAuthorized(i.getTargetClass(), i.getMethod(), user)
                                     ? Optional.of(i) : Optional.empty();
@@ -288,14 +406,15 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
 
                 @Override
                 public HandlerMethodPreparation<DeserializingMessage> prepare(DeserializingMessage message) {
-                    return authorize(planner.prepare(message), message.getPayloadClass());
+                    return authorize(planner.prepare(message), message.getPayloadClass(), false);
                 }
 
                 @Override
                 public HandlerMethodPreparation<DeserializingMessage> prepare(
                         HandlerInput<DeserializingMessage> input) {
                     Object payload = input.getPayload();
-                    return authorize(planner.prepare(input), payload == null ? null : payload.getClass());
+                    return authorize(planner.prepare(input), payload == null ? null : payload.getClass(),
+                                     input instanceof LocalExecution);
                 }
 
                 @Override
@@ -307,23 +426,26 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                     }
                     Object payload = input.getPayload();
                     return source.withPreparation(authorize(
-                            source.preparation(), payload == null ? null : payload.getClass()));
+                            source.preparation(), payload == null ? null : payload.getClass(),
+                            input instanceof LocalExecution));
                 }
 
                 private HandlerMethodPreparation<DeserializingMessage> authorize(
-                        HandlerMethodPreparation<DeserializingMessage> preparation, Class<?> payloadClass) {
+                        HandlerMethodPreparation<DeserializingMessage> preparation, Class<?> payloadClass,
+                        boolean localExecution) {
                     if (!preparation.isPrepared()) {
                         return preparation;
                     }
-                    if (payloadClass != null && canIgnoreSilently(payloadClass)) {
+                    HandlerMethodPlan<DeserializingMessage> plan = preparation.plan();
+                    if (!(payloadClass != null && plan.getTargetClass().isAssignableFrom(payloadClass))
+                        && requiresAuthorization(plan.getTargetClass(), plan.getMethod())) {
                         return HandlerMethodPreparation.unsupported();
                     }
-                    HandlerMethodPlan<DeserializingMessage> plan = preparation.plan();
-                    if (payloadClass != null && plan.getTargetClass().isAssignableFrom(payloadClass)) {
+                    if (payloadClass == null || !canIgnoreSilently(payloadClass)) {
                         return preparation;
                     }
-                    return requiresAuthorization(plan.getTargetClass(), plan.getMethod())
-                            ? HandlerMethodPreparation.unsupported() : preparation;
+                    return localExecution ? HandlerMethodPreparation.prepared(guardPayload(plan, payloadClass))
+                            : HandlerMethodPreparation.unsupported();
                 }
 
                 @Override
@@ -334,6 +456,56 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                 @Override
                 public boolean isNoMatchPayloadClassKey(HandlerInput<DeserializingMessage> input) {
                     return planner.isNoMatchPayloadClassKey(input);
+                }
+            };
+        }
+
+        private HandlerMethodPlan<DeserializingMessage> guardPayload(
+                HandlerMethodPlan<DeserializingMessage> plan, Class<?> payloadClass) {
+            return new HandlerMethodPlan<>() {
+                @Override
+                public boolean isApplicable(HandlerInput<DeserializingMessage> input) {
+                    if (!(input instanceof LocalExecution execution) || !plan.isApplicable(input)) {
+                        return false;
+                    }
+                    try {
+                        if (!assertAuthorized(payloadClass, execution.getUser(userProvider))) {
+                            return false;
+                        }
+                    } catch (Throwable ignored) {
+                        // Preserve ordinary invocation-time reporting for throwing authorization failures.
+                    }
+                    return true;
+                }
+
+                @Override
+                public Object invoke(HandlerInput<DeserializingMessage> input) {
+                    return plan.invoke(input);
+                }
+
+                @Override
+                public Class<?> getTargetClass() {
+                    return plan.getTargetClass();
+                }
+
+                @Override
+                public Executable getMethod() {
+                    return plan.getMethod();
+                }
+
+                @Override
+                public <A extends Annotation> A getMethodAnnotation() {
+                    return plan.getMethodAnnotation();
+                }
+
+                @Override
+                public boolean expectResult() {
+                    return plan.expectResult();
+                }
+
+                @Override
+                public boolean isPassive() {
+                    return plan.isPassive();
                 }
             };
         }

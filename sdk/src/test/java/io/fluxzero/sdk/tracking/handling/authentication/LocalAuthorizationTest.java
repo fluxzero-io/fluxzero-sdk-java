@@ -151,6 +151,35 @@ class LocalAuthorizationTest {
         }
     }
 
+    @Test
+    void lateRawPayloadDenialDoesNotLeakIntoTheNextPooledExecution() {
+        try (Fluxzero fluxzero = createFluxzero(new PublicHandler())) {
+            java.util.concurrent.atomic.AtomicInteger checks = new java.util.concurrent.atomic.AtomicInteger();
+            user = new User() {
+                @Override public String id() { return "actor"; }
+                @Override public boolean hasRole(String role) { return checks.incrementAndGet() == 1; }
+            };
+            assertThrows(io.fluxzero.sdk.publishing.TimeoutException.class,
+                         () -> fluxzero.commandGateway().sendAndWait(new RawSilentRequest()));
+            assertTrue(invocations.isEmpty());
+            user = new MockUser("admin");
+            assertEquals("handled", fluxzero.commandGateway().sendAndWait(new RawSilentRequest()));
+            assertNull(User.getCurrent());
+        }
+    }
+
+    @Test
+    void nestedSilentDenialDoesNotMarkItsAuthorizedParentAsSkipped() {
+        try (Fluxzero fluxzero = createFluxzero(new NestedHandler())) {
+            user = new MockUser("admin");
+            fluxzero.apply(f -> {
+                assertEquals("outer", f.commandGateway().sendAndWait(new NestedRequest(false)));
+                assertEquals("outer", f.commandGateway().sendAndWait(new NestedRequest(false)));
+                return null;
+            });
+        }
+    }
+
     private Fluxzero createFluxzero(Object... handlers) {
         return createFluxzero(DefaultFluxzero.builder(), handlers);
     }
@@ -195,6 +224,34 @@ class LocalAuthorizationTest {
     private String recordInvocation(String value) {
         invocations.add(value);
         return value;
+    }
+
+    @io.fluxzero.sdk.publishing.Timeout(value = 10, timeUnit = java.util.concurrent.TimeUnit.MILLISECONDS)
+    @RequiresAnyRole(value = "admin", throwIfUnauthorized = false)
+    record RawSilentRequest() {}
+
+    @RequiresAnyRole(value = "admin", throwIfUnauthorized = false)
+    record NestedRequest(boolean nested) {}
+
+    @LocalHandler
+    class NestedHandler {
+        @HandleCommand
+        @HandleQuery
+        String handle(NestedRequest request) {
+            if (request.nested()) {
+                throw new AssertionError("Denied nested request reached the handler");
+            }
+            user = new MockUser("member");
+            var nested = Fluxzero.get().commandGateway().send(new NestedRequest(true));
+            try {
+                assertFalse(nested.isDone());
+                assertTrue(User.getCurrent().hasRole("admin"));
+            } finally {
+                nested.cancel(false);
+                user = new MockUser("admin");
+            }
+            return "outer";
+        }
     }
 
     record Request() {}

@@ -1,9 +1,9 @@
 # Negative roles and role-specific query results
 
 `@ForbidsAnyRole` excludes a caller with any listed role. It is not an anonymous-access annotation. With its default
-`throwIfUnauthorized = true`, a missing user yields `UnauthenticatedException`; a caller with a forbidden role yields
+`throwIfUnauthorized = true` and a nonempty role list, a missing user yields `UnauthenticatedException`; a caller with a forbidden role yields
 `UnauthorizedException`. An authenticated caller with no forbidden role, including a roleless caller, passes this
-negative check. Add a positive role requirement when roleless access is not allowed.
+negative check. An empty role list allows authenticated callers and silently skips absent users, regardless of `throwIfUnauthorized`. Add a positive role requirement when roleless access is not allowed.
 
 The attribute `throwIfUnauthorized` belongs on `@ForbidsAnyRole`/`@RequiresAnyRole`, not on `@HandleQuery`.
 Keep the default throwing behavior for ordinary denial. With `false`, an ineligible handler is skipped for the

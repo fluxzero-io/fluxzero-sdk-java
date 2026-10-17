@@ -14,6 +14,12 @@
 
 package io.fluxzero.sdk.givenwhenthen.packagepolicy;
 
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.application.SimplePropertySource;
+import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.sdk.common.Order;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.givenwhenthen.packagepolicy.secured.silent.SilentRequest;
@@ -31,12 +37,16 @@ import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.concurrent.CompletableFuture;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class SilentAuthorizationTest {
-    private MockUser user;
+    private volatile MockUser user;
 
     @Test
     void payloadPackagePolicySkipsUnauthorizedRequests() {
@@ -96,6 +106,39 @@ class SilentAuthorizationTest {
     @Test
     void throwingAnonymousHandlerStillRejectsAuthenticatedUsersAsynchronously() {
         verifyThrowingAnonymousHandler(fixture(new ThrowingAnonymousHandler()).async());
+    }
+
+    @Test
+    void trackedRequestDoesNotPublishAResultWhenRolesAreRevokedAfterSelection() {
+        user = new MockUser("admin");
+        var interceptions = new AtomicInteger();
+        @Order(-1)
+        class RevokeBeforeAuthentication implements HandlerInterceptor {
+            @Override
+            public Function<DeserializingMessage, Object> interceptHandling(
+                    Function<DeserializingMessage, Object> next, HandlerInvoker invoker) {
+                return message -> {
+                    interceptions.incrementAndGet();
+                    user = new MockUser("member");
+                    return CompletableFuture.completedFuture(null).thenApply(ignored -> next.apply(message));
+                };
+            }
+        }
+        var builder = DefaultFluxzero.builder().registerUserProvider(new FixedUserProvider(() -> user))
+                .replacePropertySource(source -> new SimplePropertySource(
+                        Map.of("fluxzero.auth.useUserIdMetadata", "true")).andThen(source))
+                .addHandlerInterceptor(new RevokeBeforeAuthentication(), MessageType.COMMAND);
+        TestFixture fixture = TestFixture.createAsync(builder, new RecordingHandler());
+        var responses = new ArrayList<CompletableFuture<?>>();
+        fixture.whenExecuting(fc -> responses.add(fc.commandGateway().send(new SilentRequest())))
+                .expectNoEvents().expectNoErrors().expectThat(fc -> {
+                    try {
+                        assertEquals(1, interceptions.get());
+                        assertFalse(responses.getFirst().isDone());
+                    } finally {
+                        responses.forEach(response -> response.cancel(false));
+                    }
+                });
     }
 
     private void verifyPayloadRoles(TestFixture fixture, Object request) {

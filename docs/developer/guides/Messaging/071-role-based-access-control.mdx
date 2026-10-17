@@ -55,7 +55,7 @@ data class DeleteAccount(val userId: String)
 
 ## @ForbidsAnyRole
 
-This annotation works the other way around — it **prevents** message handling if the user has any of the specified roles.
+This annotation **prevents** message handling if the user has any of the specified roles. With a nonempty role list, the default throwing policy also rejects an absent user with `UnauthenticatedException`. An empty list allows every authenticated user and silently skips anonymous users regardless of `throwIfUnauthorized`.
 
 <Tabs>
 <TabItem value="Java" label="Java">
@@ -303,7 +303,7 @@ This exception applies to the healthcheck handler. It does not grant anonymous a
 
 Type policy includes inherited type and interface annotations. Different authorization annotations inherited this way can coexist; the table describes fallback between levels, not replacement of individual inherited annotations.
 
-When multiple JARs define `package-info` for the same package, the first definition selected by the classloader supplies that package's policy. Other definitions of that same package are not combined. This policy applies to classes from every JAR in that package; the application controls precedence through its packaging and classloader configuration.
+When multiple JARs define `package-info` for the same package, the first definition selected by the classloader supplies that package's policy. Other definitions of that same package are not combined. This policy applies to classes from every JAR in that package; the application controls precedence through its packaging and classloader configuration. Ancestor authorization packages use the defining loader of the payload or handler class, including applications loaded below the SDK's loader. Changing the thread context loader does not change that policy.
 
 ---
 

@@ -328,20 +328,20 @@ public class ValidationUtils {
         Check command / query authorization
      */
 
-    private static final Function<Package, RequiredRole[]> packageRequiredRolesCache = memoize(
-            target -> getPackageAndParentPackages(target).stream()
+    private static final BiFunction<Package, Module, RequiredRole[]> packageRequiredRolesCache = memoize(
+            (target, module) -> getPackageAndParentPackages(target, module).stream()
                     .map(p -> getPackageAnnotations(p, false))
                     .map(ValidationUtils::getRequiredRoles)
                     .filter(Objects::nonNull).findFirst().orElse(null));
 
     private static final Function<Class<?>, RequiredRole[]> requiredRolesCache = memoize(
             payloadClass -> Optional.ofNullable(getRequiredRoles(getTypeAnnotations(payloadClass)))
-                    .orElseGet(() -> packageRequiredRolesCache.apply(payloadClass.getPackage())));
+                    .orElseGet(() -> packageRequiredRolesCache.apply(payloadClass.getPackage(), payloadClass.getModule())));
 
     private static final BiFunction<Class<?>, Executable, RequiredRole[]> requiredRolesForMethodCache = memoize(
             (target, executable) -> Optional.ofNullable(getRequiredRoles(Arrays.asList(executable.getAnnotations())))
                     .or(() -> Optional.ofNullable(getRequiredRoles(getTypeAnnotations(target))))
-                    .orElseGet(() -> packageRequiredRolesCache.apply(target.getPackage())));
+                    .orElseGet(() -> packageRequiredRolesCache.apply(target.getPackage(), target.getModule())));
 
     /**
      * Verifies whether the given user is authorized to issue the given payload, based on roles declared via annotations
@@ -374,7 +374,7 @@ public class ValidationUtils {
      */
     public static boolean requiresAuthorization(Class<?> payloadType) {
         RequiredRole[] requiredRoles = requiredRolesCache.apply(payloadType);
-        return requiredRoles != null && !Arrays.asList(requiredRoles).contains(noUserRequired);
+        return requiredRoles != null && !containsNoUserRequired(requiredRoles);
     }
 
     /**
@@ -386,8 +386,15 @@ public class ValidationUtils {
      */
     public static boolean canIgnoreSilently(Class<?> payloadType) {
         RequiredRole[] roles = requiredRolesCache.apply(payloadType);
-        return roles != null && !Arrays.asList(roles).contains(noUserRequired)
-               && (roles.length == 0 || Arrays.stream(roles).anyMatch(role -> !role.throwIfUnauthorized()));
+        if (roles == null || containsNoUserRequired(roles)) {
+            return false;
+        }
+        for (RequiredRole role : roles) {
+            if (!role.throwIfUnauthorized()) {
+                return true;
+            }
+        }
+        return roles.length == 0;
     }
 
     /**
@@ -400,7 +407,7 @@ public class ValidationUtils {
      */
     public static boolean requiresAuthorization(Class<?> target, Executable method) {
         RequiredRole[] roles = requiredRolesForMethodCache.apply(target, method);
-        return roles != null && !Arrays.asList(roles).contains(noUserRequired);
+        return roles != null && !containsNoUserRequired(roles);
     }
 
     /**
@@ -442,7 +449,7 @@ public class ValidationUtils {
      */
     public static boolean assertAuthorized(Class<?> target, Executable method, @Nullable User user) {
         RequiredRole[] requiredRoles = requiredRolesForMethodCache.apply(target, method);
-        if (requiredRoles == null || Arrays.asList(requiredRoles).contains(noUserRequired)) {
+        if (requiredRoles == null || containsNoUserRequired(requiredRoles)) {
             return true;
         }
         return assertAuthorized(
@@ -474,64 +481,60 @@ public class ValidationUtils {
     }
 
     protected static boolean assertAuthorized(String action, @Nullable User user, RequiredRole[] requiredRoles) {
-        if (requiredRoles == null || Arrays.asList(requiredRoles).contains(noUserRequired)) {
+        if (requiredRoles == null || containsNoUserRequired(requiredRoles)) {
             return true;
         }
-        Optional<RequiredRole> forbidsUser = Arrays.stream(requiredRoles).filter(RequiredRole::forbidsUser).findFirst();
-        if (forbidsUser.isPresent()) {
-            if (user != null) {
-                if (forbidsUser.get().throwIfUnauthorized()) {
+        for (RequiredRole role : requiredRoles) {
+            if (role.forbidsUser()) {
+                if (user != null && role.throwIfUnauthorized()) {
                     throw new UnauthorizedException("Not allowed for authenticated users");
                 }
-                return false;
+                return user == null;
             }
-            return true;
         }
         if (user == null) {
-            if (Arrays.stream(requiredRoles).anyMatch(RequiredRole::throwIfUnauthorized)) {
-                throw new UnauthenticatedException("Authentication required.");
-            }
-            return false;
-        }
-        if (requiredRoles.length == 0) {
-            return true;
-        }
-        List<RequiredRole> remainingRoles = new ArrayList<>();
-        List<RequiredRole> forbiddenRoles = Arrays.stream(requiredRoles).filter(r -> {
-            if (r.value() != null) {
-                if (r.value().startsWith("!")) {
-                    return true;
+            for (RequiredRole role : requiredRoles) {
+                if (role.throwIfUnauthorized()) {
+                    throw new UnauthenticatedException("Authentication required.");
                 }
-                remainingRoles.add(r);
             }
             return false;
-        }).toList();
-        for (RequiredRole r : forbiddenRoles) {
-            if (r.value() != null && user.hasRole(r.value().substring(1))) {
-                if (r.throwIfUnauthorized()) {
-                    throw new UnauthorizedException(
-                            "You are not allowed to perform this action.");
+        }
+        // Forbidden roles always take precedence, irrespective of annotation order.
+        for (RequiredRole role : requiredRoles) {
+            String value = role.value();
+            if (value != null && value.startsWith("!") && user.hasRole(value.substring(1))) {
+                if (role.throwIfUnauthorized()) {
+                    throw new UnauthorizedException("You are not allowed to perform this action.");
                 }
                 return false;
             }
         }
-        if (!remainingRoles.isEmpty()) {
-            boolean throwIfUnauthorized = false;
-            for (RequiredRole remainingRole : remainingRoles) {
-                if (user.hasRole(remainingRole.value())) {
+        boolean requiresRole = false;
+        boolean throwIfUnauthorized = false;
+        for (RequiredRole role : requiredRoles) {
+            String value = role.value();
+            if (value != null && !value.startsWith("!")) {
+                requiresRole = true;
+                if (user.hasRole(value)) {
                     return true;
                 }
-                if (remainingRole.throwIfUnauthorized()) {
-                    throwIfUnauthorized = true;
-                }
+                throwIfUnauthorized |= role.throwIfUnauthorized();
             }
-            if (throwIfUnauthorized) {
-                throw new UnauthorizedException(
-                        "You are not allowed to perform this action.");
-            }
-            return false;
         }
-        return true;
+        if (requiresRole && throwIfUnauthorized) {
+            throw new UnauthorizedException("You are not allowed to perform this action.");
+        }
+        return !requiresRole;
+    }
+
+    private static boolean containsNoUserRequired(RequiredRole[] roles) {
+        for (RequiredRole role : roles) {
+            if (noUserRequired.equals(role)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected static RequiredRole[] getRequiredRoles(Collection<? extends Annotation> annotations) {
