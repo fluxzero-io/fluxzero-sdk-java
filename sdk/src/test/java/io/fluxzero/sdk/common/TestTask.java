@@ -78,9 +78,12 @@ public final class TestTask implements AutoCloseable {
         try {
             release.run();
         } finally {
-            if (!worker.join(Duration.ofSeconds(5))) {
+            // join(Duration) may observe TERMINATED before the native thread pointer used by isAlive is cleared.
+            // The millisecond overload waits on isAlive itself, keeping the wait and final assertion consistent.
+            worker.join(TimeUnit.SECONDS.toMillis(5));
+            if (worker.isAlive()) {
                 worker.interrupt();
-                worker.join(Duration.ofSeconds(1));
+                worker.join(TimeUnit.SECONDS.toMillis(1));
                 fail("Test worker did not terminate after releasing its gate");
             }
             assertFalse(worker.isAlive());
