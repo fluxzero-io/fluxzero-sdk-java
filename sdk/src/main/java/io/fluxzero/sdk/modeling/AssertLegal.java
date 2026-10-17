@@ -103,7 +103,11 @@ import java.lang.annotation.Target;
  * updates first when current-input checks are disabled. Assertions then run for a retained update, do not run for a suppressed update, and run only for
  * the replacement when the original update is replaced. Expanded updates are processed in encounter order: each
  * update's immediate assertions run before its apply methods and see state produced by earlier updates. Assertions
- * configured with {@link #afterHandler()} remain deferred until handler completion.
+ * configured with {@link #afterHandler()} remain deferred until handler completion. For Models, every ordinary,
+ * nested, retained-input and cascading after-handler check sees the complete final state of the atomic Model
+ * operation, including later split outputs and automatic child deletions. Each check retains its own payload,
+ * metadata and user context. A failure rejects the entire operation before commit; this does not combine separate
+ * commands or commits into one transaction.
  *
  * <p>{@code @InterceptApply(assertCurrent = AssertCurrent.ENABLED)} retains checks for that interceptor's input.
  * Immediate checks run before interception within the commit attempt; retained after-handler checks use final state.
