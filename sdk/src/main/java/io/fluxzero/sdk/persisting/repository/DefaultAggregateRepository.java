@@ -23,6 +23,7 @@ import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
@@ -33,6 +34,7 @@ import io.fluxzero.sdk.modeling.AggregateCommitPolicy;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
 import io.fluxzero.sdk.modeling.AppliedEvent;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
+import io.fluxzero.sdk.modeling.DelegatingEntity;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EntityMetadata;
@@ -74,6 +76,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.Guarantee.STORED;
@@ -264,6 +267,74 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         return (Entity<T>) delegates.apply(delegateType).load(aggregateId);
     }
 
+    @Override
+    public <T> Entity<T> loadEntityFallback(Object entityId, Class<T> entityType) {
+        if (Object.class.equals(entityType)
+            || ReflectionUtils.getTypeMetadata(entityType).typeAnnotation(Aggregate.class) != null) {
+            return load(entityId, entityType);
+        }
+        // Check persisted/inferred root types even when the requested type itself is only a member.
+        if (load(entityId, Object.class).isPresent()) {
+            return load(entityId, entityType);
+        }
+        var empty = new MissingMember<>(ImmutableAggregateRoot.<T>builder()
+                .id(entityId).type(entityType)
+                .idProperty(EntityMetadata.of(entityType).entityId().map(EntityMetadata.Property::name).orElse(null))
+                .entityHelper(entityHelper).serializer(serializer).eventStore(eventStore).build());
+        return Entity.isLoading() ? new NoOpEntity<>(() -> empty) : empty;
+    }
+
+    /** A typed absence result with ordinary validation, but no implicit standalone member persistence. */
+    private class MissingMember<T> extends DelegatingEntity<T> {
+        MissingMember(Entity<T> delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public Entity<T> update(UnaryOperator<T> function) {
+            return load(id(), type()).update(function);
+        }
+
+        @Override
+        public Entity<T> apply(Message message) {
+            return load(id(), type()).apply(message);
+        }
+
+        @Override
+        public <E extends Exception> Entity<T> assertLegal(Object update) throws E {
+            entityHelper.interceptForValidation(update, this, (current, asserted) -> {
+                if (!asserted) { entityHelper.assertLegal(current, this); }
+            });
+            return this;
+        }
+
+        @Override
+        public Entity<T> commit() {
+            return this;
+        }
+
+        @Override
+        public Entity<T> withType(Class<T> type) {
+            return new MissingMember<>(delegate.withType(type));
+        }
+
+        @Override
+        public Entity<T> withEventIndex(Long index, String messageId) {
+            return new MissingMember<>(delegate.withEventIndex(index, messageId));
+        }
+
+        @Override
+        public Entity<T> withSequenceNumber(long sequenceNumber) {
+            return new MissingMember<>(delegate.withSequenceNumber(sequenceNumber));
+        }
+
+        @Override
+        public Entity<T> previous() {
+            Entity<T> previous = delegate.previous();
+            return previous == null ? null : new MissingMember<>(previous);
+        }
+    }
+
     private Optional<Class<?>> inferAggregateTypeFromFirstEvent(Object aggregateId) {
         try {
             Optional<SerializedMessage> firstEvent =
@@ -313,7 +384,12 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
             return (Entity<T>) load(entityId, defaultType);
         }
         if (aggregates.containsKey(entityId.toString())) {
-            Entity<T> result = (Entity<T>) load(entityId, aggregates.get(entityId.toString()));
+            Class<?> rootType = aggregates.get(entityId.toString());
+            // Void denotes an unavailable historical type, not a root class requiring a marker.
+            if (Void.class.equals(rootType)) {
+                rootType = Object.class;
+            }
+            Entity<T> result = (Entity<T>) load(entityId, rootType);
             if (!result.isEmpty()) {
                 return result;
             }

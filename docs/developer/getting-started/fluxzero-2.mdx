@@ -2684,7 +2684,10 @@ including through an interface or superclass. Add it to previously unannotated r
 `loadAggregate(...)` and repository loads reject known unannotated root types; untyped loads validate the root
 as soon as its type becomes known, including during creation or replay. A bare aggregate-value parameter also
 requires the marker on its declared type for implicit handler injection. Ordinary members, independent `@Model`
-types and side-effect-free `asEntity(...)` wrappers do not need `@Aggregate`.
+types and side-effect-free `asEntity(...)` wrappers do not need `@Aggregate`. A typed `loadEntity(...)` lookup for a missing member
+returns an empty entity with its requested ID and type, so `isPresent()` is false and `loadEntityValue(...)`
+returns `null`. Create or change members through their owning root; an empty lookup does not make a member
+an independent aggregate.
 
 `@Member` remains supported and is not deprecated. Its role is deliberately embedded state whose creation,
 changes, history, retention and deletion all belong to its owner, including nested handlers in `@Stateful` objects.

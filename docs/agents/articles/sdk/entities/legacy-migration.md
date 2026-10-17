@@ -11,7 +11,10 @@ This applies to Java and Kotlin. Add the annotation to previously unannotated ro
 repository loads reject known unannotated root types. Untyped loads validate the root as soon as its type becomes
 known, including during creation or replay, before storing the root or publishing its events. This requirement does
 not depend on `fluxzero.defaults.version` or consumer filtering. Ordinary members, independent Models and
-side-effect-free `asEntity(...)` wrappers do not require `@Aggregate`.
+side-effect-free `asEntity(...)` wrappers do not require `@Aggregate`. A typed `loadEntity(...)` lookup for a missing member
+returns an empty entity with its requested ID and type, so `isPresent()` is false and `loadEntityValue(...)`
+returns `null`. Create or change members through their owning root; an empty lookup does not make a member
+an independent aggregate.
 
 For implicit aggregate-value injection, the declared parameter type must also carry the marker. An unannotated
 bare value parameter is a payload parameter, even if the message carries aggregate context. Explicit `Entity<T>`

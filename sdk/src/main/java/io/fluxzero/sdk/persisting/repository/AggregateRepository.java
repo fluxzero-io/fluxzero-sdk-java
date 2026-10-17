@@ -100,6 +100,22 @@ public interface AggregateRepository extends Namespaced<AggregateRepository> {
     <T> Entity<T> load(@NonNull Object aggregateId, Class<T> aggregateType);
 
     /**
+     * Resolves a typed entity lookup after no matching entity was found through the ownership index.
+     * Marked roots retain normal aggregate loading. The default Fluxzero repository returns an empty, typed
+     * lookup result for an absent unmarked member; that result cannot create an unmarked persistent root.
+     * Existing unmarked aggregate data still fails root validation.
+     * <p>
+     * Custom repositories retain their existing aggregate fallback unless they override this method.
+     *
+     * @param entityId the entity identifier, also used as root identifier for this fallback
+     * @param entityType the expected entity type
+     * @return the root or an empty entity lookup result
+     */
+    default <T> Entity<T> loadEntityFallback(Object entityId, Class<T> entityType) {
+        return load(entityId, entityType);
+    }
+
+    /**
      * Load the aggregate that owns the specified entity.
      * <p>
      * If no ownership is found in the relationship index, this method may fall back to loading the entity as if it were
