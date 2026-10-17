@@ -532,6 +532,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "putValue",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#putValue",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parent",
+      "type" : "java.util.Map<java.lang.Object,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segment",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerValue",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#registerValue",
     "returnType" : "void",
@@ -766,6 +792,12 @@
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$DocumentBytes",
     "kind" : "interface",
     "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PathSegments",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$PathSegments",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   }, {
     "name" : "SearchSummarizer",

@@ -25,6 +25,22 @@
     "annotations" : [ ],
     "documentation" : "Marks a notification that must be hydrated from the current canonical node documents. ",
     "constantValue" : "$fluxzeroModelGraphLive"
+  }, {
+    "name" : "METADATA_PATH",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphInvalidation.METADATA_PATH",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "METADATA_PREFIX",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphInvalidation.METADATA_PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ModelGraphInvalidation",
@@ -63,6 +79,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Captures the root identity and invalidation boundary without copying any of its content. "
+  }, {
+    "name" : "isInvalidation",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphInvalidation#isInvalidation",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the stored invalidation marker is present, without reconstructing unrelated metadata.\n Like the notification protocol, this checks key presence regardless of its value or graph facets.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -197,6 +197,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "skipPayload",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#skipPayload",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Skips exactly length unframed bytes with the same bounds checks as {@link #readPayload(int)}. "
+  }, {
     "name" : "skipString",
     "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#skipString",
     "returnType" : "void",
