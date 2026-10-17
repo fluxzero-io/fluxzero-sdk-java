@@ -286,12 +286,12 @@ public final class ModelReducer {
             boolean assertions,
             Set<String> applyReads,
             DependencyLoader assertionLoader) {
-        return apply(message, beginState, applyHandlers, assertions, applyReads, assertionLoader, false);
+        return apply(message, beginState, applyHandlers, assertions, applyReads, assertionLoader, false, null);
     }
 
     private List<Change> apply(DeserializingMessage message, CommitAttempt beginState, boolean applyHandlers,
                                boolean assertions, Set<String> applyReads, DependencyLoader assertionLoader,
-                               boolean currentAsserted) {
+                               boolean currentAsserted, CommitAttempt deferred) {
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(beginState, "beginState");
         if (directApply != null && applyHandlers) {
@@ -323,15 +323,15 @@ public final class ModelReducer {
                     message, beginState,
                     List.of(directTransition(
                             compiledHandler, result, 0, beginState)),
-                    assertions && !currentAsserted, assertionLoader);
+                    assertions && !currentAsserted, assertionLoader, deferred);
         }
         beginState.attachTo(message);
         try {
             // Keep the unused loader out of the ordinary path's captured arguments.
             return assertionLoader == null ? message.apply(ignored -> applyInContext(
-                    message, beginState, applyHandlers, assertions, applyReads, null, currentAsserted))
+                    message, beginState, applyHandlers, assertions, applyReads, null, currentAsserted, deferred))
                     : message.apply(ignored -> applyInContext(
-                    message, beginState, applyHandlers, assertions, applyReads, assertionLoader, currentAsserted));
+                    message, beginState, applyHandlers, assertions, applyReads, assertionLoader, currentAsserted, deferred));
         } finally {
             beginState.attachTo(message);
         }
@@ -343,7 +343,7 @@ public final class ModelReducer {
             boolean applyHandlers,
             boolean assertions,
             Set<String> applyReads,
-            DependencyLoader assertionLoader, boolean currentAsserted) {
+            DependencyLoader assertionLoader, boolean currentAsserted, CommitAttempt deferred) {
         if (assertions && !currentAsserted) {
             assertAll(beforePayloadAssertions, message, beginState, false, assertionLoader);
             assertAll(beforeModelAssertions, message, beginState, false, assertionLoader);
@@ -397,7 +397,7 @@ public final class ModelReducer {
                         ? beginState.entity(value.modelId())
                         : resultTarget(value.handler().method(), beginState, value.modelId())))
                 .toList();
-        return finishApply(message, beginState, transitions, assertions && !currentAsserted, assertionLoader);
+        return finishApply(message, beginState, transitions, assertions && !currentAsserted, assertionLoader, deferred);
     }
 
     private static Map<String, AppliedValue> compose(Map<String, AppliedValue> first, Map<String, AppliedValue> second) {
@@ -637,7 +637,17 @@ public final class ModelReducer {
             List<Change> transitions,
             boolean assertions,
             DependencyLoader assertionLoader) {
+        return finishApply(message, beginState, transitions, assertions, assertionLoader, null);
+    }
+
+    private List<Change> finishApply(
+            DeserializingMessage message, CommitAttempt beginState, List<Change> transitions,
+            boolean assertions, DependencyLoader assertionLoader, CommitAttempt deferred) {
         if (assertions && afterAssertions) {
+            if (deferred != null) {
+                deferred.retainAfterAssertion(new DeferredAssertion(message, this));
+                return transitions;
+            }
             Map<String, Object> values = new LinkedHashMap<>(transitions.size());
             transitions.forEach(transition -> values.put(
                     transition.modelId(), transition.after()));
@@ -997,8 +1007,10 @@ public final class ModelReducer {
         Class<?> targetType = MutationPlan.applyTargetType(handler, value, resultIndex);
         String targetId = resolveWriteTarget(handler, targetType, value, beginState);
         Entity<?> target = resultTarget(handler, beginState, targetId);
-        boolean creation = target == null && value != null
-                           && (handler.collectionApplyResult() || handler.dynamicApplyResult());
+        // A nullable read retains an empty entity, including its absence/tombstone revision.
+        // Returning a new value may create it without discarding that conflict boundary.
+        boolean creation = value != null && (handler.collectionApplyResult() || handler.dynamicApplyResult())
+                           && (target == null || target.isEmpty());
         boolean graphWrite = (handler.collectionApplyResult() || handler.dynamicApplyResult())
                              && target != null && target == beginState.graphReadEntity(targetId);
         if (!creation && !graphWrite && (target == null || !beginState.mayWrite(
@@ -1347,7 +1359,7 @@ public final class ModelReducer {
                         attempt.protectAssertionReads(); // Retain all assertion reads; guarded ACCEPT must fail on conflict.
                         currentReducer.apply(current.message(), context, false, true, null, assertionLoader);
                         if (mode.applyHandlers && currentReducer.afterAssertions) {
-                            attempt.retainCurrentAssertion(new CurrentAssertion(current.message(), currentReducer));
+                            attempt.retainCurrentAssertion(new DeferredAssertion(current.message(), currentReducer));
                         }
                     };
                     Object interception = currentReducer.intercept(
@@ -1377,7 +1389,7 @@ public final class ModelReducer {
                 }
                 List<Change> transitions = resolved.reducer().apply(
                         current.message(), context, mode.applyHandlers, mode.assertions,
-                        applyReadModelIds, assertionLoader, current.asserted());
+                        applyReadModelIds, assertionLoader, current.asserted(), mode.assertions ? attempt : null);
                 context.retainDeadlineOrigins(transitions);
                 readStateIndex = context.readStateIndex();
                 if (!pending.isEmpty()) { context.retainWriteOrigins(transitions); }
@@ -1597,33 +1609,36 @@ public final class ModelReducer {
         return step.cascadeCause() < 0 ? step.message() : attempt.steps().get(step.cascadeCause()).message();
     }
 
-    record CurrentAssertion(DeserializingMessage message, ModelReducer reducer) {}
+    record DeferredAssertion(DeserializingMessage message, ModelReducer reducer) {}
 
-    static void assertCurrentAfter(CommitAttempt attempt) {
-        if (attempt.currentAssertions().isEmpty()) { return; }
+    static void assertAfter(CommitAttempt attempt) {
+        if (attempt.afterAssertions().isEmpty() && attempt.currentAssertions().isEmpty()) { return; }
         Map<String, Object> finalValues = new LinkedHashMap<>();
         attempt.steps().forEach(step -> step.changes().forEach(change -> finalValues.put(change.modelId(), change.after())));
         Map<String, Class<?>> reads = new LinkedHashMap<>(attempt.readModelTypes());
         SubstepResolver resolver = attempt.readResolver();
-        for (CurrentAssertion check : attempt.currentAssertions()) {
-            DeserializingMessage message = check.message();
-            CommitAttempt previous = message.getContext(CommitAttempt.class).orElse(null);
-            try {
-                CommitAttempt context = resolver.resolve(message, attempt.readStateIndex(), finalValues).context()
-                        .withValues(finalValues);
-                attempt.bindCascadeReads(context);
-                context.targets().forEach(target -> reads.putIfAbsent(target.modelId(), target.modelType()));
-                DependencyLoader loader = (source, scope, parameters, current) -> {
-                    CommitAttempt loaded = resolver.resolveAssertion(source, scope, parameters, current, finalValues);
-                    attempt.bindCascadeReads(loaded);
-                    loaded.targets().forEach(target -> reads.putIfAbsent(target.modelId(), target.modelType()));
-                    return loaded;
-                };
-                context.attachTo(message);
-                message.apply(ignored -> check.reducer().finishApply(message, context, List.of(), true, loader));
-            } finally {
-                if (previous == null) { message.withoutContext(CommitAttempt.class); }
-                else { previous.attachTo(message); }
+        // Effective outputs keep their encounter order; retained inputs retain their existing final phase.
+        for (List<DeferredAssertion> checks : List.of(attempt.afterAssertions(), attempt.currentAssertions())) {
+            for (DeferredAssertion check : checks) {
+                DeserializingMessage message = check.message();
+                CommitAttempt previous = message.getContext(CommitAttempt.class).orElse(null);
+                try {
+                    CommitAttempt context = resolver.resolve(message, attempt.readStateIndex(), finalValues).context()
+                            .withValues(finalValues);
+                    attempt.bindCascadeReads(context);
+                    context.targets().forEach(target -> reads.putIfAbsent(target.modelId(), target.modelType()));
+                    DependencyLoader loader = (source, scope, parameters, current) -> {
+                        CommitAttempt loaded = resolver.resolveAssertion(source, scope, parameters, current, finalValues);
+                        attempt.bindCascadeReads(loaded);
+                        loaded.targets().forEach(target -> reads.putIfAbsent(target.modelId(), target.modelType()));
+                        return loaded;
+                    };
+                    context.attachTo(message);
+                    message.apply(ignored -> check.reducer().finishApply(message, context, List.of(), true, loader));
+                } finally {
+                    if (previous == null) { message.withoutContext(CommitAttempt.class); }
+                    else { previous.attachTo(message); }
+                }
             }
         }
         attempt.evaluated(attempt.readStateIndex(), reads.keySet(),
@@ -1741,14 +1756,15 @@ public final class ModelReducer {
             for (MutationPlan.CascadeParent parent : plan.parents()) {
                 MutationPlan.CascadePlan parentPlan = compiler.cascadePlan(parent.type());
                 if (!parentPlan.matches(message, true)) { continue; }
-                Object parentId = parent.reference().read(routeValue);
-                if (parentId == null || !parent.type().equals(parent.reference().parentModelType(parentId))) { continue; }
-                String key = parentId.toString();
-                if (visited.contains(key)) { continue; }
-                CommitAttempt context = load(key, parent.type(), values);
-                Entity<?> entity = context.entity(key);
-                collect(key, parent.type(), entity == null ? null : entity.get(), parentPlan, message, true,
-                        owners, visited, depth + 1);
+                for (Object parentId : parent.reference().readIds(routeValue)) {
+                    if (!parent.type().equals(parent.reference().parentModelType(parentId))) { continue; }
+                    String key = parentId.toString();
+                    if (visited.contains(key)) { continue; }
+                    CommitAttempt context = load(key, parent.type(), values);
+                    Entity<?> entity = context.entity(key);
+                    collect(key, parent.type(), entity == null ? null : entity.get(), parentPlan, message, true,
+                            owners, visited, depth + 1);
+                }
             }
         }
 

@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -51,6 +52,24 @@ class TestTaskTest {
             assertSame(failure, assertThrows(ExecutionException.class,
                     () -> task.awaitCompletion(Duration.ofSeconds(1))).getCause());
         }
+    }
+
+    @Test
+    void closeTerminatesTheWorkerBeforePropagatingAnUnobservedFailure() throws Exception {
+        var release = new CountDownLatch(1);
+        var worker = new AtomicReference<Thread>();
+        var failure = new IllegalStateException("worker failed after release");
+        var task = new TestTask(() -> {
+            worker.set(Thread.currentThread());
+            block(release);
+            throw failure;
+        }, release::countDown);
+        try {
+            task.awaitBlockedIn(TestTaskTest.class, "block", Duration.ofSeconds(1));
+        } finally {
+            assertSame(failure, assertThrows(ExecutionException.class, task::close).getCause());
+        }
+        assertFalse(worker.get().isAlive());
     }
 
     private static void block(CountDownLatch release) {

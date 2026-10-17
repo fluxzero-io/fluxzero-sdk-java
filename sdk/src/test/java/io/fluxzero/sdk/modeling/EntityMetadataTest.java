@@ -521,10 +521,62 @@ class EntityMetadataTest {
     }
 
     @Test
+    void collectionParentsResolveTypesDeduplicateAndRejectInvalidElements() {
+        assertEquals(ParentModel.class, EntityMetadata.of(BoundedScalarParent.class)
+                .parentReferences().getFirst().parentModelType());
+        var metadata = EntityMetadata.validate(TypedCollectionParent.class);
+        var one = new ParentModelId("one");
+        var two = new ParentModelId("two");
+        var edges = metadata.parentRelationships("child", new TypedCollectionParent("child", List.of(one, two, one)));
+        assertEquals(List.of("parent-one", "parent-two"), edges.stream().map(EntityMetadata.ParentRelationship::parentId).toList());
+        assertEquals(ParentModel.class, metadata.parentReferences().getFirst().parentModelType());
+        assertTrue(metadata.parentRelationships("child", new TypedCollectionParent("child", null)).isEmpty());
+        assertTrue(metadata.parentRelationships("child", new TypedCollectionParent("child", List.of())).isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> metadata.parentRelationships("child",
+                new TypedCollectionParent("child", java.util.Arrays.asList(one, null))));
+        assertEquals(2, EntityMetadata.of(CollectionParentModel.class).parentRelationships("child",
+                new CollectionParentModel("child", List.of("one", "two"))).size());
+        var custom = new TaggedIds<String, Integer>();
+        custom.add(one);
+        assertEquals(ParentModel.class, EntityMetadata.of(CustomCollectionParent.class)
+                .parentRelationships("child", new CustomCollectionParent("child", custom)).getFirst().parentType());
+        assertEquals(2, EntityMetadata.of(GetterParents.class).parentRelationships("child", new GetterParents()).size());
+        var scoped = EntityMetadata.of(ScopedCollectionParent.class);
+        assertEquals(scoped.repositoryId("local", one, ParentModel.class),
+                     scoped.repositoryIdOf(new ScopedCollectionParent("local", List.of(one, one))));
+        assertThrows(IllegalArgumentException.class,
+                () -> scoped.repositoryIdOf(new ScopedCollectionParent("local", List.of(one, two))));
+    }
+
+    @Model record TypedCollectionParent(@EntityId String id,
+            @Parent(pathInParent = "items", deleteOnParentDeletion = false) List<ParentModelId> parents) {}
+    @Model record ScopedCollectionParent(@EntityId(parentScoped = true) String id,
+            @Parent List<ParentModelId> parents) {}
+    @Model static class BoundedScalarParent<T extends ParentModelId> {
+        @EntityId String id;
+        @Parent T parent;
+    }
+    static class TaggedIds<A, B> extends java.util.ArrayList<ParentModelId> {}
+    @Model record CustomCollectionParent(@EntityId String id, @Parent TaggedIds<String, Integer> parents) {}
+    @Model record NestedCollectionParent(@EntityId String id, @Parent List<List<String>> parents) {}
+    @Model record RawCollectionParent(@EntityId String id, @Parent List parents) {}
+    @Model record ArrayParent(@EntityId String id, @Parent String[] parents) {}
+    @Model record MapParent(@EntityId String id, @Parent Map<String, String> parents) {}
+    @Model static class GetterParents {
+        @EntityId String id = "child";
+        @Parent(pathInParent = "items") public Set<? extends ParentModelId> getParents() {
+            return Set.of(new ParentModelId("one"), new ParentModelId("two"));
+        }
+    }
+
+    @Test
     void rejectsInvalidParentDeclarations() {
         assertFalse(EntityMetadata.of(ParentOnNonModel.class).isModel());
         assertEquals(1, EntityMetadata.scheduleParentReferences(ParentOnNonModel.class).size());
-        assertMessage(CollectionParentModel.class, "must contain one scalar ID");
+        assertMessage(NestedCollectionParent.class, "concrete scalar element type");
+        assertMessage(RawCollectionParent.class, "concrete scalar element type");
+        assertMessage(ArrayParent.class, "must contain one scalar ID");
+        assertMessage(MapParent.class, "must contain one scalar ID");
         assertMessage(PaddedPathModel.class, "must not be blank or have surrounding whitespace");
         assertMessage(InvalidPathModel.class, "relative path without empty segments");
         assertMessage(TraversalPathModel.class, "must not contain '.' or '..' segments");

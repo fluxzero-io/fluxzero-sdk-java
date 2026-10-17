@@ -212,6 +212,21 @@ class MessagePackIOTest {
     }
 
     @Test
+    void skipPayloadPreservesPositionAndBounds() throws Exception {
+        try (var reader = new MessagePackIO.Reader(new byte[]{1, 2, 3})) {
+            reader.skipPayload(0);
+            assertEquals(0, reader.position());
+            reader.skipPayload(2);
+            assertEquals(2, reader.position());
+            assertThrows(IOException.class, () -> reader.skipPayload(-1));
+            assertThrows(IOException.class, () -> reader.skipPayload(2));
+            assertEquals(2, reader.position());
+            assertEquals(3, reader.unpackInt());
+            assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test
     void skipStringPreservesFramingAndBoundsWithoutDecodingText() throws Exception {
         for (int size : new int[]{0, 31, 32, 255, 256, 65535, 65536}) {
             try (var writer = MessagePack.newDefaultBufferPacker()) {

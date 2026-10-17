@@ -33,6 +33,8 @@ import io.fluxzero.sdk.web.Path;
 
 Relative document paths resolve against the `@Path` on the same package or handler type. This example serves `/api/openapi.json` and `/api/docs`. Absolute configured paths start at the application root. Nested handler `@Path` values follow the same composition rule: relative values append and a leading `/` resets the inherited chain. Read web routing and parameter binding before duplicating an inherited prefix. `serveApiReference = true` also serves the OpenAPI document because the reference page consumes it. The automatic document and reference endpoints are public, so enable them only when that is the intended product contract.
 
+Root endpoints are documented under `/` in both compiled and runtime documents. An absolute origin without a path also uses `/`, with the origin retained as the operation server.
+
 With annotation processing enabled, Fluxzero writes the generated document to `META-INF/fluxzero/openapi.json`. The automatic endpoint uses that generated resource when present and can render from runtime metadata as a fallback. Keep handler annotations and this generated artifact authoritative; do not copy their operations into a manually maintained JSON string.
 
 ## Make validation and security explicit

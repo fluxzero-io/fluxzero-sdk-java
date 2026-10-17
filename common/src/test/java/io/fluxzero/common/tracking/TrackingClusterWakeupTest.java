@@ -169,6 +169,65 @@ class TrackingClusterWakeupTest {
         }
     }
 
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void wakesTrackerThatJoinsBetweenClusterSnapshotAndClaim(boolean ownerClaimOnly, boolean claimOnly) {
+        var source = mock(MessageStore.class);
+        when(source.registerMonitor(any())).thenReturn(Registration.noOp());
+        var scheduler = mock(TaskScheduler.class);
+        when(scheduler.schedule(anyLong(), any())).thenReturn(Registration.noOp());
+        long firstIndex = System.currentTimeMillis() << 16;
+        List<SerializedMessage> messages = List.of(message(firstIndex, 0), message(firstIndex + 1, 127));
+        when(source.scanBatch(any(), anyInt(), anyBoolean(), anyLong(), any())).thenAnswer(invocation -> {
+            Long lastIndex = invocation.getArgument(0);
+            return MessageStoreBatch.scan(messages.stream()
+                    .filter(message -> lastIndex == null || message.getIndex() > lastIndex).toList(),
+                    invocation.getArgument(1), invocation.getArgument(3), invocation.getArgument(4));
+        });
+        var beforeClaim = new AtomicReference<Runnable>();
+        var positions = new InMemoryPositionStore();
+        try (var strategy = new DefaultTrackingStrategy(source, positions, scheduler) {
+            @Override
+            protected int[] claimSegmentRange(Tracker tracker) {
+                Runnable action = beforeClaim.getAndSet(null);
+                if (action != null) {
+                    action.run();
+                }
+                return super.claimSegmentRange(tracker);
+            }
+        }) {
+            Tracker owner = new WebSocketTracker(new Read(MessageType.EVENT, "consumer", "a", 1, 60_000,
+                    null, false, false, false, false, 0L, null), MessageType.EVENT, "client", "session");
+            MessageBatch first = strategy.getBatch(owner).join();
+            assertArrayEquals(new int[]{0, 128}, first.getSegment());
+            assertEquals(List.of(firstIndex), first.getMessages().stream().map(SerializedMessage::getIndex).toList());
+            positions.storePosition("consumer", first.getSegment(), first.getLastIndex());
+
+            var joining = new AtomicReference<CompletableFuture<?>>();
+            beforeClaim.set(() -> {
+                joining.set(claimOnly ? strategy.claimSegment(tracker("b")) : strategy.getBatch(tracker("b")));
+                assertFalse(joining.get().isDone(), "The owner still reserves the entire segment range");
+            });
+            // The joiner is absent from the owner's initial cluster snapshot, but present when it reclaims.
+            Tracker nextOwner = owner.withLastTrackerIndex(firstIndex);
+            CompletableFuture<?> ownerRead = ownerClaimOnly ? strategy.claimSegment(nextOwner)
+                                                           : strategy.getBatch(nextOwner);
+            assertEquals(ownerClaimOnly, ownerRead.isDone());
+            if (ownerClaimOnly) {
+                assertArrayEquals(new int[]{0, 64}, ((ClaimResult) ownerRead.join()).getSegment());
+            }
+            assertTrue(joining.get().isDone(), "A newly assigned peer must wake even if it joined after the snapshot");
+            if (claimOnly) {
+                assertArrayEquals(new int[]{64, 128}, ((ClaimResult) joining.get().join()).getSegment());
+            } else {
+                MessageBatch batch = (MessageBatch) joining.get().join();
+                assertArrayEquals(new int[]{64, 128}, batch.getSegment());
+                assertEquals(List.of(firstIndex + 1),
+                             batch.getMessages().stream().map(SerializedMessage::getIndex).toList());
+            }
+        }
+    }
+
     private static Tracker tracker(String id) {
         return new WebSocketTracker(new Read(MessageType.EVENT, "consumer", id, 1024, 60_000,
                                              null, false, false, false, false, 0L, null),

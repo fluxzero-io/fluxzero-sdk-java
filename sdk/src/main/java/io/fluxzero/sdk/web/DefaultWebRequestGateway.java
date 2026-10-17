@@ -58,6 +58,7 @@ import static java.lang.Thread.currentThread;
 @Slf4j
 public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGateway>
         implements WebRequestGateway {
+    static final String MAX_CONCURRENT_PER_ORIGIN_PROPERTY = "fluxzero.web.native.maxConcurrentPerOrigin";
     static final String DEFAULT_REDIRECT_POLICY_PROPERTY = "fluxzero.web.defaultRedirectPolicy";
     static final LocalDate SAME_ORIGIN_DEFAULTS_VERSION = LocalDate.of(2026, 8, 26);
 
@@ -99,7 +100,7 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
      */
     public DefaultWebRequestGateway(GenericGateway delegate, Serializer serializer, PropertySource propertySource,
                                     MetricsGateway metricsGateway) {
-        this(delegate, () -> new NativeWebRequestClient(serializer),
+        this(delegate, nativeClientFactory(serializer, propertySource),
              resolveDefaultRedirectPolicy(propertySource), metricsGateway);
     }
 
@@ -134,6 +135,14 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
         this.nativeHttpClientOwner = nativeHttpClientOwner;
         this.defaultRedirectPolicy = defaultRedirectPolicy;
         this.metricsGateway = metricsGateway;
+    }
+
+    private static Supplier<NativeWebRequestClient> nativeClientFactory(Serializer serializer, PropertySource source) {
+        int limit = Integer.parseInt(source.get(MAX_CONCURRENT_PER_ORIGIN_PROPERTY, "0").trim());
+        if (limit < 0) {
+            throw new IllegalArgumentException(MAX_CONCURRENT_PER_ORIGIN_PROPERTY + " must be >= 0");
+        }
+        return () -> new NativeWebRequestClient(serializer, limit);
     }
 
     static RedirectPolicy resolveDefaultRedirectPolicy(PropertySource propertySource) {
@@ -260,6 +269,11 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
     private WebRequest addSettings(WebRequest request, WebRequestSettings settings) {
         WebRequestSettings publishedSettings = settings.getRedirectPolicy() == RedirectPolicy.DEFAULT
                 ? settings.toBuilder().redirectPolicy(defaultRedirectPolicy).build() : settings;
+        int effectiveRetries = settings.retriesFor(request.getMethod(), request.getHeaders());
+        if (settings.getRetryPolicy() == RetryPolicy.SAFE && effectiveRetries != settings.getMaxRetries()) {
+            // Older proxies understand maxRetries but not the safety policy. Enforce it on the producer as well.
+            publishedSettings = publishedSettings.toBuilder().maxRetries(effectiveRetries).build();
+        }
         return request.withMetadata(request.getMetadata().with("settings", publishedSettings));
     }
 

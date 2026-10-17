@@ -268,6 +268,52 @@ class ModelAssertionScopeTest {
         return builder.build(client);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"RETRY", "FAIL", "ACCEPT"})
+    void splitAfterOnlyDependencyKeepsItsConflictPolicy(String policy) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = application(client, policy)) {
+            execute(app, new SetProduct("product", true), false, null);
+            execute(app, new SeedReservation("reservation", "product", 0), false, null);
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("reservation") && once.compareAndSet(false, true)) {
+                    assertEquals(ModelConflictPolicy.valueOf(policy), request.getConflictPolicy());
+                    if (!policy.equals("ACCEPT")) assertTrue(request.getReadModelIds().contains("product"));
+                    execute(app, new SetProduct("product", false), false, null);
+                }
+            };
+            checks.set(0);
+            var command = new SplitAfterReservation("reservation", "product");
+            if (policy.equals("ACCEPT")) {
+                execute(app, command, false, null);
+                assertEquals(2, app.apply(fc -> Fluxzero.loadModel("reservation", Reservation.class).get().value()).intValue());
+                assertEquals(1, checks.get());
+            } else {
+                RuntimeException failure = assertThrows(RuntimeException.class, () -> execute(app, command, false, null));
+                Class<? extends RuntimeException> expected = policy.equals("FAIL")
+                        ? ModelCommitConflictException.class : IllegalCommandException.class;
+                assertInstanceOf(expected, rootCause(failure));
+                assertEquals(policy.equals("FAIL") ? 1 : 2, checks.get());
+                assertEquals(0, app.apply(fc -> Fluxzero.loadModel("reservation", Reservation.class).get().value()).intValue());
+            }
+            assertTrue(once.get());
+        }
+    }
+
+    record SplitAfterReservation(String reservationId, String productId) {
+        @io.fluxzero.sdk.persisting.eventsourcing.InterceptApply(assertCurrent = io.fluxzero.sdk.persisting.eventsourcing.AssertCurrent.DISABLED) List<?> split() {
+            return List.of(new ReserveFinal(reservationId, productId), new SetReservation(reservationId, productId, 2));
+        }
+    }
+    record ReserveFinal(String reservationId, String productId) {
+        @Apply Reservation apply(Reservation previous) { return new Reservation(reservationId, productId, 1); }
+        @AssertLegal(afterHandler = true) void check(Graph<Product> product, Reservation reservation) {
+            assertEquals(2, reservation.value());
+            requireActive(product.get());
+        }
+    }
+
     private static void execute(Fluxzero app, Object command, boolean targeted, String id) {
         app.apply(fc -> {
             if (targeted) { Fluxzero.loadGraph(id, Reservation.class).assertAndApply(command); }

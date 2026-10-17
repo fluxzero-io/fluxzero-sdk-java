@@ -14,7 +14,10 @@ not depend on `fluxzero.defaults.version` or consumer filtering. Ordinary member
 side-effect-free `asEntity(...)` wrappers do not require `@Aggregate`. A typed `loadEntity(...)` lookup for a missing member
 returns an empty entity with its requested ID and type, so `isPresent()` is false and `loadEntityValue(...)`
 returns `null`. Create or change members through their owning root; an empty lookup does not make a member
-an independent aggregate.
+an independent aggregate. Existing members can be looked up by functional ID and expected type in the same handler
+before their owner commits, including `@EntityId` affixes. Removing a loaded member with `update(value -> null)`
+updates its owner through the existing commit policy and may return `null`; retain the root handle for subsequent work.
+These operations do not add event history to direct `update` calls.
 
 For implicit aggregate-value injection, the declared parameter type must also carry the marker. An unannotated
 bare value parameter is a payload parameter, even if the message carries aggregate context. Explicit `Entity<T>`

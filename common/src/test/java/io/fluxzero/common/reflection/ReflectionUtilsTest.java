@@ -326,6 +326,17 @@ class ReflectionUtilsTest {
         }
 
         @Test
+        void resolvesCollectionElementThroughParameterizedSubclasses() {
+            Type declaration = GenericTypeResolver.parameterize(MappedCollection.class, Integer.class, String.class);
+            Type resolved = ReflectionUtils.getGenericType(declaration, java.util.Collection.class);
+            assertEquals(List.of(String.class), ReflectionUtils.getTypeArguments(resolved));
+            Type direct = GenericTypeResolver.parameterize(java.util.Collection.class, String.class);
+            assertEquals(direct, ReflectionUtils.getGenericType(direct, java.util.Collection.class));
+        }
+
+        static class MappedCollection<Tag, Element> extends java.util.ArrayList<Element> {}
+
+        @Test
         void createsParameterizedTypes() {
             ParameterizedType type = GenericTypeResolver.parameterize(Map.class, String.class, Integer.class);
 

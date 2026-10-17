@@ -131,9 +131,13 @@ envelope receives its own checks. In A → B → C, each interceptor controls it
 Payload, Message, metadata, user and custom parameter injection use that input's context. There is no combined
 original/replacement parameter. Existing nested legality checks also participate.
 
-Retained current `afterHandler=true` assertions keep the input context and run against the final composed state:
-for Models this is the end of the atomic Model operation, including automatic child deletions; for Aggregate/Entity
-it is the existing handler-completion phase. Existing effective-update assertions keep their established timing.
+All Model `afterHandler=true` assertions run against the complete final state of the atomic Model operation,
+including every intercepted output and automatic child deletion. This includes ordinary payload, Model and nested
+assertions as well as retained current-input and cascading checks. Immediate assertions still run before their own
+step and see earlier staged changes. Each deferred check retains its own payload, metadata and user context;
+a refusal rolls back the whole operation. Splitting an action does not introduce intermediate after-handler phases.
+This boundary covers one Model operation, not separate commands or commits. Aggregate/Entity keeps its existing
+handler-completion phase. These checks are pure validation and must not perform external effects.
 Immediate-only Model `assertLegal` does not run after-handler assertions. Apply-only legacy paths and replay do not
 start running assertions. Interceptors and assertions must remain free of external side effects.
 
@@ -342,6 +346,10 @@ data class IncrementChildren(val rootId: RootId) {
 The SDK retains each inspected Model's own revision; the children need not share a revision or sequence number.
 The values must come from this evaluation's tracked Graph, not a detached search result or arbitrary current-state read.
 An identity not read in the evaluation remains a new create-if-absent target, never a blind overwrite.
+A collection or dynamically typed Model result may also create an identity already found absent by a nullable
+Model parameter in an assertion or interceptor. That read retains its absence or deletion revision for conflict
+checking; a concurrent creation cannot be blindly overwritten. Reading an existing Model in an assertion or
+interceptor alone does not make it writable. Existing results still need a resolved write target or a tracked Graph read.
 
 Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(...)` or `graph.delete()` operations.
 Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection

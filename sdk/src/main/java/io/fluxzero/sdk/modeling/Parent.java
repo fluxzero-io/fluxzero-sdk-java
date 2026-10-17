@@ -25,7 +25,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * On a Model, registers a directed Graph relationship whose property contains the referenced parent Model's ID.
+ * On a Model, registers a directed Graph relationship whose property contains one parent ID or a collection of parent IDs.
  * <p>
  * Choose which relationships belong in the Graph first, then choose each relationship's deletion policy.
  * A plain typed {@link Id} without this annotation stores a reference but registers no Graph edge.
@@ -49,6 +49,13 @@ import java.lang.annotation.Target;
  * A parent reference is stored independently from both model values so changing this property can attach, detach, or
  * move the child without loading or rewriting either parent. A {@code null} value means that the property currently has no
  * parent. Non-null values use their {@link Object#toString()} representation as the referenced model identity.
+ * <p>
+ * A {@link java.util.Collection} (including List and Set) registers one edge per distinct parent ID, using the
+ * same path and policies for each edge. A null or empty collection has no parents; null elements, raw collections,
+ * nested collections, arrays and maps are not supported. The collection element type supplies the ID type.
+ * Collection order does not define Graph child ordering. Field and getter declarations behave identically.
+ * Deleting any owning parent still deletes the child; use {@code deleteOnParentDeletion = false} for shared,
+ * independently retained children. Parent-scoped identity still requires one unambiguous parent scope.
  * <p>
  * The parent model type is inferred when the property is an {@link Id}{@code <T>}. For a {@link String} or another
  * untyped ID, {@link #value()} may name the parent model explicitly. An explicit type is required only for features

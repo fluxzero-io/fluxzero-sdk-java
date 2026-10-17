@@ -53,6 +53,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -369,12 +370,27 @@ public class JacksonInverter implements Inverter<JsonNode> {
     private static JsonNode toJsonNode(Object struct) {
         if (struct instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked") SortedMap<Object, Object> map = (SortedMap<Object, Object>) struct;
-            return map.keySet().stream().findFirst().<JsonNode>map(firstKey -> firstKey instanceof Integer
-                    ? new ArrayNode(JsonUtils.writer.getNodeFactory(),
-                                    map.values().stream().map(JacksonInverter::toJsonNode).collect(toList()))
-                    : new ObjectNode(JsonUtils.writer.getNodeFactory(), map.entrySet().stream().collect(
-                    toMap(e -> SearchUtils.unescapeFieldName(e.getKey().toString()),
-                          e -> toJsonNode(e.getValue()))))).orElse(NullNode.getInstance());
+            if (map.isEmpty()) {
+                return NullNode.getInstance();
+            }
+            if (map.firstKey() instanceof Integer) {
+                List<JsonNode> values = new ArrayList<>(map.size());
+                for (Object value : map.values()) {
+                    values.add(toJsonNode(value));
+                }
+                return new ArrayNode(JsonUtils.writer.getNodeFactory(), values);
+            }
+            Map<String, JsonNode> values = new HashMap<>();
+            for (Map.Entry<Object, Object> entry : map.entrySet()) {
+                String key = SearchUtils.unescapeFieldName(entry.getKey().toString());
+                JsonNode value = toJsonNode(entry.getValue());
+                JsonNode previous = values.putIfAbsent(key, value);
+                if (previous != null) {
+                    throw new IllegalStateException("Duplicate key %s (attempted merging values %s and %s)"
+                                                            .formatted(key, previous, value));
+                }
+            }
+            return new ObjectNode(JsonUtils.writer.getNodeFactory(), values);
         }
         if (struct instanceof JsonNode node) {
             return node;
@@ -547,37 +563,108 @@ public class JacksonInverter implements Inverter<JsonNode> {
         }
         Map<Entry, List<Path>> entries = DOCUMENT_FORMAT.equals(data.getFormat())
                 && data.byteArrayView() instanceof DocumentBytes cached
-                ? cached.entries() : DefaultDocumentSerializer.INSTANCE.deserialize(data);
+                ? cached.entries() : DefaultDocumentSerializer.INSTANCE.deserializePayload(data);
         if (entries.isEmpty()) {
             return toJsonData(NullNode.getInstance(), data);
         }
         Map<Object, Object> tree = new TreeMap<>();
+        PathSegments segments = null;
         for (Map.Entry<Entry, List<Path>> entry : entries.entrySet()) {
             JsonNode valueNode = toJsonNode(entry.getKey());
             List<Path> paths = entry.getValue();
             if (paths.isEmpty()) {
                 return toJsonData(valueNode, data);
             }
+            if (segments == null) {
+                segments = new PathSegments();
+            }
+            PathSegments pathSegments = segments;
             paths.forEach(path -> {
                 if (isMetadataPath(path.getValue())) {
                     return;
                 }
                 Map<Object, Object> parent = tree;
+                // The common, unescaped case needs neither a segment list nor a stream/iterator for every leaf.
+                if (path.getValue().indexOf('\\') < 0) {
+                    String pointer = path.getValue();
+                    int start = 0;
+                    int separator;
+                    while ((separator = pointer.indexOf('/', start)) >= 0) {
+                        Object segment = pathSegments.parse(pointer, start, separator);
+                        parent = (Map<Object, Object>) parent.computeIfAbsent(segment, s -> new TreeMap<>());
+                        start = separator + 1;
+                    }
+                    putValue(parent, pathSegments.parse(pointer, start, pointer.length()), valueNode);
+                    return;
+                }
                 Iterator<String> iterator = Path.split(path.getValue()).iterator();
                 while (iterator.hasNext()) {
                     var segment = asIntegerOrString(iterator.next());
                     if (iterator.hasNext()) {
                         parent = (Map<Object, Object>) parent.computeIfAbsent(segment, s -> new TreeMap<>());
                     } else {
-                        Object existing = parent.put(segment, valueNode);
-                        if (existing != null) {
-                            log.warn("Multiple entries share the same pointer: {} and {}", existing, valueNode);
-                        }
+                        putValue(parent, segment, valueNode);
                     }
                 }
             });
         }
         return toJsonData(toJsonNode(tree), data);
+    }
+
+    private static void putValue(Map<Object, Object> parent, Object segment, JsonNode value) {
+        Object existing = parent.put(segment, value);
+        if (existing != null) {
+            log.warn("Multiple entries share the same pointer: {} and {}", existing, value);
+        }
+    }
+
+    /* Repeated field names share strings within this conversion only. A direct-mapped cache holds at most 32
+       short names; collisions replace a slot without probing. Array indices need no intermediate substring. */
+    private static final class PathSegments {
+        private String[] names;
+
+        Object parse(String path, int start, int end) {
+            if (start == 0 && end == path.length()) {
+                return asIntegerOrString(path);
+            }
+            int length = end - start;
+            if (length > 0 && length <= 9) {
+                int number = 0;
+                int i = start;
+                for (; i < end; i++) {
+                    char c = path.charAt(i);
+                    if (c < '0' || c > '9') {
+                        break;
+                    }
+                    number = number * 10 + c - '0';
+                }
+                if (i == end) {
+                    return number;
+                }
+            }
+            if (length > 64) {
+                return asIntegerOrString(path.substring(start, end));
+            }
+            if (names == null) {
+                names = new String[32];
+            }
+            // A short suffix keeps lookup work bounded even for long, unique field names.
+            int hash = length;
+            for (int i = Math.max(start, end - 4); i < end; i++) {
+                hash = 31 * hash + path.charAt(i);
+            }
+            int slot = (hash * 0x9E3779B9) >>> 27; // Spread the suffix over the 32 slots.
+            String name = names[slot];
+            if (name != null && name.length() == length && path.regionMatches(start, name, 0, length)) {
+                return name;
+            }
+            String segment = path.substring(start, end);
+            Object result = asIntegerOrString(segment);
+            if (result instanceof String) {
+                names[slot] = segment;
+            }
+            return result;
+        }
     }
 
     protected Data<JsonNode> toJsonData(JsonNode node, Data<byte[]> data) {

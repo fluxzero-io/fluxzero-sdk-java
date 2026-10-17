@@ -328,6 +328,13 @@ public class OpenApiProcessor extends AbstractProcessor {
             return Optional.empty();
         }
         try {
+            if (type instanceof javax.lang.model.type.WildcardType wildcard) {
+                return inferModelIdType(wildcard.getExtendsBound(), visiting);
+            }
+            if (type instanceof DeclaredType collection && isSameErasure(type, "java.util.Collection")
+                && collection.getTypeArguments().size() == 1) {
+                return inferModelIdType(collection.getTypeArguments().getFirst(), visiting);
+            }
             if (type instanceof DeclaredType declared && isSameErasure(type, MODEL_ID)
                 && !declared.getTypeArguments().isEmpty()) {
                 return Optional.of(declared.getTypeArguments().getFirst());
@@ -364,9 +371,10 @@ public class OpenApiProcessor extends AbstractProcessor {
                                            mapping.autoHead(), mapping.autoOptions());
                     for (WebRouteMatcher.RouteVariant variant :
                             WebRouteMatcher.RouteVariants.expand(pattern.getPath())) {
+                        String path = WebRouteMatcher.normalizePath(variant.path());
                         endpoints.add(new Endpoint(
-                                handlerType, method, pattern.getOrigin(), variant.path(), pattern.getMethod(),
-                                documentation, parameters(method, variant.path()), requestBodies(method),
+                                handlerType, method, pattern.getOrigin(), path, pattern.getMethod(),
+                                documentation, parameters(method, path), requestBodies(method),
                                 method.getReturnType(), responses));
                     }
                 }

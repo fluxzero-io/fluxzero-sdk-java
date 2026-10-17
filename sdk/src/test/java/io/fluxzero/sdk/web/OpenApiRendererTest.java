@@ -275,7 +275,7 @@ class OpenApiRendererTest {
     void rendersDocumentedModelGraphForJsonNodeResponse() {
         ApiDocCatalog extracted = ApiDocExtractor.extract(ModelGraphHandler.class);
         ApiDocCatalog catalog = new ApiDocCatalog(
-                extracted.endpoints(), List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class,
+                extracted.endpoints(), List.of(OrganisationModel.class, SharedLocationModel.class, LocationModel.class, ConnectionModel.class,
                                                ContractModel.class, ContactModel.class));
 
         JsonNode document = OpenApiRenderer.render(catalog);
@@ -304,6 +304,8 @@ class OpenApiRendererTest {
         assertFalse(schemas.has("ObjectNode"));
         assertFalse(schemas.has("JsonNode"));
         JsonNode organisation = schemas.path("OrganisationModel");
+        assertEquals("#/components/schemas/SharedLocationModel",
+                     organisation.path("properties").path("sharedLocations").path("items").path("$ref").asText());
         JsonNode locations = organisation.path("properties").path("locations");
         assertEquals("array", locations.path("type").asText());
         assertEquals("Locations belonging to the organisation", locations.path("description").asText());
@@ -359,7 +361,7 @@ class OpenApiRendererTest {
 
         JsonNode document = io.fluxzero.common.serialization.JsonUtils.fromJson(
                 OpenApiRenderer.enrichModelGraphs(
-                        generated, List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class,
+                        generated, List.of(OrganisationModel.class, SharedLocationModel.class, LocationModel.class, ConnectionModel.class,
                                            ContractModel.class),
                         getClass().getClassLoader()), JsonNode.class);
 
@@ -635,6 +637,10 @@ class OpenApiRendererTest {
             String organisationId,
             String name) {
     }
+
+    @Model(searchable = false)
+    record SharedLocationModel(@EntityId String id,
+            @Parent(value = OrganisationModel.class, pathInParent = "sharedLocations") List<String> organisations) {}
 
     @Model(searchable = false)
     record ConnectionModel(

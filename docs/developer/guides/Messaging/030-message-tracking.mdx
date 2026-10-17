@@ -543,8 +543,9 @@ Asynchronous `TestFixture` tests wait for inputs admitted by each consumer's han
 when an older Runtime delivers extra messages. Set `fluxzero.tracking.consumerFiltering=false` if a test needs to
 await batch interceptors for messages that none of its handlers use.
 
-Longer reads reduce idle request and metric counts. Relevant messages still wake the read immediately, and stopping
-or disconnecting a tracker does not wait for the idle deadline. See <Jdoclink className="ConsumerConfiguration" />
+Longer reads reduce idle request and metric counts. Relevant messages still wake the read immediately. When segment
+ownership changes, a waiting tracker checks its newly assigned range for work already in the log; it does not need a
+new publication or the idle deadline to resume. Stopping or disconnecting a tracker also does not wait for that deadline. See <Jdoclink className="ConsumerConfiguration" />
 for per-consumer configuration and <Jdoclink className="Read" /> for the wire and metric representation.
 
 ## Stopping a consumer

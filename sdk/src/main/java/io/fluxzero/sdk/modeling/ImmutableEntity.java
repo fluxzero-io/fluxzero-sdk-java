@@ -220,6 +220,17 @@ public class ImmutableEntity<T> implements Entity<T> {
                 (UnaryOperator) p -> holder.updateOwner(p, this, after)).getEntity(id()).orElse(null);
     }
 
+    /** Keeps the updated owner available when removing a built-in immutable member. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    Entity<?> updateRoot(UnaryOperator<T> function) {
+        T updatedValue = function.apply(get());
+        if (updatedValue != null || parent == null) {
+            return update(ignored -> updatedValue).root();
+        }
+        ImmutableEntity<T> after = toBuilder().value(null).build();
+        return parent.update((UnaryOperator) owner -> holder.updateOwner(owner, this, after)).root();
+    }
+
     @Override
     public Entity<T> apply(Message message) {
         return apply(new DeserializingMessage(message, EVENT, null, serializer));

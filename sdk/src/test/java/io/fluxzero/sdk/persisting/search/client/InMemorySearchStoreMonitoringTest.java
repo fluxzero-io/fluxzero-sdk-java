@@ -20,19 +20,54 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.search.JacksonInverter;
+import io.fluxzero.common.search.ModelGraphInvalidation;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 class InMemorySearchStoreMonitoringTest {
+
+    @Test
+    void monitoringDoesNotReconstructUnrelatedDocumentMetadata() {
+        var source = new JacksonInverter().toDocument(Map.of("value", "payload"), "type", 0, "id", "documents",
+                null, null, Metadata.of("other", Map.of("nested", List.of(1, 2, 3))));
+        var document = spy(source);
+        var store = new InMemorySearchStore(Duration.ofDays(1));
+        store.registerMonitor((collection, messages) -> { });
+
+        store.index(List.of(document), STORED, false).join();
+
+        var message = store.openStream("documents", null, 10).findFirst().orElseThrow();
+        assertEquals(source.getDocument(), message.getData());
+        verify(document, never()).getMetadata();
+    }
+
+    @Test
+    void monitoringRetainsInvalidationMarkerWithoutRequiringGraphFacets() {
+        var source = new JacksonInverter().toDocument(Map.of("value", "payload"), "type", 0, "id", "documents",
+                null, null, Metadata.of(ModelGraphInvalidation.METADATA_KEY, false));
+        var store = new InMemorySearchStore(Duration.ofDays(1));
+        store.registerMonitor((collection, messages) -> { });
+
+        store.index(List.of(source), STORED, false).join();
+
+        var message = store.openStream("documents", null, 10).findFirst().orElseThrow();
+        assertEquals("true", message.getMetadata().get(ModelGraphInvalidation.METADATA_KEY));
+        assertEquals(source.getDocument(), message.getData());
+    }
 
     @Test
     void replacesByMessageIdWhileRetainingIndexAndCursorOrdering() {

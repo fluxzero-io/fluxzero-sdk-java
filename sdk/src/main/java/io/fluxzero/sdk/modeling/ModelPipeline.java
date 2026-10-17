@@ -906,7 +906,7 @@ final class ModelPipeline {
     }
 
     private CommitAttempt validateCascadingAssertions(CommitAttempt evaluation) {
-        ModelReducer.assertCurrentAfter(evaluation);
+        ModelReducer.assertAfter(evaluation);
         ModelReducer.assertCascades(evaluation, compiler);
         return evaluation;
     }

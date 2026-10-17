@@ -1362,7 +1362,8 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Loads an entity by functional ID and expected type. The type makes {@link EntityId} affixes available for
-     * independent models and entities embedded in legacy aggregates. An absent unmarked member yields an empty
+     * independent models and entities embedded in legacy aggregates, including members added to an active
+     * aggregate in the current handler before commit. An absent unmarked member yields an empty
      * entity retaining its ID and type; it can be inspected or validated but cannot be persisted as a standalone
      * aggregate. Create members through their owning root. Marked roots retain the normal aggregate fallback.
      */

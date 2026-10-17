@@ -208,6 +208,9 @@ class OpenApiProcessorTest {
         assertEquals("array", connections.path("type").asText());
         assertEquals("Location connections", connections.path("description").asText());
         assertEquals("#/components/schemas/ProcessorConnection", connections.path("items").path("$ref").asText());
+        assertEquals("#/components/schemas/ProcessorSharedLocation",
+                     graphSchemas.path("ProcessorOrganisation").path("properties").path("sharedLocations")
+                             .path("items").path("$ref").asText());
         JsonNode contacts = graphSchemas.path("ProcessorOrganisation").path("properties").path("contacts");
         assertEquals("array", contacts.path("type").asText());
         assertEquals("#/components/schemas/ProcessorContact", contacts.path("items").path("$ref").asText());
@@ -553,6 +556,10 @@ class OpenApiProcessorTest {
                             type = "object"))
             ProcessorOrganisationId organisationId) {
     }
+
+    @Model(searchable = false)
+    record ProcessorSharedLocation(@EntityId String id,
+            @Parent(pathInParent = "sharedLocations") List<ProcessorOrganisationId> organisations) {}
 
     @Model(searchable = false)
     record ProcessorConnection(

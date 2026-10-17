@@ -2,6 +2,8 @@ package io.fluxzero.sdk.web
 
 import com.fasterxml.jackson.databind.JsonNode
 import io.fluxzero.common.serialization.JsonUtils
+import io.fluxzero.sdk.web.fixture.kotlin.KotlinRootEndpoint
+import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -27,6 +29,18 @@ class KotlinOpenApiProcessorTest {
         assertEquals("getKotlinItem", operation.path("operationId").asText())
         assertEquals("kotlin", operation.path("tags").get(0).asText())
         assertEquals("Optional item filter", operation.path("parameters").get(1).path("description").asText())
+
+        val runtime = OpenApiRenderer.render(ApiDocExtractor.extract(KotlinRootEndpoint::class.java))
+        for (generated in listOf(document, runtime)) {
+            val paths = generated.path("paths")
+            assertFalse(paths.has(""))
+            val root = paths.path("/")
+            assertEquals("kotlinRoot", root.path("get").path("operationId").asText())
+            assertEquals("kotlinExplicitRoot", root.path("post").path("operationId").asText())
+            assertEquals("kotlinAbsoluteRoot", root.path("put").path("operationId").asText())
+            assertEquals("https://kotlin-root.example",
+                root.path("put").path("servers").get(0).path("url").asText())
+        }
 
         val schema = document.path("components").path("schemas").path("KotlinOpenApiItem")
         assertEquals("Item identifier", schema.path("properties").path("id").path("description").asText())

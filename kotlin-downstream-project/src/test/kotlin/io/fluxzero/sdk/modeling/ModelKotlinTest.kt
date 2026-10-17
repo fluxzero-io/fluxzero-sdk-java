@@ -17,6 +17,19 @@ import kotlin.test.assertTrue
 
 class ModelKotlinTest {
     @Test
+    fun collectionParentsUseTheElementType() {
+        val edges = EntityMetadata.of(KotlinSharedChild::class.java)
+            .parentRelationships("child", KotlinSharedChild("child", setOf("first", "second")))
+        assertEquals(setOf("first", "second"), edges.map { it.parentId() }.toSet())
+        assertTrue(edges.all { it.parentType() == KotlinModel::class.java })
+    }
+
+    @Model
+    data class KotlinSharedChild(@EntityId val id: String,
+        @get:Parent(value = KotlinModel::class, pathInParent = "shared", deleteOnParentDeletion = false)
+        val parents: Set<String>)
+
+    @Test
     fun parentSearchExclusionIsIndependentOfModelSearch() {
         val metadata = EntityMetadata.of(KotlinExcludedChild::class.java)
         assertTrue(metadata.isSearchable)

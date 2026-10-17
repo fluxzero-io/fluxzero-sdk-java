@@ -32,6 +32,30 @@ class PolymorphicParentIntegrationTest {
         verifyLifecycle(async ? fixture.async() : fixture);
     }
 
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void collectionsPreserveEachPolymorphicTypeOnReplay(boolean async) {
+        var project = new ProjectId("same");
+        var folder = new FolderId("same");
+        (async ? TestFixture.createAsync() : TestFixture.create())
+                .givenCommands(new CreateProject(project), new CreateFolder(folder),
+                        new CreateMultiItem("multi", List.of(project, folder)))
+                .whenExecuting(fc -> {
+                    ((DefaultModelRepository) fc.modelRepository()).invalidateModels(List.of("multi"));
+                    var item = Fluxzero.loadModel("multi", MultiItem.class).get();
+                    assertInstanceOf(ProjectId.class, item.parents().get(0));
+                    assertInstanceOf(FolderId.class, item.parents().get(1));
+                    assertEquals(List.of(item), Fluxzero.loadCurrentGraph(project).childModels("multiItems", MultiItem.class));
+                    assertEquals(List.of(item), Fluxzero.loadCurrentGraph(folder).childModels("multiItems", MultiItem.class));
+                }).expectSuccessfulResult().expectNoErrors();
+    }
+    @Model(searchable = false, cached = false)
+    record MultiItem(@EntityId String itemId,
+            @Parent(types = {Project.class, Folder.class}, pathInParent = "multiItems") List<Id<?>> parents) {}
+    record CreateMultiItem(String itemId,
+            @Parent(types = {Project.class, Folder.class}) List<Id<?>> parents) {
+        @Apply MultiItem apply() { return new MultiItem(itemId, parents); }
+    }
+
     private static void verifyLifecycle(TestFixture fixture) {
         var project = new ProjectId("same");
         var folder = new FolderId("same");

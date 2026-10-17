@@ -67,6 +67,19 @@ class ParentOwnedScheduleTest {
                 .expectMetrics(ScheduleAutoCancelled.class);
     }
 
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void collectionOwnershipCancelsWhenEitherParentDisappears(boolean first) {
+        RootId other = new RootId("other");
+        fixture(false).givenCommands(new CreateRoot(other))
+                .given(fc -> fc.messageScheduler().scheduleCommand(new Schedule(
+                        new RunRoots(List.of(rootId, other, rootId)), "many", DEADLINE)))
+                .whenCommand(new DeleteRoot(first ? rootId : other))
+                .expectSuccessfulResult().expectNoErrors().expectOnlyActiveScheduledCommands()
+                .expectMetrics(ScheduleAutoCancelled.class);
+    }
+
+    record RunRoots(@Parent List<RootId> roots) {}
+
     @Test
     void directScheduleIsCancelledWithoutAnyCleanupHandler() {
         AtomicInteger calls = new AtomicInteger();

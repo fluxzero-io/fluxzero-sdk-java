@@ -18,6 +18,7 @@ package io.fluxzero.proxy;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -34,6 +35,10 @@ final class SegmentSerialScheduler<T extends SegmentSerialScheduler.Task> {
     interface Task {
         int segment();
 
+        default Object origin() {
+            return null;
+        }
+
         CompletableFuture<Void> completion();
 
         void admitted();
@@ -47,6 +52,10 @@ final class SegmentSerialScheduler<T extends SegmentSerialScheduler.Task> {
     private final Condition capacityAvailable = lock.newCondition();
     private final int maxConcurrent;
     private final int maxOutstanding;
+    private final int maxConcurrentPerOrigin;
+    private final Map<Object, Integer> activeOrigins = new HashMap<>();
+    private final Map<Object, LinkedHashSet<Integer>> blockedOrigins = new HashMap<>();
+    private final Map<Integer, Object> blockedSegments = new HashMap<>();
     private final Map<Integer, ArrayDeque<T>> segmentQueues = new HashMap<>();
     private final ArrayDeque<Integer> readySegments = new ArrayDeque<>();
     private final Set<Integer> readySegmentSet = new HashSet<>();
@@ -58,6 +67,14 @@ final class SegmentSerialScheduler<T extends SegmentSerialScheduler.Task> {
     private boolean dispatching = true;
 
     SegmentSerialScheduler(int maxConcurrent, int maxOutstanding) {
+        this(maxConcurrent, maxOutstanding, 0);
+    }
+
+    SegmentSerialScheduler(int maxConcurrent, int maxOutstanding, int maxConcurrentPerOrigin) {
+        if (maxConcurrentPerOrigin < 0) {
+            throw new IllegalArgumentException("maxConcurrentPerOrigin must be >= 0");
+        }
+        this.maxConcurrentPerOrigin = maxConcurrentPerOrigin;
         if (maxConcurrent < 1) {
             throw new IllegalArgumentException("maxConcurrent must be >= 1");
         }
@@ -66,6 +83,10 @@ final class SegmentSerialScheduler<T extends SegmentSerialScheduler.Task> {
         }
         this.maxConcurrent = maxConcurrent;
         this.maxOutstanding = maxOutstanding;
+    }
+
+    boolean originLimited() {
+        return maxConcurrentPerOrigin > 0;
     }
 
     boolean schedule(T task) throws InterruptedException {
@@ -96,6 +117,8 @@ final class SegmentSerialScheduler<T extends SegmentSerialScheduler.Task> {
             dispatching = false;
             readySegments.clear();
             readySegmentSet.clear();
+            blockedOrigins.clear();
+            blockedSegments.clear();
             starts.clear();
             capacityAvailable.signalAll();
         } finally {
@@ -107,17 +130,31 @@ final class SegmentSerialScheduler<T extends SegmentSerialScheduler.Task> {
         lock.lock();
         try {
             ArrayDeque<T> queue = segmentQueues.get(task.segment());
-            if (queue == null || !queue.remove(task)) {
+            if (queue == null) {
                 return;
             }
-            activeTasks.remove(task.segment(), task);
+            boolean wasHead = queue.peekFirst() == task;
+            if (!queue.remove(task)) {
+                return;
+            }
+            if (activeTasks.remove(task.segment(), task) && maxConcurrentPerOrigin > 0 && task.origin() != null) {
+                activeOrigins.computeIfPresent(task.origin(), (origin, count) -> count == 1 ? null : count - 1);
+            }
+            if (maxConcurrentPerOrigin > 0 && wasHead) {
+                removeBlocked(task.segment());
+            }
             outstandingCount--;
             capacityAvailable.signal();
             if (queue.isEmpty()) {
                 segmentQueues.remove(task.segment());
                 readySegmentSet.remove(task.segment());
                 readySegments.remove(task.segment());
-            } else {
+            }
+            if (maxConcurrentPerOrigin > 0 && wasHead && task.origin() != null) {
+                // A ready head may be cancelled before consuming its origin's newly available slot.
+                wakeOrigin(task.origin());
+            }
+            if (!queue.isEmpty()) {
                 markReady(task.segment());
             }
             collectStarts();
@@ -128,13 +165,57 @@ final class SegmentSerialScheduler<T extends SegmentSerialScheduler.Task> {
     }
 
     private void markReady(int segment) {
-        if (dispatching && !activeTasks.containsKey(segment) && readySegmentSet.add(segment)) {
-            readySegments.addLast(segment);
+        if (!dispatching || activeTasks.containsKey(segment) || readySegmentSet.contains(segment)
+            || (maxConcurrentPerOrigin > 0 && blockedSegments.containsKey(segment))) {
+            return;
+        }
+        if (maxConcurrentPerOrigin > 0) {
+            T head = segmentQueues.get(segment).getFirst();
+            if (head.origin() != null && activeOrigins.getOrDefault(head.origin(), 0) >= maxConcurrentPerOrigin) {
+                blockedOrigins.computeIfAbsent(head.origin(), ignored -> new LinkedHashSet<>()).add(segment);
+                blockedSegments.put(segment, head.origin());
+                return;
+            }
+        }
+        readySegmentSet.add(segment);
+        readySegments.addLast(segment);
+    }
+
+    private void removeBlocked(int segment) {
+        Object origin = blockedSegments.remove(segment);
+        if (origin != null) {
+            Set<Integer> blocked = blockedOrigins.get(origin);
+            if (blocked != null && blocked.remove(segment) && blocked.isEmpty()) {
+                blockedOrigins.remove(origin);
+            }
+        }
+    }
+
+    private void wakeOrigin(Object origin) {
+        Set<Integer> blocked = blockedOrigins.get(origin);
+        if (blocked == null || !dispatching) {
+            return;
+        }
+        int available = maxConcurrentPerOrigin - activeOrigins.getOrDefault(origin, 0);
+        var iterator = blocked.iterator();
+        while (available > 0 && iterator.hasNext()) {
+            int segment = iterator.next();
+            iterator.remove();
+            blockedSegments.remove(segment);
+            if (segmentQueues.containsKey(segment) && !activeTasks.containsKey(segment)
+                && readySegmentSet.add(segment)) {
+                readySegments.addLast(segment);
+                available--;
+            }
+        }
+        if (blocked.isEmpty()) {
+            blockedOrigins.remove(origin);
         }
     }
 
     private void collectStarts() {
-        while (dispatching && activeTasks.size() < maxConcurrent && !readySegments.isEmpty()) {
+        int candidates = readySegments.size();
+        while (dispatching && activeTasks.size() < maxConcurrent && candidates-- > 0 && !readySegments.isEmpty()) {
             int segment = readySegments.removeFirst();
             readySegmentSet.remove(segment);
             ArrayDeque<T> queue = segmentQueues.get(segment);
@@ -142,6 +223,14 @@ final class SegmentSerialScheduler<T extends SegmentSerialScheduler.Task> {
                 continue;
             }
             T task = queue.getFirst();
+            if (maxConcurrentPerOrigin > 0 && task.origin() != null) {
+                int active = activeOrigins.getOrDefault(task.origin(), 0);
+                if (active >= maxConcurrentPerOrigin) {
+                    markReady(segment);
+                    continue;
+                }
+                activeOrigins.put(task.origin(), active + 1);
+            }
             activeTasks.put(segment, task);
             starts.add(task);
         }
