@@ -16,12 +16,15 @@ package io.fluxzero.sdk.web;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxy;
 import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
+import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.publishing.ResultGateway;
@@ -44,6 +47,7 @@ import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -84,6 +88,26 @@ class DefaultSocketSessionTest {
         assertFalse(event.getFormattedMessage().contains("private payload"));
         assertEquals(failure.getMessage(), event.getThrowableProxy().getMessage());
         assertEquals(failure.getClass().getName(), event.getThrowableProxy().getClassName());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void technicalReportRemainsInDiagnosticsWithStableLogPattern(boolean async) {
+        var cause = new IllegalStateException("diagnostic detail");
+        var failure = new TechnicalException(
+                FluxzeroErrors.handlerInvocationFailed("ExampleHandler.handle", "ExampleRequest", cause), cause);
+        SocketResponse response = handle(failure, async);
+        assertEquals(42, response.getRequestId());
+        assertEquals("Request failed", response.getError());
+        assertEquals(1, logs.list.size());
+        ILoggingEvent event = logs.list.getFirst();
+        assertEquals("Socket request {} failed", event.getMessage());
+        assertEquals("Socket request 42 failed", event.getFormattedMessage());
+        assertSame(failure, ((ThrowableProxy) event.getThrowableProxy()).getThrowable());
+        assertSame(cause, failure.getCause());
+        assertEquals(failure.getMessage(), event.getThrowableProxy().getMessage());
+        assertTrue(event.getThrowableProxy().getMessage().contains("FZ-SDK-0003"));
+        assertTrue(event.getThrowableProxy().getMessage().contains(failure.getDocumentationUrl()));
     }
 
     @ParameterizedTest

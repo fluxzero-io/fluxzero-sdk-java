@@ -230,9 +230,9 @@ public class RetryingErrorHandler implements ErrorHandler {
      */
     protected void logError(String message, Throwable error) {
         if (isTechnicalError(error)) {
-            log.error(message, error);
+            log.error("{}", message, error);
         } else if (logFunctionalErrors) {
-            log.warn(message, error);
+            log.warn("{}", message, error);
         }
     }
 

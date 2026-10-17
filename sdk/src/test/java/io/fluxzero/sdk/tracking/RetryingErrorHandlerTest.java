@@ -15,16 +15,24 @@
 
 package io.fluxzero.sdk.tracking;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxy;
+import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.common.RetryStatus;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -33,6 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
@@ -51,6 +60,30 @@ public class RetryingErrorHandlerTest {
     @BeforeEach
     void setUp() throws Exception {
         doThrow(exception).when(mockTask).call();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void diagnosticTextIsAnArgumentRatherThanALogPattern(boolean functional) {
+        Logger logger = (Logger) LoggerFactory.getLogger(RetryingErrorHandler.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        logger.addAppender(logs);
+        try {
+            var failure = functional ? new IllegalCommandException("application rejection")
+                                     : new IllegalStateException("technical failure");
+            String message = "Request with literal {} failed";
+            new RetryingErrorHandler(0, RETRY_IMMEDIATELY, e -> true, false, true).logError(message, failure);
+            assertEquals(1, logs.list.size());
+            ILoggingEvent event = logs.list.getFirst();
+            assertEquals("{}", event.getMessage());
+            assertEquals(message, event.getFormattedMessage());
+            assertEquals(functional ? "WARN" : "ERROR", event.getLevel().toString());
+            assertSame(failure, ((ThrowableProxy) event.getThrowableProxy()).getThrowable());
+        } finally {
+            logger.detachAppender(logs);
+            logs.stop();
+        }
     }
 
     @Test
