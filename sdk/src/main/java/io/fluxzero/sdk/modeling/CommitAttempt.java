@@ -156,6 +156,7 @@ public final class CommitAttempt {
         protectedAssertions = false;
         cascadeInvocations = null;
         currentAssertions = null;
+        afterAssertions = null;
         graphReadGeneration++;
         graphReadTypes = null;
         graphReadEntities = null;
@@ -1123,15 +1124,26 @@ public final class CommitAttempt {
 
     private boolean protectedAssertions;
     private Map<Integer, Set<ModelReducer.CascadeInvocation>> cascadeInvocations;
-    private List<ModelReducer.CurrentAssertion> currentAssertions;
+    private List<ModelReducer.DeferredAssertion> currentAssertions;
 
-    void retainCurrentAssertion(ModelReducer.CurrentAssertion check) {
+    void retainCurrentAssertion(ModelReducer.DeferredAssertion check) {
         if (currentAssertions == null) { currentAssertions = new ArrayList<>(); }
         currentAssertions.add(check);
     }
 
-    List<ModelReducer.CurrentAssertion> currentAssertions() {
+    List<ModelReducer.DeferredAssertion> currentAssertions() {
         return currentAssertions == null ? List.of() : currentAssertions;
+    }
+
+    private List<ModelReducer.DeferredAssertion> afterAssertions;
+
+    void retainAfterAssertion(ModelReducer.DeferredAssertion check) {
+        if (afterAssertions == null) { afterAssertions = new ArrayList<>(); }
+        afterAssertions.add(check);
+    }
+
+    List<ModelReducer.DeferredAssertion> afterAssertions() {
+        return afterAssertions == null ? List.of() : afterAssertions;
     }
 
     boolean markCascadeInvocation(int step, String id, java.lang.reflect.Executable method) {

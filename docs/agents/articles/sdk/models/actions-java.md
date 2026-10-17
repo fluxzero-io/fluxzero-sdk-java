@@ -144,9 +144,13 @@ envelope receives its own checks. In A → B → C, each interceptor controls it
 Payload, Message, metadata, user and custom parameter injection use that input's context. There is no combined
 original/replacement parameter. Existing nested legality checks also participate.
 
-Retained current `afterHandler=true` assertions keep the input context and run against the final composed state:
-for Models this is the end of the atomic Model operation, including automatic child deletions; for Aggregate/Entity
-it is the existing handler-completion phase. Existing effective-update assertions keep their established timing.
+All Model `afterHandler=true` assertions run against the complete final state of the atomic Model operation,
+including every intercepted output and automatic child deletion. This includes ordinary payload, Model and nested
+assertions as well as retained current-input and cascading checks. Immediate assertions still run before their own
+step and see earlier staged changes. Each deferred check retains its own payload, metadata and user context;
+a refusal rolls back the whole operation. Splitting an action does not introduce intermediate after-handler phases.
+This boundary covers one Model operation, not separate commands or commits. Aggregate/Entity keeps its existing
+handler-completion phase. These checks are pure validation and must not perform external effects.
 Immediate-only Model `assertLegal` does not run after-handler assertions. Apply-only legacy paths and replay do not
 start running assertions. Interceptors and assertions must remain free of external side effects.
 

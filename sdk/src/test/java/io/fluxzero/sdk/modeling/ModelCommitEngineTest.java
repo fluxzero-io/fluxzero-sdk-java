@@ -1067,7 +1067,10 @@ class ModelCommitEngineTest {
     private CommitAttempt evaluate(
             DeserializingMessage message,
             ModelReducer.SubstepResolver resolver) {
-        return ModelReducer.apply(new CommitAttempt(), List.of(message), resolver);
+        CommitAttempt attempt = ModelReducer.apply(new CommitAttempt(), List.of(message), resolver);
+        // Match the pipeline's operation-completion phase; assertions below retain their exact expectations.
+        ModelReducer.assertAfter(attempt);
+        return attempt;
     }
 
     private CommitAttempt reapplySteps(
