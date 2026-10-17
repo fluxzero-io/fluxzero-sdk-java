@@ -55,7 +55,6 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
 import static io.fluxzero.common.reflection.GenericTypeResolver.parameterize;
-import static io.fluxzero.sdk.common.ClientUtils.getRevisionNumber;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -127,7 +126,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
         }
         try {
             if (Objects.equals(this.format, format)) {
-                return new Data<>(doSerialize(object), getTypeString(object), getRevisionNumber(object), format);
+                return new Data<>(doSerialize(object), getTypeString(object), getRevision(object), format);
             } else {
                 return serializeToOtherFormat(object, format);
             }
@@ -171,6 +170,14 @@ public abstract class AbstractSerializer<I> implements Serializer {
             case InputStream inputStream -> new Data<>(inputStream.readAllBytes(), asString(byte[].class), 0, format);
             default -> throw new UnsupportedOperationException();
         };
+    }
+
+    /**
+     * Determines the revision written alongside {@link #getTypeString(Object)}. The default uses the payload's
+     * runtime class; serializers that normalize that class can override this to keep type and revision consistent.
+     */
+    protected int getRevision(Object object) {
+        return io.fluxzero.sdk.common.ClientUtils.getRevisionNumber(object);
     }
 
     /**
@@ -493,7 +500,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
     public Object downcast(Object object, int desiredRevision) {
         return downcastIntermediate(new Data<>(
                 asIntermediateValue(object), asString(getType(object)),
-                getRevisionNumber(object), format), desiredRevision);
+                getRevision(object), format), desiredRevision);
     }
 
     /**
