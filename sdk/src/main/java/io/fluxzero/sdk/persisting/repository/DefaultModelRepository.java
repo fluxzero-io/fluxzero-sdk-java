@@ -146,6 +146,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final EntityHelper entityHelper;
     private final MutationPlan.Compiler modelDefinitionCompiler;
     private final ModelReplayCursor replayCursor;
+    private final ModelReplayCursor primaryReplayCursor;
     private final Cache cacheSource;
     // Opaque family token: shared namespace views, but no cached key retains the application or compiler.
     private final Object cacheOwner;
@@ -221,9 +222,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                   EntityHelper entityHelper, Serializer snapshotSerializer, Cache cache,
                                   List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                                   String modelNamePrefix, boolean assertCurrentDefault) {
+        this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache, parameterResolvers,
+             modelNamePrefix, assertCurrentDefault, false);
+    }
+
+    /** Creates a repository with the owning application's resolved Model defaults. */
+    public DefaultModelRepository(Client client, DocumentStore documentStore, Serializer serializer,
+                                  EntityHelper entityHelper, Serializer snapshotSerializer, Cache cache,
+                                  List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                                  String modelNamePrefix, boolean assertCurrentDefault, boolean aliasTargets) {
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
              new MutationPlan.Compiler(Objects.requireNonNull(
-                     parameterResolvers, "parameterResolvers"), assertCurrentDefault),
+                     parameterResolvers, "parameterResolvers"), assertCurrentDefault, aliasTargets),
              new AtomicReference<>(), modelNamePrefix, new ConcurrentHashMap<>(), new Object(), new AtomicReference<>());
     }
 
@@ -265,6 +275,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 modelDefinitionCompiler, modelCache, snapshotStore,
                 this::loadDocumentProjection, this,
                 this::awaitPublishedEventMigration, this);
+        this.primaryReplayCursor = modelDefinitionCompiler.aliasTargets() ? replayCursor.primaryOnly() : replayCursor;
         this.modelCacheTracker = cache == NoOpCache.INSTANCE
                 ? null
                 : new ModelCacheTracker(
@@ -339,6 +350,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     public void configureReplayRestoration(UnaryOperator<DeserializingMessage> restoration) {
         this.replayRestoration = Objects.requireNonNull(restoration);
         replayCursor.configureReplayRestoration(restoration);
+        if (primaryReplayCursor != replayCursor) { primaryReplayCursor.configureReplayRestoration(restoration); }
     }
 
     /** Returns the model-definition compiler shared by live commits and stored-event replay. */
@@ -1596,12 +1608,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 }
             }
         }
+        ModelReplayCursor cursor = resolution.primaryOnly() ? primaryReplayCursor : replayCursor;
         CommitAttempt context = forceStorageBoundary
-                ? replayCursor.contextAtStorage(resolution, effectiveStagedValues,
+                ? cursor.contextAtStorage(resolution, effectiveStagedValues,
                         includeMessageBatch
                                 ? modelId -> ModelBatchScope.currentValue(namespace, modelId, modelDefinitionCompiler)
                                 : null, modelCacheTracker)
-                : replayCursor.context(
+                : cursor.context(
                 resolution, boundary, effectiveStagedValues,
                 includeMessageBatch
                         ? modelId -> ModelBatchScope.currentValue(namespace, modelId, modelDefinitionCompiler)
@@ -2129,10 +2142,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 return CompletableFuture.completedFuture(Optional.empty());
             }
             java.util.function.Consumer<CommitModelsResult> deadlineCompletion =
-                    prepared.commit() instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines
-                            && !deadlines.getDeadlineUpdates().isEmpty()
+                    !prepared.commit().getDeadlineUpdates().isEmpty()
                     ? Fluxzero.get().messageScheduler().forNamespace(client.namespace())
-                            .registerDeadlineCommit(deadlines.getDeadlineUpdates()) : null;
+                            .registerDeadlineCommit(prepared.commit().getDeadlineUpdates()) : null;
             CompletableFuture<CommitModelsResult> committed;
             try {
                 committed =
@@ -2498,7 +2510,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     preparedChanges.put(target, transition);
                 }
                 if (event != null && event.getIndex() == null) {
-                    Metadata reserved = DeadlineMetadata.strip(event.getMetadata());
+                    Metadata reserved = DeadlineMetadata.strip(event.getMetadata())
+                            .without(ModelEventMetadata.ALIAS_BINDINGS);
+                    if (!step.aliasBindings().isEmpty()) {
+                        reserved = reserved.with(ModelEventMetadata.ALIAS_BINDINGS,
+                                io.fluxzero.common.serialization.JsonUtils.asJson(step.aliasBindings()));
+                    }
                     for (Change change : committedTransitions) {
                         if (change.deadlines() != null) {
                             reserved = DeadlineMetadata.with(reserved, change.modelId(), change.deadlines());
@@ -2558,6 +2575,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithDeadlines(
                         commit, evaluation.deadlineUpdates());
             }
+            if (!evaluation.identityReads().isEmpty()) {
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads(commit, evaluation.identityReads());
+            }
             return new Outcome(commit, preparedChanges, existingEvent);
         }
 
@@ -2604,9 +2624,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (!candidate.getReadAliasIds().isEmpty()) {
                 commit = new CommitModelsWithAliasReads(commit, candidate.getReadAliasIds());
             }
-            if (candidate instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines d) {
-                commit = new io.fluxzero.common.api.modeling.CommitModelsWithDeadlines(
-                        commit, d.getDeadlineUpdates());
+            if (!candidate.getDeadlineUpdates().isEmpty()) {
+                commit = commit.withDeadlineUpdates(candidate.getDeadlineUpdates());
+            }
+            if (!candidate.getAliasObservations().isEmpty()) {
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads(
+                        commit, candidate.getAliasObservations());
             }
             return new Outcome(commit, rebased.changes, original.existingEvent);
         }

@@ -52,14 +52,39 @@ public final class ModelCommitValidator {
         requireNonEmpty(commit.getSubsteps(), "Model commit must contain at least one substep");
         if (!commit.getReadAliasIds().isEmpty()) {
             Set<String> aliases = uniqueIds(commit.getReadAliasIds(), "read alias");
-            if (!(commit instanceof CommitModelsWithAliasReads || commit instanceof CommitModelsWithDeadlines) || !commit.getReadModelIds().containsAll(aliases)) {
+            if (!(commit instanceof CommitModelsWithAliasReads || commit instanceof CommitModelsWithDeadlines
+                    || commit instanceof CommitModelsWithIdentityReads) || !commit.getReadModelIds().containsAll(aliases)) {
                 throw new IllegalArgumentException("Alias reads require an alias-aware commit and exact lookup head reads");
             }
         }
-        if (commit instanceof CommitModelsWithDeadlines deadlines) {
+        if (!commit.getAliasObservations().isEmpty()) {
+            if (!(commit instanceof CommitModelsWithIdentityReads) || commit.isMigration()) {
+                throw new IllegalArgumentException("Explicit identity observations require an identity-aware current commit");
+            }
+            Set<String> aliases = new HashSet<>();
+            for (ModelAliasObservation observation : commit.getAliasObservations()) {
+                if (observation == null) {
+                    throw new IllegalArgumentException("Alias observation must not be null");
+                }
+                validateModelId(observation.alias());
+                if (!aliases.add(observation.alias())) {
+                    throw new IllegalArgumentException("Duplicate alias observation: " + observation.alias());
+                }
+                if (observation.expectedOwner() != null) {
+                    validateModelId(observation.expectedOwner());
+                    if (!commit.getReadModelIds().contains(observation.expectedOwner())) {
+                        throw new IllegalArgumentException("Observed alias owners require a canonical Model-head read");
+                    }
+                }
+            }
+        }
+        if (commit instanceof CommitModelsWithDeadlines || !commit.getDeadlineUpdates().isEmpty()) {
+            if (!(commit instanceof CommitModelsWithDeadlines || commit instanceof CommitModelsWithIdentityReads)) {
+                throw new IllegalArgumentException("Deadline effects require a deadline-aware commit");
+            }
             Set<String> categories = new HashSet<>();
             Set<String> scheduleIds = new HashSet<>();
-            for (ModelDeadlineUpdate update : deadlines.getDeadlineUpdates()) {
+            for (ModelDeadlineUpdate update : commit.getDeadlineUpdates()) {
                 if (update == null || update.modelId() == null || update.modelId().isBlank()
                     || update.category() == null || update.category().isBlank()
                     || !commit.getReadModelIds().contains(update.modelId()) || !categories.add(update.slotId())) {
@@ -209,7 +234,8 @@ public final class ModelCommitValidator {
                 validateDocument(target, target.getDocument());
                 if (target.getDocumentProjection() != null) {
                     if (!((commit instanceof CommitModelsWithDocumentProjections || commit instanceof CommitModelsWithDeadlines)
-                          || commit instanceof CommitModelsWithAliasReads) || commit.isMigration()) {
+                          || commit instanceof CommitModelsWithAliasReads
+                          || commit instanceof CommitModelsWithIdentityReads) || commit.isMigration()) {
                         throw new IllegalArgumentException("Independent document projections require a projection-aware, non-migration commit");
                     }
                     if (target.getDocument() == null || target.getDocument().getCollection()

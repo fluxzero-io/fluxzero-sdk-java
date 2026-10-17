@@ -122,6 +122,7 @@ Override it with `fluxzero.proxy.http2MaxResponseHeaderSize`
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
 | `>= 2026.10.04` | `fluxzero.interceptApply.assertCurrent = true` | Validating operations check the current input before each selected interceptor. Annotation ENABLED/DISABLED overrides the property; set false to retain replacement-only checks. |
 | `>= 2026.10.09` | `fluxzero.search.collectionValues = true` | Annotation-independent range and field sorting semantics. Upgrade the Runtime and prepare indexed collections before opting in; set false to retain legacy behavior. See [collection values](/docs/guides/modeling-and-persistence/document-index-and-search/#annotation-independent-collection-values). |
+| `>= 2026.10.18` | `fluxzero.model.aliasTargets = true` | Model commands distinguish primary-ID properties from alias properties. Activate after SDK and Runtime support identity selection; set false for compatibility selection. See [alias targets](/docs/guides/modeling-and-persistence/updating-entities/#selecting-a-model-by-alias). |
 
 The dedicated search override uses environment variable `FLUXZERO_SEARCH_COLLECTION_VALUES`. It wins in both directions:
 `true` enables the profile on older defaults, and `false` retains compatibility behavior on newer defaults.

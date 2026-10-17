@@ -1202,7 +1202,8 @@ public class DefaultFluxzero implements Fluxzero {
                                     runtimeParameterResolvers, disablePayloadValidation, assertCurrentDefault),
                             snapshotSerializer, modelCache,
                             runtimeParameterResolvers,
-                            propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY), assertCurrentDefault);
+                            propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY), assertCurrentDefault,
+                            ApplicationProperties.modelAliasTargets(propertySource));
             commandModelRepository.configureReplayRestoration(modelReplayRestoration);
             commandModelRepository.configureGraphStrict(ApplicationProperties.graphStrict(propertySource));
             graphRepository.set(commandModelRepository);

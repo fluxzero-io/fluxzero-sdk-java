@@ -42,6 +42,58 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
+    void explicitIdentityFacetsAndAbsenceRoundTripWithoutCompactDowngrade() throws Exception {
+        CommitModels ordinary = commit("identity-wire", false);
+        ordinary.getSubsteps().getFirst().getEvent().setIndex(null);
+        String owner = ordinary.getReadModelIds().getFirst();
+        var observations = List.of(new ModelAliasObservation("known", owner), new ModelAliasObservation("missing", null));
+        var relations = new CommitModelsWithRelationships(ordinary,
+                List.of(new ModelRelationshipRead(owner, ModelRelationshipRead.Direction.CHILDREN, null)));
+        var genericAliases = new CommitModelsWithAliasReads(relations, List.of(owner));
+        var deadline = new ModelDeadlineUpdate(owner, "expiry", "schedule", null, true, null);
+        CommitModels request = new CommitModelsWithIdentityReads(genericAliases, observations)
+                .withDeadlineUpdates(List.of(deadline));
+        ModelCommitValidator.validate(request);
+        assertEquals(observations, request.getAliasObservations());
+        assertTrue(JsonUtils.valueToTree(request).get("aliasObservations").get(1).get("expectedOwner").isNull());
+        assertFalse(JsonUtils.valueToTree(ordinary).has("aliasObservations"));
+        assertFalse(JsonUtils.valueToTree(ordinary).has("deadlineUpdates"));
+        assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(request))));
+        var lookup = new GetModelEventsByIdentity(List.of(new ModelEventStreamRequest("known", -1L, 0)),
+                ModelReadBoundary.current(), 0, GetModelEventsByIdentity.Selection.ALIAS);
+        assertNull(ModelEventWireCodec.tryEncode(lookup));
+        assertNull(ModelEventWireCodec.tryEncode(new RequestBatch<>(List.of(lookup))));
+        for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer, List.of(ModelWebSocketCodec.INSTANCE));
+            var batch = new RequestBatch<>(List.of(request, lookup));
+            assertEquals(batch, codec.decode(codec.encode(batch)), format.toString());
+        }
+        var legacy = JsonUtils.writer.copy();
+        legacy.setAnnotationIntrospector(new com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector() {
+            @Override public List<com.fasterxml.jackson.databind.jsontype.NamedType> findSubtypes(
+                    com.fasterxml.jackson.databind.introspect.Annotated annotated) {
+                var types = super.findSubtypes(annotated);
+                return types == null ? null : types.stream().filter(type -> type.getType() != CommitModelsWithIdentityReads.class
+                        && type.getType() != GetModelEventsByIdentity.class).toList();
+            }
+        });
+        for (var value : List.of(request, lookup)) {
+            assertThrows(com.fasterxml.jackson.databind.exc.InvalidTypeIdException.class,
+                    () -> legacy.readValue(JsonUtils.writer.writeValueAsBytes(value), io.fluxzero.common.api.JsonType.class));
+        }
+    }
+
+    @Test
+    void identityOnlyCommitsRoundTripWithOmittedEmptyFacets() throws Exception {
+        CommitModels ordinary = commit("identity-only", false);
+        var request = new CommitModelsWithIdentityReads(ordinary, List.of(new ModelAliasObservation("missing", null)));
+        for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer, List.of(ModelWebSocketCodec.INSTANCE));
+            assertEquals(request, codec.decode(codec.encode(request)), format.toString());
+        }
+    }
+
+    @Test
     void routedCommitEventsRequireAnExplicitNativeEnvelopeCapability() throws Exception {
         var commit = commit("routed", false);
         commit.getSubsteps().getFirst().getEvent().setRoute("partition/one");
@@ -191,6 +243,10 @@ class ModelCommitWireCodecTest {
         CommitModels request = new CommitModelsWithDocumentProjections(new CommitModelsWithRelationships(base,
                 List.of(new ModelRelationshipRead("parent", ModelRelationshipRead.Direction.CHILDREN, "children"))));
         assertEquals("commitModelsWithDocumentProjections", JsonUtils.valueToTree(request).get("@type").asText());
+        var identityRequest = new CommitModelsWithIdentityReads(request, List.of(new ModelAliasObservation("missing", null)));
+        ModelCommitValidator.validate(identityRequest);
+        assertEquals(identityRequest, JsonUtils.writer.readValue(JsonUtils.writer.writeValueAsBytes(identityRequest),
+                                                               CommitModels.class));
         assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(request))));
         for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
             var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);

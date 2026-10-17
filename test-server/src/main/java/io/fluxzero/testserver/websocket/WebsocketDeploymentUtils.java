@@ -82,6 +82,7 @@ public class WebsocketDeploymentUtils {
         userProperties.put(HANDSHAKE_HEADERS_USER_PROPERTY, requestHeaders);
 
         response.getHeaders().put(WebSocketCapabilities.MESSAGE_ENVELOPE_VERSION_HEADER, "2");
+        response.getHeaders().put(WebSocketCapabilities.MODEL_IDENTITY_SELECTION_VERSION_HEADER, List.of("1"));
         response.getHeaders().put(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER,
                                   Integer.toString(io.fluxzero.common.api.tracking.ConsumerFilter.VERSION));
 

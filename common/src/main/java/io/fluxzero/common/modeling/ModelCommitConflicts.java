@@ -190,6 +190,23 @@ public final class ModelCommitConflicts {
         return conflicts == null ? existing : List.copyOf(conflicts);
     }
 
+    /**
+     * Checks explicit alias-owner observations independently of equal primary IDs. A mismatch invalidates target
+     * selection and must never be accepted by merely rebasing the old target. Callers must reject or reevaluate
+     * the complete command, including its assertions. Canonical owner heads remain ordinary read dependencies.
+     */
+    public static List<ModelCommitConflict> detectAliasOwners(
+            CommitModels commit, java.util.function.Function<String, String> owners, long currentBoundary) {
+        if (commit.getAliasObservations().isEmpty()) { return List.of(); }
+        List<ModelCommitConflict> conflicts = new ArrayList<>();
+        for (var observation : commit.getAliasObservations()) {
+            if (!java.util.Objects.equals(observation.expectedOwner(), owners.apply(observation.alias()))) {
+                conflicts.add(new ModelCommitConflict(observation.alias(), currentBoundary, -1L));
+            }
+        }
+        return List.copyOf(conflicts);
+    }
+
     /** Adds membership conflicts using relationship positions read under the same atomic boundary as the write. */
     public static List<ModelCommitConflict> detectRelationships(
             CommitModels commit, List<ModelCommitConflict> existing,

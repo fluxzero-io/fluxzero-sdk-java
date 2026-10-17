@@ -109,6 +109,7 @@ final class ModelReplayCursor {
             new Settings(32_768, 131_072, 128, 64L * 1_024L * 1_024L);
 
     private final EventStoreClient eventStoreClient;
+    private final boolean primaryOnly;
     private final ReadBatcher requestBatcher;
     private final boolean prefetchPages;
     private final Settings settings;
@@ -199,6 +200,16 @@ final class ModelReplayCursor {
             ModelRepository repository,
             EventBoundaryBarrier eventBoundaryBarrier,
             ModelTypeResolver modelTypeResolver) {
+        this(eventStoreClient, settings, serializer, entityHelper, modelDefinitionCompiler, modelCache, snapshotStore,
+             documentReader, repository, eventBoundaryBarrier, modelTypeResolver, false);
+    }
+
+    private ModelReplayCursor(
+            EventStoreClient eventStoreClient, Settings settings, Serializer serializer, EntityHelper entityHelper,
+            MutationPlan.Compiler modelDefinitionCompiler, Cache modelCache, ModelSnapshotStore snapshotStore,
+            DocumentReader documentReader, ModelRepository repository, EventBoundaryBarrier eventBoundaryBarrier,
+            ModelTypeResolver modelTypeResolver, boolean primaryOnly) {
+        this.primaryOnly = primaryOnly;
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.settings = Objects.requireNonNull(settings, "settings");
         this.eventBoundaryBarrier = Objects.requireNonNull(
@@ -219,6 +230,13 @@ final class ModelReplayCursor {
         this.modelTypeResolver = modelTypeResolver;
     }
 
+    /** Independent batching lane for canonical mutation targets; shares metadata, projections and caches. */
+    ModelReplayCursor primaryOnly() {
+        return new ModelReplayCursor(eventStoreClient, settings, serializer, entityHelper,
+                modelDefinitionCompiler, modelCache, snapshotStore, documentReader, repository,
+                eventBoundaryBarrier, modelTypeResolver, true);
+    }
+
     Session session() {
         return session(null);
     }
@@ -233,9 +251,12 @@ final class ModelReplayCursor {
     }
 
     private GetModelEventsResult getModelEvents(GetModelEvents request) {
+        GetModelEvents selected = primaryOnly ? new io.fluxzero.common.api.modeling.GetModelEventsByIdentity(
+                request.getRequests(), request.getBoundary(), request.getMaxBytes(),
+                io.fluxzero.common.api.modeling.GetModelEventsByIdentity.Selection.PRIMARY) : request;
         return readAtEventBoundary(
                 request.getBoundary(),
-                () -> eventStoreClient.getModelEvents(request),
+                () -> eventStoreClient.getModelEvents(selected),
                 GetModelEventsResult::isExactBoundary);
     }
 
@@ -1030,7 +1051,7 @@ final class ModelReplayCursor {
                         target.modelId(), stateIndex, stateIndex,
                         historicalHead, document.head());
             }
-            if (entity.isEmpty() && metadata.hasAliases()) {
+            if (!primaryOnly && entity.isEmpty() && metadata.hasAliases()) {
                 LoadResult alias = currentDocumentHeads != null ? currentDocumentHeads : loadHeads(
                         List.of(target.modelId()),
                         stateIndex < 0L ? boundary
@@ -1122,7 +1143,7 @@ final class ModelReplayCursor {
             Entity<?> entity = loaded.get(target.modelId());
             String resolvedId = entity != null && entity.isPresent() && entity.id() != null
                     ? entity.id().toString() : target.modelId();
-            if (!target.access().writes() && (!resolvedId.equals(target.modelId())
+            if (!primaryOnly && !target.access().writes() && (!resolvedId.equals(target.modelId())
                     || entity != null && entity.isEmpty() && EntityMetadata.of(target.modelType()).hasAliases())) {
                 if (aliasReads == null) { aliasReads = new LinkedHashMap<>(); }
                 aliasReads.put(target.modelId(), resolvedId);
@@ -2857,7 +2878,7 @@ final class ModelReplayCursor {
                                 || definition.direct()
                                         ? null
                                         : definition.targets()
-                                                .resolveReplay(event.getPayload(), target));
+                                                .resolveReplay(event, target));
                     })
                     .toList();
         }

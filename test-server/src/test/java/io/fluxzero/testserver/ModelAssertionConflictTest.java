@@ -163,6 +163,31 @@ class ModelAssertionConflictTest {
         }
     }
 
+    @Test
+    void propertyQualifiedAliasTargetsRoundTripOverWebSocket() {
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .replacePropertySource(ignored -> new io.fluxzero.common.application.SimplePropertySource(
+                        java.util.Map.of("fluxzero.model.aliasTargets", "true")))
+                .build(WebSocketClient.newInstance(config("alias-" + UUID.randomUUID(), "aliases")))) {
+            execute(app, new PutAliasAccount("shared", "primary-email", 1), false);
+            execute(app, new PutAliasAccount("owner", "shared", 2), false);
+            execute(app, new UpdateAliasAccount("shared", 3), false);
+            AliasAccount owner = app.apply(fc -> Fluxzero.loadModel("owner", AliasAccount.class).get());
+            AliasAccount primary = app.apply(fc -> Fluxzero.loadModel("shared", AliasAccount.class).get());
+            assertEquals(3, owner.number());
+            assertEquals(1, primary.number());
+        }
+    }
+
+    @Model(searchable = false, cached = false)
+    record AliasAccount(@EntityId String accountId, @io.fluxzero.sdk.modeling.Alias String email, int number) {}
+    record PutAliasAccount(String accountId, String email, int number) {
+        @Apply AliasAccount apply() { return new AliasAccount(accountId, email, number); }
+    }
+    record UpdateAliasAccount(String email, int number) {
+        @Apply AliasAccount apply(AliasAccount before) { return new AliasAccount(before.accountId(), email, number); }
+    }
+
     private static WebSocketClient.ClientConfig config(String namespace, String name) {
         return WebSocketClient.ClientConfig.builder().name(name).namespace(namespace)
                 .runtimeBaseUrl("ws://127.0.0.1:" + port).build();

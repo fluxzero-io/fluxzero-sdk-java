@@ -1417,8 +1417,10 @@ public final class EntityMetadata {
         }
     }
 
-    private record AliasProperty(Property property, String prefix, String postfix) {
-        private String value(String value) {
+    List<AliasProperty> aliasProperties() { return aliasProperties; }
+
+    record AliasProperty(Property property, String prefix, String postfix) {
+        String value(String value) {
             return prefix + value + postfix;
         }
     }

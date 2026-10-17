@@ -49,6 +49,21 @@ class ModelCommitValidatorTest {
     }
 
     @Test
+    void identityObservationsRequireCanonicalHeadsAndUniqueNonEmptyAliases() {
+        CommitModels base = publishedCommit(-1L);
+        String id = base.getReadModelIds().getFirst();
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(new CommitModelsWithIdentityReads(base,
+                List.of(new ModelAliasObservation("email", id), new ModelAliasObservation("missing", null)))));
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(
+                new CommitModelsWithIdentityReads(base, List.of(new ModelAliasObservation("email", "unread")))));
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(
+                new CommitModelsWithIdentityReads(base, List.of(new ModelAliasObservation(" ", null)))));
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(
+                new CommitModelsWithIdentityReads(base, List.of(new ModelAliasObservation("email", id),
+                        new ModelAliasObservation("email", id)))));
+    }
+
+    @Test
     void rejectsMalformedSimplePublishedUpdate() {
         assertThrows(
                 IllegalArgumentException.class,

@@ -218,7 +218,7 @@ public final class ModelCommitWireCodec {
             if (!(request instanceof CommitModels commit)) {
                 return false;
             }
-            if (commit instanceof CommitModelsWithDeadlines || commit.isMigration() || !commit.getReadRelationships().isEmpty() || !commit.getReadAliasIds().isEmpty()) {
+            if (commit instanceof CommitModelsWithIdentityReads || commit instanceof CommitModelsWithDeadlines || commit.isMigration() || !commit.getReadRelationships().isEmpty() || !commit.getReadAliasIds().isEmpty()) {
                 return false;
             }
             ModelCommitTarget target = commit.singleTarget();
