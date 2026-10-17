@@ -21,15 +21,18 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.ConsumerFilter;
+import io.fluxzero.common.tracking.InMemoryPositionStore;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.registry.ConsumerBlueprint;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
 import io.fluxzero.sdk.tracking.client.LocalTrackingClient;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -124,13 +127,23 @@ class ConsumerAliasProjectionTest {
     void dynamicAliasRetargetingRefreshesAnAlreadyOpenRead() throws Exception {
         var serializer = new JacksonSerializer();
         serializer.registerTypeAlias("legacy.Dynamic", Integer.class.getName());
+        var scannedIndex = new CompletableFuture<Long>();
+        var positions = new InMemoryPositionStore() {
+            @Override
+            public CompletableFuture<Void> storePosition(String consumer, int[] segment, long lastIndex) {
+                return super.storePosition(consumer, segment, lastIndex).thenRun(() -> scannedIndex.complete(lastIndex));
+            }
+        };
         try (var blueprint = new ConsumerBlueprint(serializer, () -> handlers(null, false), new AtomicLong()::incrementAndGet);
-             var client = new LocalTrackingClient(MessageType.EVENT, null, null)) {
+             var client = new LocalTrackingClient(new InMemoryMessageStore(MessageType.EVENT, null), positions,
+                                                  MessageType.EVENT, null)) {
             var config = ConsumerConfiguration.builder().name("alias-consumer").consumerBlueprint(blueprint)
                     .maxWaitDuration(Duration.ofMinutes(15)).maxScanLookBack(60_000L).clientControlledIndex(true).build();
             long start = indexFromMillis(System.currentTimeMillis());
             var pending = client.read("tracker", start, config);
             client.append(Guarantee.STORED, message("legacy.Dynamic", 0, null, "42", start + 1L)).join();
+            // Append completion does not await the asynchronous scan. Establish exclusion under the old alias first.
+            assertEquals(start + 1L, scannedIndex.get(3, TimeUnit.SECONDS));
             assertFalse(pending.isDone());
             var registration = serializer.registerTypeAlias("legacy.Dynamic", String.class.getName());
             var accepted = message("legacy.Dynamic", 0, null, "\"accepted\"", start + 2L);
