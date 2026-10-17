@@ -873,6 +873,9 @@ public interface Graph<T> {
 
     /**
      * Returns the preceding model revision as a lazy graph, or {@code null} when none is available.
+     * Ordinary history ends at the creation revision: the empty state before creation is not a revision.
+     * Deletion revisions remain available even though their value is {@code null}. This Graph contract does not
+     * change the legacy {@link Entity#previous()} contract.
      * Surrounding models and relationships are resolved immediately before the current revision became effective.
      * This keeps children added after the preceding root revision visible while excluding changes made by the update
      * whose before-state is being observed.
@@ -894,9 +897,17 @@ public interface Graph<T> {
     @Nullable
     Graph<T> previous();
 
-    /** Returns current and retained preceding revisions, newest first. */
+    /**
+     * Returns the current and preceding revisions, newest first, excluding the empty state before creation.
+     * An empty model that has never existed has no revisions; non-empty provisional views remain included.
+     * A deletion is a real revision whose value is {@code null};
+     * it remains in the stream. Traversal is lazy and may reconstruct history independently of cache depth.
+     */
     default Stream<Graph<T>> revisions() {
-        return Stream.iterate(this, Objects::nonNull, Graph::previous);
+        return Stream.iterate(this,
+                              graph -> graph != null && (graph.knownType().isEmpty() || graph.revisionStateIndex() >= 0
+                                      || graph.sequenceNumber() >= 0 || graph.isPresent()),
+                              Graph::previous);
     }
 
     /** Returns the newest event index retained by this graph's revision history. */

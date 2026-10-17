@@ -36,6 +36,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -459,8 +460,11 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             completeRequest(tracker, request, emptyBatch);
             return;
         }
-        var trackerCluster = clusters.computeIfPresent(tracker.getConsumerName(),
-                (p, c) -> c.contains(tracker) ? c.withWaitingTracker(tracker) : c);
+        var previousCluster = new AtomicReference<TrackerCluster>();
+        var trackerCluster = clusters.computeIfPresent(tracker.getConsumerName(), (p, c) -> {
+            previousCluster.set(c);
+            return c.contains(tracker) ? c.withWaitingTracker(tracker) : c;
+        });
 
         if (trackerCluster == null || !trackerCluster.contains(tracker)) {
             // this tracker has already been removed from the cluster
@@ -491,6 +495,19 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         if (currentCluster != null && currentCluster.contains(tracker)
             && !Objects.deepEquals(emptyBatch.getSegment(), currentCluster.getSegment(tracker))) {
             waiting.run();
+        }
+        // Releasing an active reservation can assign work to peers that already published their waiters.
+        // Notify outside the cluster mutation, and only for changed assignments: waking every empty reader here
+        // would recursively re-enter the same scan/wait path even when the cluster is stable.
+        if (!stopped) {
+            for (Tracker peer : trackerCluster.getTrackers()) {
+                if (!peer.equals(tracker) && !trackerCluster.hasSameAssignment(peer, previousCluster.get())) {
+                    WaitingTracker peerWaiter = waitingTrackers.get(peer);
+                    if (peerWaiter != null) {
+                        peerWaiter.run();
+                    }
+                }
+            }
         }
     }
 

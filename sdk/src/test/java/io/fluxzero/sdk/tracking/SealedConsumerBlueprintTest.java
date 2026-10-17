@@ -46,12 +46,12 @@ class SealedConsumerBlueprintTest {
             app.registerHandlers(handler);
             assertFalse(configuration.get().getConsumerBlueprint().getFilter().payloadRestricted());
             app.eventGateway().publish(new Message(new Unrelated()), Guarantee.STORED).join();
-            var events = List.of(new First("one"), new Second("two"), Choice.ONE);
+            var events = List.of(new First("one"), new Second("two"), Choice.ONE, Choice.TWO);
             for (Object event : events) {
                 app.eventGateway().publish(new Message(event), Guarantee.STORED).join();
                 assertEquals(event, handler.received.poll(2, TimeUnit.SECONDS));
             }
-            assertEquals(4, delivered.size());
+            assertEquals(5, delivered.size());
         }
     }
 

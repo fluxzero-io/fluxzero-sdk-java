@@ -450,7 +450,9 @@ class ProxyServerLifecycleTest {
                 try {
                     var response = httpClient.send(
                             HttpRequest.newBuilder(URI.create(url)).GET().build(), BodyHandlers.ofString());
-                    assertEquals(status, response.statusCode());
+                    assertEquals(status, response.statusCode(), () ->
+                            "Unexpected response for %s: headers=%s, body=%s".formatted(
+                                    response.uri(), response.headers().map(), response.body()));
                     assertEquals(body, response.body());
                     return;
                 } finally {

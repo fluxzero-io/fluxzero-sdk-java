@@ -1038,6 +1038,24 @@ class ModelBatchScopeTest {
     }
 
     @Test
+    void pendingCreationRemainsInGraphHistory() {
+        AliasModel created = new AliasModel("model-1", "new", 1);
+        Entity<AliasModel> empty = ImmutableModelRoot.initial("model-1", AliasModel.class, "id", null);
+        DeserializingMessage.forEachInBatch(
+                List.of(message("producer"), message("consumer")), current -> {
+                    if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                        stagePending(null, evaluation(current, "model-1", null, created));
+                    } else {
+                        Entity<AliasModel> pending = ModelBatchScope.overlayCurrent(
+                                null, "model-1", AliasModel.class, empty);
+                        assertEquals(-1, pending.sequenceNumber());
+                        assertEquals(List.of(created), Graphs.lazy(pending, -1, null)
+                                .revisions().map(Graph::get).toList());
+                    }
+                });
+    }
+
+    @Test
     void pendingReadsNeverReadTheirOwnSpeculation() {
         AliasModel before = new AliasModel("model-1", "old", 1);
         AliasModel after = new AliasModel("model-1", "new", 2);
