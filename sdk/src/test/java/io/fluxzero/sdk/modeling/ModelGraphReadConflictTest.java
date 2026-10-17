@@ -1058,6 +1058,48 @@ class ModelGraphReadConflictTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void nullableDynamicCreationRetriesConcurrentCreationWithoutOverwriting(boolean deleted) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            if (deleted) {
+                commit(app, new SeedReceipt("receipt"));
+                commit(app, new DeleteReceipt("receipt"));
+            }
+            AtomicBoolean once = new AtomicBoolean();
+            nullableCreationAttempts.set(0);
+            client.beforeCommit = request -> {
+                if (once.compareAndSet(false, true)) {
+                    commit(app, new SeedReceipt("receipt"));
+                }
+            };
+            var failure = assertThrows(CompletionException.class,
+                    () -> commit(app, new CreateCheckedReceipts("receipt")));
+            assertInstanceOf(IllegalCommandException.class, rootCause(failure));
+            assertEquals(2, nullableCreationAttempts.get());
+            app.cache().clear();
+            assertEquals(new Receipt("receipt", -1), app.apply(fc -> Fluxzero.loadModel("receipt", Receipt.class).get()));
+            assertNull(app.apply(fc -> Fluxzero.loadModel("companion", Receipt.class).get()));
+        }
+    }
+
+    private static final AtomicInteger nullableCreationAttempts = new AtomicInteger();
+
+    record CreateCheckedReceipts(String receiptId) {
+        @AssertLegal void check(@jakarta.annotation.Nullable Receipt receipt) {
+            nullableCreationAttempts.incrementAndGet();
+            if (receipt != null) { throw new IllegalCommandException("Receipt already exists"); }
+        }
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY) List<Receipt> apply() {
+            return List.of(new Receipt(receiptId, 1), new Receipt("companion", 1));
+        }
+    }
+
+    record DeleteReceipt(String receiptId) {
+        @Apply Receipt apply(Receipt receipt) { return null; }
+    }
+
     private static Object commit(Fluxzero fluxzero, Object command) {
         return fluxzero.apply(fc -> fc.executeModelCommit(Message.asMessage(command)).join());
     }

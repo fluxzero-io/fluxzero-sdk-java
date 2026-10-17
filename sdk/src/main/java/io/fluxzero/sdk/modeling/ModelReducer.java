@@ -997,8 +997,10 @@ public final class ModelReducer {
         Class<?> targetType = MutationPlan.applyTargetType(handler, value, resultIndex);
         String targetId = resolveWriteTarget(handler, targetType, value, beginState);
         Entity<?> target = resultTarget(handler, beginState, targetId);
-        boolean creation = target == null && value != null
-                           && (handler.collectionApplyResult() || handler.dynamicApplyResult());
+        // A nullable read retains an empty entity, including its absence/tombstone revision.
+        // Returning a new value may create it without discarding that conflict boundary.
+        boolean creation = value != null && (handler.collectionApplyResult() || handler.dynamicApplyResult())
+                           && (target == null || target.isEmpty());
         boolean graphWrite = (handler.collectionApplyResult() || handler.dynamicApplyResult())
                              && target != null && target == beginState.graphReadEntity(targetId);
         if (!creation && !graphWrite && (target == null || !beginState.mayWrite(
