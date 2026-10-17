@@ -15,7 +15,6 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
@@ -41,12 +40,13 @@ import static org.mockito.Mockito.verify;
 
 public class WebRequestForwardingTest {
 
-    private static final int port = TestUtils.getAvailablePort();
+    private static int port;
     private static HttpServer server;
 
     @BeforeAll
     static void beforeAll() throws IOException {
-        server = HttpServer.create(new InetSocketAddress(port), 0);
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        port = server.getAddress().getPort();
         server.createContext("/get", WebRequestForwardingTest::handleGet);
         server.createContext("/string", WebRequestForwardingTest::handleString);
         server.createContext("/object", WebRequestForwardingTest::handleObject);
@@ -105,7 +105,7 @@ public class WebRequestForwardingTest {
                 mock(GenericGateway.class), new JacksonSerializer());
         try {
             WebResponse response = gateway.sendAndWait(
-                    WebRequest.post("http://localhost:%d/object".formatted(port)).body(new Foo("bar")).build(),
+                    WebRequest.post("http://127.0.0.1:%d/object".formatted(port)).body(new Foo("bar")).build(),
                     WebRequestSettings.builder().useNativeHttpClient(true).build());
 
             assertEquals(200, response.getStatus());

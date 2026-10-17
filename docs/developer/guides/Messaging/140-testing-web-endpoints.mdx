@@ -392,3 +392,11 @@ The fixture routes native-HTTP settings to registered handlers too. It preserves
 without real retry delays; it does not test sockets, TLS, proxy behavior or remote transport envelopes.
 `sendAndWait` only changes how the caller waits. It does not make a real request local. Use transport tests
 for source/request-ID correlation and real HTTP tests for headers, body mapping and network failures.
+
+## Tests with a real network server
+
+When a test needs an embedded `TestServer`, bind it directly to loopback and port `0`:
+`TestServer.startServer(new InetSocketAddress("127.0.0.1", 0))` in Java, or
+`TestServer.startServer(InetSocketAddress("127.0.0.1", 0))` in Kotlin. Read the selected port from the returned
+server's `ServerConnector.getLocalPort()`, connect to `127.0.0.1`, and stop the server in `finally`.
+This avoids fixed-port conflicts and the race introduced by reserving, closing, and later rebinding a free port.
