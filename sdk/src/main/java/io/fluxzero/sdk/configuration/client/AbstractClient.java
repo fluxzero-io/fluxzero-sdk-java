@@ -201,6 +201,7 @@ public abstract class AbstractClient extends AbstractNamespaced<Client> implemen
     @Override
     public void shutDown() {
         if (shutDown.compareAndSet(false, true)) {
+            ObjectUtils.tryRun(this::prepareShutdown);
             shutdownTasks.forEach(ObjectUtils::tryRun);
             namespaceClients.forEach(Client::shutDown);
             trackingClients.forEach(asConsumer(AutoCloseable::close));

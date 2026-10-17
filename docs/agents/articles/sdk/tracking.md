@@ -58,7 +58,13 @@ For document rebuilding after search or upcaster changes, increment `@Revision` 
 
 For monotonic identifiers, model the sequence as a query backed by persisted counter state. Use `@Consumer(singleTracker = true)` only for a global sequence; omit it when routing keys partition independent counters naturally.
 
-Canceling a tracking registration lets an active batch finish before requesting release of its segment ownership
+Canceling a tracking registration waits at most one second for its tracker threads, sharing that budget across
+parallel trackers. Active batches are not interrupted. If a worker remains blocked, cancellation returns so client
+shutdown can continue; the worker releases its segment and runs interceptor cleanup only after it actually exits.
+A timeout does not acknowledge unfinished work. Keep side effects replay-safe if the application closes before the
+batch completes. Custom interceptor cleanup must itself be bounded; this is not a global application-shutdown deadline.
+
+An active batch requests release of its segment ownership after finishing
 with a `DisconnectTracker` using `STORED` delivery. This also applies when other consumers keep the client connected. Cancellation from
 inside a handler releases ownership only after the processing stack has returned. A Runtime handover is not an
 exactly-once guarantee after a crash; retain the usual replay-safe handling of external side effects.

@@ -1635,6 +1635,73 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void controlledShutdownSuppressesQueuedStallsAndLateProgressWithoutClosingTransport() throws Exception {
+        WebSocketClient application = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost").name("test-client").build());
+        WebSocketClient namespace = (WebSocketClient) application.forNamespace("secondary");
+        ManuallyTriggeredTaskScheduler scheduler = new ManuallyTriggeredTaskScheduler();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                namespace, true, transportMetricsProperties(), scheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+        try {
+            client.onRuntimeIngressProgress(session, RuntimeIngressController.Progress.RETAINED_WORK_STARTED, 1, 1L);
+            var queuedStall = scheduler.dequeue();
+            application.prepareShutdown();
+            assertTrue(namespace.isShuttingDown());
+            assertTrue(((WebSocketClient) application.forNamespace("late")).isShuttingDown());
+            scheduler.advance(application.getClientConfig().getPingTimeout());
+            queuedStall.run();
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED, 1, 2L);
+            client.onRuntimeIngressProgress(mockSession("late_session"),
+                    RuntimeIngressController.Progress.RETAINED_WORK_STARTED, 1, 1L);
+            for (var event : List.of(WebsocketTransportMetric.Event.RUNTIME_INGRESS_STALLED,
+                                     WebsocketTransportMetric.Event.RUNTIME_INGRESS_RECOVERED)) {
+                client.emitTransportMetricAsync(event, session, runtimeDataState(1, 1L, 0, 1)).join();
+            }
+            assertEquals(0, scheduler.pendingTaskCount());
+            assertNull(client.transportMetric.get());
+            verify(session, never()).closeAsync(any());
+            // Other transport diagnostics remain available while shutdown callbacks drain.
+            client.emitTransportMetricAsync(WebsocketTransportMetric.Event.PING_TIMEOUT,
+                                            session, runtimeDataState(0, 0L, 0, 0)).join();
+            assertEquals(WebsocketTransportMetric.Event.PING_TIMEOUT, client.transportMetric.get().event());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void controlledShutdownSuppressesPreviouslyScheduledStallCloseAndRecovery() throws Exception {
+        WebSocketClient application = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost").name("test-client")
+                .runtimeIngressStallCloseTimeout(Duration.ofSeconds(30)).build());
+        ManuallyTriggeredTaskScheduler scheduler = new ManuallyTriggeredTaskScheduler();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                application, true, transportMetricsProperties(), scheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true);
+        try {
+            client.onRuntimeIngressProgress(session, RuntimeIngressController.Progress.RETAINED_WORK_STARTED, 1, 1L);
+            scheduler.advance(application.getClientConfig().getPingTimeout());
+            scheduler.dequeue().run();
+            assertTrue(client.transportMetricPublished.await(1, TimeUnit.SECONDS));
+            assertTrue(scheduler.awaitPendingTaskCount(1, Duration.ofSeconds(1)));
+            var queuedClose = scheduler.dequeue();
+            application.prepareShutdown();
+            scheduler.advance(Duration.ofSeconds(30));
+            queuedClose.run();
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED, 0, 2L);
+            assertEquals(0, scheduler.pendingTaskCount());
+            assertEquals(WebsocketTransportMetric.Event.RUNTIME_INGRESS_STALLED, client.transportMetric.get().event());
+            verify(session, never()).closeAsync(any());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
     void idleRuntimeIngressNeverSchedulesOrEmitsStall() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -2447,7 +2514,12 @@ class AbstractWebsocketClientTest {
 
         TransportMetricObservingClient(WebSocketClient.ClientConfig clientConfig, boolean allowMetrics,
                                        SimplePropertySource propertySource, TaskScheduler pingScheduler) {
-            super(mock(WebsocketConnector.class), URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
+            this(WebSocketClient.newInstance(clientConfig), allowMetrics, propertySource, pingScheduler);
+        }
+
+        TransportMetricObservingClient(WebSocketClient application, boolean allowMetrics,
+                                       SimplePropertySource propertySource, TaskScheduler pingScheduler) {
+            super(mock(WebsocketConnector.class), URI.create("ws://localhost"), application,
                   allowMetrics, Duration.ofSeconds(1), defaultObjectMapper, 1, propertySource,
                   (client, numberOfSessions) -> pingScheduler);
         }

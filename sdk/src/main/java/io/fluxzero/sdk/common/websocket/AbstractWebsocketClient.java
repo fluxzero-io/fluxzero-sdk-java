@@ -996,7 +996,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     void onRuntimeIngressProgress(
             WebsocketSession session, RuntimeIngressController.Progress progress, int retainedMessages,
             long sequence) {
-        if (!monitorRuntimeIngressProgress) {
+        if (!monitorRuntimeIngressProgress || !runtimeIngressMonitoringActive()) {
             return;
         }
         String sessionId = getNegotiatedSessionId(session);
@@ -1012,7 +1012,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         CompletableFuture<Void> stalledMetricPublication = null;
         boolean recovered;
         synchronized (current) {
-            if (sequence <= current.progressSequence) {
+            if (!runtimeIngressMonitoringActive() || sequence <= current.progressSequence) {
                 return;
             }
             current.progressSequence = sequence;
@@ -1047,6 +1047,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
+    private boolean runtimeIngressMonitoringActive() {
+        return !closed.get() && !client.isShuttingDown();
+    }
+
+    private boolean suppressIngressMetric(WebsocketTransportMetric.Event event) {
+        return (event == WebsocketTransportMetric.Event.RUNTIME_INGRESS_STALLED
+                || event == WebsocketTransportMetric.Event.RUNTIME_INGRESS_RECOVERED)
+               && !runtimeIngressMonitoringActive();
+    }
+
     private Registration scheduleRuntimeIngressStallDeadline(
             WebsocketSession session, String sessionId, String registrationId, long deadline) {
         return pingScheduler.schedule(
@@ -1066,7 +1076,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         JdkWebSocketSession.RuntimeDataState metricState;
         CompletableFuture<Void> metricPublicationGate;
         synchronized (current) {
-            if (!registrationId.equals(current.registrationId)) {
+            if (!runtimeIngressMonitoringActive() || !registrationId.equals(current.registrationId)) {
                 return;
             }
             if (current.retainedMessages == 0) {
@@ -1101,7 +1111,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
         boolean close;
         synchronized (current) {
-            if (current.stalled && registrationId.equals(current.registrationId)
+            if (runtimeIngressMonitoringActive() && current.stalled && registrationId.equals(current.registrationId)
                 && current.retainedMessages > 0) {
                 current.cancel();
                 close = true;
@@ -1109,7 +1119,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 close = false;
             }
         }
-        if (close && runtimeIngressLiveness.remove(sessionId, current)) {
+        if (close && runtimeIngressLiveness.remove(sessionId, current) && runtimeIngressMonitoringActive()) {
             abort(session, "Runtime ingress made no functional progress");
         }
     }
@@ -1628,7 +1638,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     private void emitTransportMetricSnapshot(WebsocketTransportMetric.Event event, WebsocketSession session,
                                              JdkWebSocketSession.RuntimeDataState state) {
-        if (!shouldEmitTransportMetrics()) {
+        if (!shouldEmitTransportMetrics() || suppressIngressMetric(event)) {
             return;
         }
         try {
@@ -1661,7 +1671,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     CompletableFuture<Void> emitTransportMetricAsync(
             WebsocketTransportMetric.Event event, WebsocketSession session,
             JdkWebSocketSession.RuntimeDataState state) {
-        if (state == null || !shouldEmitTransportMetrics()) {
+        if (state == null || !shouldEmitTransportMetrics() || suppressIngressMetric(event)) {
             return CompletableFuture.completedFuture(null);
         }
         if (!transportMetricPublicationInFlight.compareAndSet(false, true)) {
