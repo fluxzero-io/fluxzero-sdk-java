@@ -8,7 +8,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " A Logback-compatible appender that automatically publishes warning and error-level log events to the Fluxzero\n Runtime.\n <p>\n This appender inspects log messages for severity {@code WARN} or higher and forwards them as {@link ConsoleWarning}\n or {@link ConsoleError} messages to the Fluxzero error gateway, along with detailed metadata such as stack traces, logger\n name, and message content.\n\n @see ConsoleWarning\n @see ConsoleError\n @see Fluxzero#errorGateway()\n",
+  "documentation" : " A Logback-compatible appender that automatically publishes warning and error-level log events to the Fluxzero\n Runtime.\n <p>\n This appender inspects log messages for severity {@code WARN} or higher and forwards them as {@link ConsoleWarning}\n or {@link ConsoleError} messages to the Fluxzero error gateway, along with detailed metadata such as stack traces, logger\n name, and message content. Web request metadata is limited to its method and bounded path without the origin,\n query or fragment. Correlation data and explicit application diagnostics remain available.\n\n @see ConsoleWarning\n @see ConsoleError\n @see Fluxzero#errorGateway()\n",
   "typeParameters" : [ ],
   "superClass" : "ch.qos.logback.core.AppenderBase<ch.qos.logback.classic.spi.ILoggingEvent>",
   "interfaces" : [ ],
@@ -112,6 +112,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Detaches any active instances of this appender from the root logger.\n <p>\n This is useful for runtime cleanup or reconfiguration.\n"
+  }, {
+    "name" : "diagnosticMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#diagnosticMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "getRootLogger",
     "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#getRootLogger",
