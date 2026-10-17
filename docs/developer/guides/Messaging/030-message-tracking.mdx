@@ -464,7 +464,15 @@ Runtime storage activation is separate: writers default to native v1 and omit ro
 reader sharing the storage, then set `fluxzero.runtime.messageEnvelopeVersion=2`
 (`FLUXZERO_RUNTIME_MESSAGE_ENVELOPE_VERSION=2`) and restart writers. Type filtering works before activation;
 stored requests without routes remain broadly eligible. Returning the writer setting to `1` does not convert existing
-v2 data: rollback to an older 2.x Runtime requires the Runtime route-storage downcaster and its offline procedure.
+v2 data. For a filtering incident, deploy Runtime with `fluxzero.runtime.consumerFiltering=false`
+(`FLUXZERO_RUNTIME_CONSUMER_FILTERING=false`, default `true`) and keep its v2 reader. The Runtime stops advertising
+and applying blueprint filters. Reconnecting SDK clients fall back to broad delivery and the compatibility read wait;
+normal handler matching and explicit type/target/segment constraints remain. Existing stored bytes stay untouched,
+and Runtime adapts responses to older clients during delivery. This rollback needs no offline migration or maintenance
+window, though ordinary Runtime handover/reconnect latency remains. The property is resolved when the Runtime router
+starts; it does not hot-reconfigure existing connections. To re-enable filtering, restore `true` on the replacement.
+An explicit replay/reset is needed if a faulty filter already advanced a consumer past messages it needed.
+Only returning to an unpatched older binary without v2 read support requires the offline route-storage downcaster.
 
 Runtime uses the updated Common dependency for filtering and advertises its filter capability in the existing
 websocket handshake. The SDK checks each connection, including reconnects: older runtimes retain broad delivery

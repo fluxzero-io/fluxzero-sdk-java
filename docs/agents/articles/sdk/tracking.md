@@ -114,8 +114,14 @@ eligible without deriving routes from metadata. SDK protocol readers accept both
 Runtime storage writers default to native v1 (routes omitted). Upgrade all storage readers before setting
 `fluxzero.runtime.messageEnvelopeVersion=2` / `FLUXZERO_RUNTIME_MESSAGE_ENVELOPE_VERSION=2` and restarting writers.
 Before activation, type filtering works and absent stored routes remain broadly eligible. Switching back to `1` does
-not rewrite existing v2 data; use the Runtime offline route downcaster before rollback to a compatible older 2.x reader.
-Runtime and Test Server advertise `Fluxzero-Consumer-Filter-Versions: 2` in the existing websocket handshake.
+not rewrite existing v2 data. For a filtering incident, deploy Runtime with `fluxzero.runtime.consumerFiltering=false`
+(`FLUXZERO_RUNTIME_CONSUMER_FILTERING=false`, default `true`) while retaining its v2 reader. Reconnecting SDK clients
+fall back to broad delivery and the compatibility wait; Runtime also ignores supplied blueprint filters. Existing
+type/target/segment constraints remain. Stored data is untouched and older clients get compatible responses on the fly.
+No offline migration is needed for this rollback; ordinary handover/reconnect latency remains. The offline route
+downcaster is only needed to return to an unpatched binary without v2 read support. Disabling filtering does not rewind
+positions already advanced by a faulty filter; recover those with an explicit affected-consumer replay/reset.
+Runtime and Test Server advertise `Fluxzero-Consumer-Filter-Versions: 2` by default in the existing websocket handshake.
 The SDK adapts every send/replay to the actual selected session. Missing/unknown capabilities strip the filter,
 keep metadata-only refreshes local and fall back to the historic scan wait for SDK-selected long waits; explicit
 builder waits retain their historical semantics. New runtimes accept old clients. Upcasting remains
