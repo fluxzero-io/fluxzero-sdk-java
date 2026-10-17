@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "packageRequiredRolesCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.packageRequiredRolesCache",
+    "type" : "java.util.function.BiFunction<java.lang.Package,java.lang.Module,io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole[]>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "requiredRolesCache",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.requiredRolesCache",
     "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole[]>",
@@ -255,6 +263,22 @@
     "varArgs" : false,
     "documentation" : " Asserts that an executable return value satisfies constraints declared on the method or constructor return value.\n\n @param target      the target object for method invocation (ignored for constructors and static methods)\n @param executable  the executable that produced the value\n @param returnValue returned value\n"
   }, {
+    "name" : "canIgnoreSilently",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#canIgnoreSilently",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether authorization for a payload can reject a request without throwing an exception.\n Such requests must be filtered during handler selection rather than treated as successful invocations.\n\n @param payloadType the payload type to inspect\n @return whether the effective policy can silently reject a user\n"
+  }, {
     "name" : "checkValidity",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#checkValidity",
     "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
@@ -301,6 +325,22 @@
     "thrownTypes" : [ ],
     "varArgs" : true,
     "documentation" : " Checks whether the provided object is valid, using the current Fluxzero {@link Validator} and validation groups.\n\n @param object the object to validate\n @param groups optional validation groups\n @return an {@link Optional} containing a {@link ValidationException} if validation fails, or empty if valid\n"
+  }, {
+    "name" : "containsNoUserRequired",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#containsNoUserRequired",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "roles",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "currentValidator",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#currentValidator",
@@ -580,6 +620,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns whether issuing the supplied payload type requires authorization for the current user.\n\n <p>The result is based on the payload's authorization annotations. It is {@code false} when the payload is\n explicitly available without a user and {@code true} when issuing it requires roles or other user-based access\n checks.</p>\n\n @param payloadType the payload type to inspect\n @return {@code true} if dispatch must perform a user authorization check\n"
+  }, {
+    "name" : "requiresAuthorization",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#requiresAuthorization",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the effective method, class or package policy depends on the current user.\n User-dependent handler eligibility must be evaluated for each request, not cached by payload type.\n\n @param target the handler type\n @param method the handler method\n @return whether selecting the handler requires a user authorization check\n"
   }, {
     "name" : "throwIfUnauthorized",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#throwIfUnauthorized",

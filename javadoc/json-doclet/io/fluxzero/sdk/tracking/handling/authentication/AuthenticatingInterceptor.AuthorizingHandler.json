@@ -94,6 +94,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "guardPayload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$AuthorizingHandler#guardPayload",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlan<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPlan<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "mapAuthorizationFailure",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$AuthorizingHandler#mapAuthorizationFailure",
     "returnType" : "java.lang.Throwable",

@@ -103,6 +103,53 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isSkipPending",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$DelegatingHandlerInvoker#isSkipPending",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maySkip",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$DelegatingHandlerInvoker#maySkip",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onSkipDecision",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$DelegatingHandlerInvoker#onSkipDecision",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "callback",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "prepareAsyncInvocation",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$DelegatingHandlerInvoker#prepareAsyncInvocation",
     "returnType" : "io.fluxzero.common.Registration",

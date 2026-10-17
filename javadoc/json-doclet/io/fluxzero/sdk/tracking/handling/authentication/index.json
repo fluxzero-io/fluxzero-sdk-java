@@ -30,6 +30,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$RefreshedUser",
     "kind" : "record"
   }, {
+    "file" : "AuthenticatingInterceptor.SkippableInvoker.json",
+    "name" : "AuthenticatingInterceptor.SkippableInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker",
+    "kind" : "class"
+  }, {
     "file" : "AuthorizationFailureMapper.json",
     "name" : "AuthorizationFailureMapper",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthorizationFailureMapper",

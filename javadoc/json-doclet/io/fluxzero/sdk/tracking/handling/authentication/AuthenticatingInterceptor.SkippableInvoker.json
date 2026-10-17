@@ -1,0 +1,148 @@
+{
+  "name" : "SkippableInvoker",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.handling.HandlerInvoker.DelegatingHandlerInvoker",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "skipDecision",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker.skipDecision",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "skipPending",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker.skipPending",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "skipped",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker.skipped",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SkippableInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker#SkippableInvoker",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "completeSkipDecision",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker#completeSkipDecision",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "combiner",
+      "type" : "java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isSkipPending",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker#isSkipPending",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maySkip",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker#maySkip",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onSkipDecision",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker#onSkipDecision",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "callback",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "wasSkipped",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$SkippableInvoker#wasSkipped",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

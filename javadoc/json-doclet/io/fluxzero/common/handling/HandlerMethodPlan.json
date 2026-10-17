@@ -27,6 +27,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Invokes the selected handler method using the supplied input.\n\n @param input the current input; it must satisfy the cache conditions under which this plan was prepared\n @return the handler method's result\n"
+  }, {
+    "name" : "isApplicable",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlan#isApplicable",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks invocation-specific eligibility without changing this reusable plan. Callers must perform this check\n immediately before invocation, including when the plan was cached. A false result means that ordinary\n per-message handler selection is required; it is not a successful null handler result.\n\n @param input the current invocation input\n @return whether this plan can handle the current input\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
