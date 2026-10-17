@@ -30,6 +30,7 @@ import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.testserver.TestServer;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
 import org.mockito.ArgumentMatcher;
 
+import java.net.InetSocketAddress;
 import java.time.Instant;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,14 +56,15 @@ import static org.mockito.Mockito.verify;
 @Slf4j
 @Isolated
 class FluxzeroLogbackAppenderTest {
-    private static final int port = 9127;
+    private static int port;
     private static Server server;
 
     private final Fluxzero fluxzero = TestFixture.create().spy().getFluxzero();
 
     @BeforeAll
     static void beforeAll() {
-        server = TestServer.startServer(port);
+        server = TestServer.startServer(new InetSocketAddress("127.0.0.1", 0));
+        port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
 
     @AfterAll
@@ -191,7 +194,7 @@ class FluxzeroLogbackAppenderTest {
         TestFixture fixture = TestFixture.createAsync(
                 DefaultFluxzero.builder().disableScheduledCommandHandler(),
                 WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
-                        .runtimeBaseUrl("ws://localhost:" + port)
+                        .runtimeBaseUrl("ws://127.0.0.1:" + port)
                         .namespace("logback-appender")
                         .name("Logback Appender Test")
                         .disableMetrics(true)

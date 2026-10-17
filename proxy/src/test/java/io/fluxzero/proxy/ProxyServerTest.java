@@ -19,10 +19,10 @@ import com.sun.net.httpserver.HttpServer;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.DelegatingClock;
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
@@ -56,6 +56,7 @@ import io.fluxzero.sdk.web.WebResponse;
 import io.fluxzero.sdk.web.WebResponseGateway;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -72,6 +73,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -85,6 +87,7 @@ import java.net.http.HttpResponse.BodyHandlers;
 import java.net.http.WebSocket;
 import java.net.http.WebSocketHandshakeException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ServerSocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -144,6 +147,17 @@ class ProxyServerTest {
     class Basic {
 
         @Test
+        void httpOnlyListenerBindsAnEphemeralLoopbackPort() throws Exception {
+            var server = ReflectionUtils.<Server>getFieldValue("server", proxyServer).orElseThrow();
+            var channel = (ServerSocketChannel) server.getConnectors()[0].getTransport();
+            var bound = (InetSocketAddress) channel.getLocalAddress();
+            assertEquals(InetAddress.getByName("127.0.0.1"), bound.getAddress());
+            assertTrue(bound.getPort() > 0);
+            assertEquals(proxyPort, bound.getPort());
+        }
+
+
+        @Test
         void composedGraphResponseRetainsFilteredJsonThroughHttpProxy() {
             testFixture.registerHandlers(new Object() {
                         @HandleGet("/graph-response") @FilterContent
@@ -152,7 +166,7 @@ class ProxyServerTest {
                         }
                     }).givenCommands(new CreateWebGraph("root"))
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/graph-response", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/graph-response", proxyPort)))
                                     .header("Accept-Encoding", "gzip").GET().build(), BodyHandlers.ofByteArray()))
                     .verifyResult(response -> {
                         assertEquals(200, response.statusCode());
@@ -190,7 +204,7 @@ class ProxyServerTest {
         @Test
         void healthCheck() {
             testFixture.whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/proxy/health", proxyPort))).GET()
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/proxy/health", proxyPort))).GET()
                                     .build(), BodyHandlers.ofString()).body())
                     .expectResult("Healthy");
         }
@@ -198,7 +212,7 @@ class ProxyServerTest {
         @Test
         void readinessCheck() {
             testFixture.whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/proxy/ready", proxyPort))).GET()
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/proxy/ready", proxyPort))).GET()
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
                         assertEquals(200, response.statusCode());
@@ -209,7 +223,7 @@ class ProxyServerTest {
         @Test
         void responsesDoNotExposeServerVersion() {
             testFixture.whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/proxy/health", proxyPort))).GET()
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/proxy/health", proxyPort))).GET()
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> assertHeaderAbsent(response.headers(), "Server"));
         }
@@ -217,7 +231,7 @@ class ProxyServerTest {
         @Test
         void jettyGeneratedErrorResponsesDoNotExposeServerVersion() throws Exception {
             String response;
-            try (Socket socket = new Socket("localhost", proxyPort)) {
+            try (Socket socket = new Socket("127.0.0.1", proxyPort)) {
                 socket.setSoTimeout(3000);
                 OutputStream output = socket.getOutputStream();
                 output.write(("GET /proxy/health HTTP/1.1\r\n"
@@ -248,7 +262,7 @@ class ProxyServerTest {
                 int configuredPort = configuredProxyServer.getPort();
 
                 assertEquals("Healthy", httpClient.send(
-                        newBuilder(URI.create(format("http://localhost:%s/internal/ready", configuredPort))).GET()
+                        newBuilder(URI.create(format("http://127.0.0.1:%s/internal/ready", configuredPort))).GET()
                                 .build(), BodyHandlers.ofString()).body());
             } finally {
                 if (configuredProxyServer != null) {
@@ -284,7 +298,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create("http://localhost:%s/echo?alpha=1&alpha=2&space=a%%20b"
+                            newBuilder(URI.create("http://127.0.0.1:%s/echo?alpha=1&alpha=2&space=a%%20b"
                                                            .formatted(proxyPort)))
                                     .GET()
                                     .header("X-Repeat", "one")
@@ -305,7 +319,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/cookie-headers", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/cookie-headers", proxyPort)))
                                     .version(HttpClient.Version.HTTP_2)
                                     .header("Cookie", "first=one; shared=same")
                                     .header("Cookie", "second=two; shared=same")
@@ -337,7 +351,7 @@ class ProxyServerTest {
                             }
                         })
                         .whenApplying(fc -> httpClient.send(newBuilder(URI.create(format(
-                                                "http://localhost:%s/segment/with-header", configuredPort)))
+                                                "http://127.0.0.1:%s/segment/with-header", configuredPort)))
                                                 .header("X-Routing-Key", "customer-123")
                                                 .GET().build(), BodyHandlers.ofString()).body())
                         .expectResult("routed");
@@ -382,7 +396,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/response-headers", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/response-headers", proxyPort)))
                                     .GET().build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
                         assertEquals(202, response.statusCode());
@@ -418,17 +432,17 @@ class ProxyServerTest {
                         .whenApplying(fc -> {
                             var disabledWithTrace = httpClient.send(
                                     newBuilder(URI.create(format(
-                                            "http://localhost:%s/benchmark-trace", disabledPort)))
+                                            "http://127.0.0.1:%s/benchmark-trace", disabledPort)))
                                             .GET()
                                             .header(ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER, "trace-1")
                                             .build(), BodyHandlers.ofString());
                             var enabledWithoutTrace = httpClient.send(
                                     newBuilder(URI.create(format(
-                                            "http://localhost:%s/benchmark-trace", enabledPort)))
+                                            "http://127.0.0.1:%s/benchmark-trace", enabledPort)))
                                             .GET().build(), BodyHandlers.ofString());
                             var enabledWithTrace = httpClient.send(
                                     newBuilder(URI.create(format(
-                                            "http://localhost:%s/benchmark-trace", enabledPort)))
+                                            "http://127.0.0.1:%s/benchmark-trace", enabledPort)))
                                             .GET()
                                             .header(ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER, "trace-1")
                                             .build(), BodyHandlers.ofString());
@@ -479,7 +493,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/cookies", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/cookies", proxyPort)))
                                     .GET().build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
                         assertEquals(200, response.statusCode());
@@ -500,7 +514,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/http2-no-content", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/http2-no-content", proxyPort)))
                                     .version(HttpClient.Version.HTTP_2)
                                     .GET().build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
@@ -536,7 +550,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/filtered-response-headers", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/filtered-response-headers", proxyPort)))
                                     .version(HttpClient.Version.HTTP_2)
                                     .GET().build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
@@ -565,7 +579,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/large-request-header", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/large-request-header", proxyPort)))
                                     .GET()
                                     .header("X-Large", largeHeader)
                                     .build(), BodyHandlers.ofString()).body())
@@ -585,7 +599,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/large-response-header", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/large-response-header", proxyPort)))
                                     .version(HttpClient.Version.HTTP_1_1).GET().build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
                         assertEquals(HttpClient.Version.HTTP_1_1, response.version());
@@ -610,7 +624,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/small-stream", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/small-stream", proxyPort)))
                                     .GET().build(), BodyHandlers.ofByteArray()))
                     .verifyResult(response -> {
                         assertEquals(200, response.statusCode());
@@ -636,7 +650,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/stream", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/stream", proxyPort)))
                                     .GET().build(), BodyHandlers.ofByteArray()))
                     .verifyResult(response -> {
                         assertEquals(200, response.statusCode());
@@ -668,7 +682,7 @@ class ProxyServerTest {
                 });
 
                 var response = httpClient.send(
-                        newBuilder(URI.create(format("http://localhost:%s/limited", configuredPort)))
+                        newBuilder(URI.create(format("http://127.0.0.1:%s/limited", configuredPort)))
                                 .POST(BodyPublishers.ofString("0123456789"))
                                 .build(), BodyHandlers.ofString());
 
@@ -708,7 +722,7 @@ class ProxyServerTest {
                 });
 
                 var response = httpClient.send(
-                        newBuilder(URI.create(format("http://localhost:%s/multipart", configuredPort)))
+                        newBuilder(URI.create(format("http://127.0.0.1:%s/multipart", configuredPort)))
                                 .header("Content-Type", "multipart/form-data; boundary=x")
                                 .POST(BodyPublishers.ofString(payload))
                                 .build(), BodyHandlers.ofString());
@@ -749,7 +763,7 @@ class ProxyServerTest {
                 });
 
                 var response = httpClient.send(
-                        newBuilder(URI.create(format("http://localhost:%s/multipart", configuredPort)))
+                        newBuilder(URI.create(format("http://127.0.0.1:%s/multipart", configuredPort)))
                                 .header("Content-Type", "multipart/form-data; boundary=x")
                                 .POST(BodyPublishers.ofString("0123456789abcdef"))
                                 .build(), BodyHandlers.ofString());
@@ -787,7 +801,7 @@ class ProxyServerTest {
                         })
                         .whenApplying(fc -> httpClient.send(
                                 newBuilder(URI.create(format(
-                                        "http://localhost:%s/configured-timeout", configuredPort)))
+                                        "http://127.0.0.1:%s/configured-timeout", configuredPort)))
                                         .GET().build(), BodyHandlers.ofString()))
                         .<java.net.http.HttpResponse<String>>expectResult(response -> {
                             assertEquals(200, response.statusCode(), () -> "Unexpected proxy response: "
@@ -833,12 +847,12 @@ class ProxyServerTest {
                 });
 
                 var first = httpClient.sendAsync(
-                        newBuilder(URI.create(format("http://localhost:%s/in-flight", configuredPort)))
+                        newBuilder(URI.create(format("http://127.0.0.1:%s/in-flight", configuredPort)))
                                 .GET().build(), BodyHandlers.ofString());
                 assertTrue(entered.await(5, TimeUnit.SECONDS), "Expected first request to reach the runtime handler");
 
                 var rejected = httpClient.send(
-                        newBuilder(URI.create(format("http://localhost:%s/in-flight", configuredPort)))
+                        newBuilder(URI.create(format("http://127.0.0.1:%s/in-flight", configuredPort)))
                                 .GET().build(), BodyHandlers.ofString());
 
                 assertEquals(503, rejected.statusCode());
@@ -849,7 +863,7 @@ class ProxyServerTest {
                 assertEquals(200, first.get(5, TimeUnit.SECONDS).statusCode());
 
                 var acceptedAfterRelease = httpClient.send(
-                        newBuilder(URI.create(format("http://localhost:%s/in-flight", configuredPort)))
+                        newBuilder(URI.create(format("http://127.0.0.1:%s/in-flight", configuredPort)))
                                 .GET().build(), BodyHandlers.ofString());
 
                 assertEquals(200, acceptedAfterRelease.statusCode());
@@ -950,7 +964,7 @@ class ProxyServerTest {
             testFixture.registerHandlers(new OpenApiDemoHandler())
                     .whenApplying(fc -> httpClient.send(newBuilder(
                                                                     URI.create(format(
-                                                                            "http://localhost:%s/openapi-demo/openapi.json",
+                                                                            "http://127.0.0.1:%s/openapi-demo/openapi.json",
                                                                             proxyPort)))
                                                             .GET().build(),
                                                         BodyHandlers.ofString()))
@@ -990,7 +1004,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/chunked-stream", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/chunked-stream", proxyPort)))
                                     .header("X-Chunked-Test", "yes")
                                     .POST(BodyPublishers.ofByteArray(payload))
                                     .build(), BodyHandlers.ofString()))
@@ -1017,7 +1031,7 @@ class ProxyServerTest {
                             }
                         })
                         .whenApplying(fc -> httpClient.send(
-                                newBuilder(URI.create(format("http://localhost:%s/chunked-segment", proxyPort)))
+                                newBuilder(URI.create(format("http://127.0.0.1:%s/chunked-segment", proxyPort)))
                                         .header("X-Routing-Key", "customer-123")
                                         .POST(BodyPublishers.ofByteArray(payload))
                                         .build(), BodyHandlers.ofString()).body())
@@ -1044,7 +1058,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/chunked-string", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/chunked-string", proxyPort)))
                                     .POST(BodyPublishers.ofString(payload))
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
@@ -1066,12 +1080,14 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/chunked-bytes", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/chunked-bytes", proxyPort)))
                                     .header("Content-Type", "application/octet-stream")
                                     .POST(BodyPublishers.ofByteArray(payload))
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
-                        assertEquals(200, response.statusCode());
+                        assertEquals(200, response.statusCode(), () ->
+                                "Unexpected response for %s: headers=%s, body=%s".formatted(
+                                        response.uri(), response.headers().map(), response.body()));
                         assertEquals(expected, response.body());
                     });
         }
@@ -1088,7 +1104,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/chunked-webrequest", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/chunked-webrequest", proxyPort)))
                                     .POST(BodyPublishers.ofString(payload))
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
@@ -1110,7 +1126,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/unknown-length", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/unknown-length", proxyPort)))
                                     .version(HttpClient.Version.HTTP_1_1)
                                     .POST(BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(payload)))
                                     .build(), BodyHandlers.ofString()))
@@ -1133,13 +1149,15 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/unknown-length-small", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/unknown-length-small", proxyPort)))
                                     .version(HttpClient.Version.HTTP_1_1)
                                     .header("Content-Type", "application/octet-stream")
                                     .POST(BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(payload)))
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
-                        assertEquals(200, response.statusCode());
+                        assertEquals(200, response.statusCode(), () ->
+                                "Unexpected response for %s: headers=%s, body=%s".formatted(
+                                        response.uri(), response.headers().map(), response.body()));
                         assertEquals(expected, response.body());
                     });
         }
@@ -1161,7 +1179,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/chunk-boundary", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/chunk-boundary", proxyPort)))
                                     .POST(BodyPublishers.ofString(payload))
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
@@ -1194,7 +1212,7 @@ class ProxyServerTest {
                             }
                         })
                         .whenApplying(fc -> httpClient.send(
-                                newBuilder(URI.create(format("http://localhost:%s/chunk-multiple", proxyPort)))
+                                newBuilder(URI.create(format("http://127.0.0.1:%s/chunk-multiple", proxyPort)))
                                         .POST(BodyPublishers.ofByteArray(payload))
                                         .build(), BodyHandlers.ofString()))
                         .verifyResult(response -> {
@@ -1224,7 +1242,7 @@ class ProxyServerTest {
                             }
                         })
                         .whenApplying(fc -> httpClient.send(
-                                newBuilder(URI.create(format("http://localhost:%s/chunked-small-parts", proxyPort)))
+                                newBuilder(URI.create(format("http://127.0.0.1:%s/chunked-small-parts", proxyPort)))
                                         .POST(chunkedBodyPublisher(payload, 3))
                                         .build(), BodyHandlers.ofString()))
                         .verifyResult(response -> {
@@ -1255,7 +1273,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/chunked-async", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/chunked-async", proxyPort)))
                                     .POST(BodyPublishers.ofByteArray(payload))
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
@@ -1278,7 +1296,7 @@ class ProxyServerTest {
                 }
             });
 
-            try (Socket socket = new Socket("localhost", proxyPort)) {
+            try (Socket socket = new Socket("127.0.0.1", proxyPort)) {
                 OutputStream output = socket.getOutputStream();
                 output.write(("POST /disconnect-upload HTTP/1.1\r\n"
                               + "Host: localhost\r\n"
@@ -1319,7 +1337,7 @@ class ProxyServerTest {
                         })
                         .whenApplying(fc -> httpClient.send(
                                 newBuilder(URI.create(format(
-                                        "http://localhost:%s/configured-chunks", configuredPort)))
+                                        "http://127.0.0.1:%s/configured-chunks", configuredPort)))
                                         .POST(BodyPublishers.ofString(payload))
                                         .build(), BodyHandlers.ofString()))
                         .verifyResult(response -> {
@@ -1377,7 +1395,7 @@ class ProxyServerTest {
                 });
 
                 var response = httpClient.send(
-                        newBuilder(URI.create(format("http://localhost:%s/limited-unknown", configuredPort)))
+                        newBuilder(URI.create(format("http://127.0.0.1:%s/limited-unknown", configuredPort)))
                                 .version(HttpClient.Version.HTTP_1_1)
                                 .POST(BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(payload)))
                                 .build(), BodyHandlers.ofString());
@@ -1414,7 +1432,7 @@ class ProxyServerTest {
                     }
                 });
 
-                try (Socket socket = new Socket("localhost", configuredPort)) {
+                try (Socket socket = new Socket("127.0.0.1", configuredPort)) {
                     socket.setSoTimeout(3000);
                     OutputStream output = socket.getOutputStream();
                     output.write(("POST /stalled-upload HTTP/1.1\r\n"
@@ -1457,7 +1475,7 @@ class ProxyServerTest {
         }
 
         private URI baseUri() {
-            return URI.create(format("http://localhost:%s/", proxyPort));
+            return URI.create(format("http://127.0.0.1:%s/", proxyPort));
         }
 
         private void assertChunkedFlagForPayloadSize(int size, boolean expectedChunked) {
@@ -1470,7 +1488,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(fc -> httpClient.send(
-                            newBuilder(URI.create(format("http://localhost:%s/chunk-flag", proxyPort)))
+                            newBuilder(URI.create(format("http://127.0.0.1:%s/chunk-flag", proxyPort)))
                                     .POST(BodyPublishers.ofByteArray(payload))
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
@@ -1602,14 +1620,14 @@ class ProxyServerTest {
 
         @SneakyThrows
         private synchronized static void withJwksServer(String jwksResponse, ThrowingConsumer<String> task) {
-            int port = TestUtils.getAvailablePort();
-            var server = HttpServer.create(new InetSocketAddress(port), 0);
+            var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            int port = server.getAddress().getPort();
             server.createContext("/jwks", exchange -> {
                 exchange.sendResponseHeaders(200, jwksResponse.length());
                 exchange.getResponseBody().write(jwksResponse.getBytes());
                 exchange.close();
             });
-            String url = format("http://localhost:%s/jwks", port);
+            String url = format("http://127.0.0.1:%s/jwks", port);
             server.start();
             try {
                 System.setProperty(JWKS_URL_PROPERTY, url);
@@ -1634,7 +1652,7 @@ class ProxyServerTest {
         }
 
         private URI baseUri() {
-            return URI.create(format("http://localhost:%s/", proxyPort));
+            return URI.create(format("http://127.0.0.1:%s/", proxyPort));
         }
     }
 
@@ -1648,7 +1666,7 @@ class ProxyServerTest {
             try {
                 System.setProperty(ProxyServer.RESPONSE_HEADER_BUFFER_SIZE_PROPERTY, "1");
                 configuredProxy = ProxyServer.startHttpProxyOnly(0, proxyRequestHandler);
-                URI uri = URI.create(format("ws://localhost:%s/", configuredProxy.getPort()));
+                URI uri = URI.create(format("ws://127.0.0.1:%s/", configuredProxy.getPort()));
                 testFixture.registerHandlers(new Object() {
                             @HandleSocketMessage("/")
                             String echo(String message) {
@@ -2147,7 +2165,7 @@ class ProxyServerTest {
         }
 
         private URI baseUri(String pathAndQuery) {
-            return URI.create(format("ws://localhost:%s%s", proxyPort, pathAndQuery));
+            return URI.create(format("ws://127.0.0.1:%s%s", proxyPort, pathAndQuery));
         }
     }
 
@@ -2431,7 +2449,7 @@ class ProxyServerTest {
         }
 
         private HttpRequest.Builder newRequest(String path) {
-            return newBuilder(URI.create(String.format("http://localhost:%s%s", proxyPort, path)));
+            return newBuilder(URI.create(String.format("http://127.0.0.1:%s%s", proxyPort, path)));
         }
 
     }
