@@ -2687,7 +2687,10 @@ requires the marker on its declared type for implicit handler injection. Ordinar
 types and side-effect-free `asEntity(...)` wrappers do not need `@Aggregate`. A typed `loadEntity(...)` lookup for a missing member
 returns an empty entity with its requested ID and type, so `isPresent()` is false and `loadEntityValue(...)`
 returns `null`. Create or change members through their owning root; an empty lookup does not make a member
-an independent aggregate.
+an independent aggregate. Existing members can be looked up by functional ID and expected type in the same handler
+before their owner commits, including `@EntityId` affixes. Removing a loaded member with `update(value -> null)`
+updates its owner through the existing commit policy and may return `null`; retain the root handle for subsequent work.
+These operations do not add event history to direct `update` calls.
 
 `@Member` remains supported and is not deprecated. Its role is deliberately embedded state whose creation,
 changes, history, retention and deletion all belong to its owner, including nested handlers in `@Stateful` objects.
