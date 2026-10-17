@@ -242,6 +242,16 @@ public class TrackerCluster {
         return Collections.unmodifiableSet(trackers.keySet());
     }
 
+    boolean hasSameAssignment(Tracker tracker, TrackerCluster other) {
+        Segment current = trackers.get(tracker), previous = other.trackers.get(tracker);
+        if (Objects.equals(current, previous)) {
+            return true;
+        }
+        return tracker.singleTracker() && current != null && previous != null
+               && (current.contains(0) && current.getLength() > 0)
+                  == (previous.contains(0) && previous.getLength() > 0);
+    }
+
     /**
      * Returns true if no trackers are currently registered.
      */
