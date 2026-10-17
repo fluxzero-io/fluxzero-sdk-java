@@ -411,3 +411,9 @@ methods remain non-blocking in SDK 2.x; SDK 1.x retains its synchronous convenie
 topic, and transport segment, index, source, target, and request ID. Serialization remains lazy and uses the
 replacement payload's type and revision. This applies to Java and Kotlin. For a new logical envelope,
 construct a new `DeserializingMessage` from a logical `Message` instead of inheriting received transport fields.
+
+## Outbound HTTP resilience
+
+Use `WebRequestSettings` with `retryPolicy(RetryPolicy.SAFE)` and `retryJitter(true)` for opt-in retry safety and jitter. SAFE allows HTTP-idempotent methods or one nonblank Idempotency-Key supported by upstream deduplication; use IDEMPOTENT only for a proven application guarantee. Defaults remain LEGACY, no jitter, and no origin limit. All attempts share the existing timeout budget.
+
+Set `fluxzero.proxy.forward.maxConcurrentPerOrigin` (`FLUXZERO_PROXY_FORWARD_MAX_CONCURRENT_PER_ORIGIN`) on the proxy or `fluxzero.web.native.maxConcurrentPerOrigin` (`FLUXZERO_WEB_NATIVE_MAX_CONCURRENT_PER_ORIGIN`) on the native application; zero disables the limit. Positive limits are local per original scheme/host/effective-port. Proxy segment ordering and bounded backpressure remain; native excess calls return 503 immediately. Redirect targets are not separate bulkheads. See the canonical outbound-request guide for full contracts.

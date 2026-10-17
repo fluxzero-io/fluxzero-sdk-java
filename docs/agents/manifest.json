@@ -3070,6 +3070,10 @@
       "summary": "Publish an absolute JSON HTTP POST for a processor integration with WebRequest.post and WebRequestGateway.sendAndForget, choose SENT or STORED, and assert the exact request without treating its HTTP response as a business decision.",
       "source": "articles/sdk/web/outbound-requests.md",
       "symbols": [
+        "WebRequestSettings",
+        "RetryPolicy.SAFE",
+        "retryJitter",
+        "maxConcurrentPerOrigin",
         "HTTP request web client one-way endpoint",
         "outbound HTTP WebRequest send request",
         "one way HTTP POST JSON outbound",

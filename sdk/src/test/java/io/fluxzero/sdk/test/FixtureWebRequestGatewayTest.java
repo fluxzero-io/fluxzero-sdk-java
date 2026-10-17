@@ -18,6 +18,8 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.publishing.EventGateway;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.web.HandleGet;
+import io.fluxzero.sdk.web.HandlePost;
+import io.fluxzero.sdk.web.RetryPolicy;
 import io.fluxzero.sdk.web.RedirectPolicy;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
@@ -83,6 +85,22 @@ class FixtureWebRequestGatewayTest {
         verify(eventGateway).publish(new EndpointCalled());
     }
 
+    @Test
+    void safePostRetriesMatchNativePolicyInSyncAndAsyncFixtures() {
+        for (boolean async : new boolean[]{false, true}) {
+            for (boolean withKey : new boolean[]{false, true}) {
+                RetryingEndpoint endpoint = new RetryingEndpoint();
+                TestFixture fixture = async ? TestFixture.createAsync(endpoint) : TestFixture.create(endpoint);
+                var request = WebRequest.post(ENDPOINT);
+                if (withKey) { request.header("Idempotency-Key", "stable-key"); }
+                fixture.whenApplying(fc -> fc.webRequestGateway().send(request.build(),
+                                retrySettings().toBuilder().retryPolicy(RetryPolicy.SAFE).retryJitter(true).build()).join())
+                        .<WebResponse>expectResult(response -> response.getStatus() == (withKey ? 200 : 429));
+                assertEquals(withKey ? 2 : 1, endpoint.attempts.get());
+            }
+        }
+    }
+
     private static WebRequestSettings retrySettings() {
         return WebRequestSettings.builder()
                 .useNativeHttpClient(true)
@@ -96,6 +114,7 @@ class FixtureWebRequestGatewayTest {
     private static class RetryingEndpoint {
         private final AtomicInteger attempts = new AtomicInteger();
 
+        @HandlePost(ENDPOINT)
         @HandleGet(ENDPOINT)
         WebResponse handle() {
             return attempts.getAndIncrement() == 0

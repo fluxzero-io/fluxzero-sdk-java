@@ -17,8 +17,9 @@ package io.fluxzero.proxy;
 
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.MessageType;
+import io.fluxzero.common.HttpOrigin;
 import io.fluxzero.common.MemoizingSupplier;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -36,8 +37,8 @@ import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.metrics.HandleMessageEvent;
 import io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent;
-import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.RedirectPolicy;
+import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.AccessLevel;
@@ -89,6 +90,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     static final String MAX_OUTSTANDING_REQUESTS_PROPERTY = "FLUXZERO_PROXY_FORWARD_MAX_OUTSTANDING_REQUESTS";
     static final String BATCH_COMPLETION_GRACE_MILLIS_PROPERTY =
             "FLUXZERO_PROXY_FORWARD_BATCH_COMPLETION_GRACE_MILLIS";
+    static final String MAX_CONCURRENT_PER_ORIGIN_PROPERTY = "fluxzero.proxy.forward.maxConcurrentPerOrigin";
     static final int DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
     static final int DEFAULT_MAX_OUTSTANDING_REQUESTS = 1024;
     static final Duration DEFAULT_BATCH_COMPLETION_GRACE = Duration.ofMillis(250);
@@ -167,6 +169,17 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
              batchCompletionGrace, ForwardProxyConsumer::delay, null);
     }
 
+    ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
+                         boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
+                         int maxConcurrentRequests, int maxOutstandingRequests, Duration batchCompletionGrace,
+                         int maxConcurrentPerOrigin) {
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, RedirectClients.single(httpClient),
+             forceStopping, new AtomicBoolean(), ConcurrentHashMap.newKeySet(), ConcurrentHashMap.newKeySet(),
+             new Object(), maxConcurrentRequests, maxOutstandingRequests, batchCompletionGrace,
+             ForwardProxyConsumer::delay,
+             new SegmentSerialScheduler<>(maxConcurrentRequests, maxOutstandingRequests, maxConcurrentPerOrigin));
+    }
+
     private ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                                  boolean publishMetrics, RedirectClients httpClients, AtomicBoolean forceStopping,
                                  int maxConcurrentRequests, int maxOutstandingRequests,
@@ -201,7 +214,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         this.batchCompletionGrace = requireNonNegativeBatchCompletionGrace(batchCompletionGrace);
         this.retryDelay = Objects.requireNonNull(retryDelay);
         this.scheduler = scheduler == null
-                ? new SegmentSerialScheduler<>(this.maxConcurrentRequests, this.maxOutstandingRequests) : scheduler;
+                ? new SegmentSerialScheduler<>(this.maxConcurrentRequests, this.maxOutstandingRequests,
+                                               configuredMaxConcurrentPerOrigin()) : scheduler;
     }
 
     public static Registration start(Client client) {
@@ -231,6 +245,14 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         return HttpClient.newBuilder()
                 .executor(forwardWorkerPool).followRedirects(redirectPolicy)
                 .connectTimeout(Duration.ofSeconds(5)).build();
+    }
+
+    static int configuredMaxConcurrentPerOrigin() {
+        int value = getIntegerProperty(MAX_CONCURRENT_PER_ORIGIN_PROPERTY, 0);
+        if (value < 0) {
+            throw new IllegalArgumentException(MAX_CONCURRENT_PER_ORIGIN_PROPERTY + " must be >= 0");
+        }
+        return value;
     }
 
     static int configuredMaxConcurrentRequests() {
@@ -408,7 +430,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                     .whenComplete((response, error) -> complete(execution, response, error));
         } else {
             try {
-                executeRequestAsync(asHttpRequest(request, uri, settings), effectiveRedirectPolicy(settings), deadline,
+                executeRequestAsync(asHttpRequest(request, uri, scheduler.originLimited()
+                        ? settings.toBuilder().timeout(Duration.between(start, deadline)).build() : settings),
+                                    effectiveRedirectPolicy(settings), deadline,
                                     execution)
                         .whenComplete((response, error) -> complete(execution, response, error));
             } catch (Throwable e) {
@@ -487,7 +511,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             SerializedMessage request, URI uri, WebRequestSettings settings, Instant deadline,
             CancellableResponseFuture requestFuture) {
         return executeRequestWithRetries(
-                request, uri, settings, Math.max(0, settings.getMaxRetries()), deadline, requestFuture);
+                request, uri, settings,
+                settings.retriesFor(WebRequest.getMethod(request.getMetadata()), getHeaders(request.getMetadata())),
+                deadline, requestFuture);
     }
 
     private CompletableFuture<WebResponse> executeRequestWithRetries(
@@ -662,8 +688,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     private Duration normalizedRetryDelay(WebRequestSettings settings) {
-        Duration delay = settings.getRetryDelay();
-        return delay.isNegative() ? Duration.ZERO : delay;
+        return settings.nextRetryDelay();
     }
 
     private static CompletableFuture<Void> delay(Duration duration) {
@@ -864,6 +889,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         private final WebRequestSettings settings;
         private final Throwable initialFailure;
         private final int segment;
+        private final HttpOrigin origin;
         // A queued request may start on its predecessor's completion thread, after the tracker context has gone.
         private final Map<String, String> correlationData;
         private final AtomicReference<RequestState> state = new AtomicReference<>(RequestState.QUEUED);
@@ -874,6 +900,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         private ScheduledRequest(SerializedMessage request, URI uri, WebRequestSettings settings) {
             this.request = request;
             this.uri = uri;
+            this.origin = scheduler.originLimited() ? HttpOrigin.of(uri) : null;
             this.settings = settings;
             this.initialFailure = null;
             this.segment = requestSegment(request);
@@ -883,6 +910,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         private ScheduledRequest(SerializedMessage request, Throwable initialFailure) {
             this.request = request;
             this.uri = null;
+            this.origin = null;
             this.settings = null;
             this.initialFailure = initialFailure;
             this.segment = requestSegment(request);
@@ -892,6 +920,11 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         private int requestSegment(SerializedMessage request) {
             return ofNullable(request.getSegment()).orElseGet(() -> ConsistentHashing.computeSegment(
                     Objects.toString(request.getMessageId(), Objects.toString(request.getIndex(), "unsegmented"))));
+        }
+
+        @Override
+        public Object origin() {
+            return origin;
         }
 
         @Override

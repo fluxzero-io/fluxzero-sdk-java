@@ -44,7 +44,7 @@ final class FixtureWebRequestGateway implements WebRequestGateway {
 
     @Override
     public CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings) {
-        int retries = Math.max(0, settings.getMaxRetries());
+        int retries = settings.retriesFor(request.getMethod(), request.getHeaders());
         WebRequestSettings fixtureSettings = fixtureSettings(settings);
         CompletableFuture<WebResponse> result = delegate.send(request, fixtureSettings);
         for (int i = 0; i < retries; i++) {
@@ -57,7 +57,7 @@ final class FixtureWebRequestGateway implements WebRequestGateway {
 
     @Override
     public WebResponse sendAndWait(WebRequest request, WebRequestSettings settings) {
-        int retries = Math.max(0, settings.getMaxRetries());
+        int retries = settings.retriesFor(request.getMethod(), request.getHeaders());
         WebRequestSettings fixtureSettings = fixtureSettings(settings);
         WebResponse result = delegate.sendAndWait(request, fixtureSettings);
         while (retries-- > 0 && settings.getRetryableStatusCodes().contains(result.getStatus())) {

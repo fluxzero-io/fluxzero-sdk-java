@@ -523,6 +523,183 @@ class DefaultWebRequestGatewayTest {
         assertEquals("token=hidden", metadataCaptor.getValue().get(WebRequest.queryMetricKey));
     }
 
+    @Test
+    void safePostCannotBeRetriedByAnOlderProxy() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        when(delegate.sendForMessage(any(WebRequest.class), any(Duration.class)))
+                .thenReturn(completedFuture(WebResponse.builder().status(503).build()));
+        var gateway = gateway(delegate, mock(HttpClient.class));
+        gateway.sendAndWait(WebRequest.post("https://example.com").build(), WebRequestSettings.builder()
+                .maxRetries(4).retryPolicy(RetryPolicy.SAFE).build());
+        ArgumentCaptor<WebRequest> request = ArgumentCaptor.forClass(WebRequest.class);
+        verify(delegate).sendForMessage(request.capture(), any(Duration.class));
+        assertEquals(0, request.getValue().getMetadata().get("settings", WebRequestSettings.class).getMaxRetries());
+    }
+
+    @Test
+    void nativeSafePostIsNotRetriedButStableKeyIsRetainedOnEveryAttempt() throws Exception {
+        for (boolean withKey : List.of(false, true)) {
+            HttpClient httpClient = mock(HttpClient.class);
+            var busy = response(503, "busy");
+            var ok = response(200, "ok");
+            when(httpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                    .thenReturn(completedFuture(busy), completedFuture(ok));
+            var client = new NativeWebRequestClient(httpClient, new JacksonSerializer());
+            var builder = WebRequest.post("https://example.com").body("same payload");
+            if (withKey) { builder.header("Idempotency-Key", "stable-key"); }
+            WebResponse result = client.send(builder.build(), WebRequestSettings.builder()
+                    .maxRetries(1).retryPolicy(RetryPolicy.SAFE).retryDelay(Duration.ZERO).build())
+                    .get(2, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(withKey ? 200 : 503, result.getStatus());
+            ArgumentCaptor<HttpRequest> attempts = ArgumentCaptor.forClass(HttpRequest.class);
+            verify(httpClient, org.mockito.Mockito.times(withKey ? 2 : 1))
+                    .sendAsync(attempts.capture(), anyByteArrayBodyHandler());
+            if (withKey) {
+                assertTrue(attempts.getAllValues().stream().allMatch(r ->
+                        r.headers().firstValue("Idempotency-Key").orElseThrow().equals("stable-key")));
+            }
+            client.close();
+        }
+    }
+
+    @Test
+    void nativeOriginLimitHoldsAcrossRetriesAndReleasesOnCancellation() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        AtomicInteger calls = new AtomicInteger();
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler())).thenAnswer(invocation ->
+                completedFuture(response(calls.getAndIncrement() == 0 ? 503 : 200, "response")));
+        CompletableFuture<Void> delay = new CompletableFuture<>();
+        var client = new NativeWebRequestClient(httpClient, new JacksonSerializer(), ignored -> delay, 1);
+        var settings = WebRequestSettings.builder().maxRetries(1).retryDelay(Duration.ofMillis(200)).build();
+        var first = client.send(WebRequest.get("https://EXAMPLE.com/first").build(), settings);
+        assertFalse(first.isDone());
+        assertEquals(503, client.send(WebRequest.get("https://example.com:443/second").build(), settings).join().getStatus());
+        assertEquals(1, calls.get());
+        assertEquals(200, client.send(WebRequest.get("https://other.example/other").build(), settings).join().getStatus());
+        assertTrue(first.cancel(true));
+        assertTrue(delay.isCancelled());
+        assertEquals(200, client.send(WebRequest.get("https://example.com/next").build(), settings)
+                .get(2, java.util.concurrent.TimeUnit.SECONDS).getStatus());
+        client.close();
+    }
+
+    @Test
+    void nativeOriginLimitReleasesOnSynchronousFailureAndCloseCancelsRetryDelay() {
+        HttpClient httpClient = mock(HttpClient.class);
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                .thenThrow(new IllegalStateException("client failed"))
+                .thenReturn(completedFuture(response(503, "busy")));
+        CompletableFuture<Void> delay = new CompletableFuture<>();
+        var client = new NativeWebRequestClient(httpClient, new JacksonSerializer(), ignored -> delay, 1);
+        var request = WebRequest.get("https://example.com").build();
+        assertEquals(502, client.send(request, WebRequestSettings.builder().build()).join().getStatus());
+        var pending = client.send(request, WebRequestSettings.builder().maxRetries(1).build());
+        assertFalse(pending.isDone());
+        client.close();
+        assertTrue(pending.isCancelled());
+        assertTrue(delay.isCancelled());
+        assertEquals(503, client.send(request, WebRequestSettings.builder().build()).join().getStatus());
+    }
+
+    @Test
+    void closingLimitedNativeClientWaitsForInProgressLazyClientCreation() throws Exception {
+        var creating = new java.util.concurrent.CountDownLatch(1);
+        var finishCreation = new java.util.concurrent.CountDownLatch(1);
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<HttpResponse<byte[]>> attempt = new CompletableFuture<>();
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler())).thenReturn(attempt);
+        java.util.function.Supplier<HttpClient> factory = () -> {
+            creating.countDown();
+            try {
+                assertTrue(finishCreation.await(3, java.util.concurrent.TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            return httpClient;
+        };
+        var client = new NativeWebRequestClient(factory, factory, new JacksonSerializer(),
+                ignored -> completedFuture(null), 1);
+        CompletableFuture<CompletableFuture<WebResponse>> sent = new CompletableFuture<>();
+        Thread sender = new Thread(() -> {
+            try {
+                sent.complete(client.send(WebRequest.get("https://example.com").build(),
+                                          WebRequestSettings.builder().build()));
+            } catch (Throwable e) {
+                sent.completeExceptionally(e);
+            }
+        });
+        Thread closer = new Thread(client::close);
+        try {
+            sender.start();
+            assertTrue(creating.await(3, java.util.concurrent.TimeUnit.SECONDS));
+            closer.start();
+            long deadline = System.nanoTime() + Duration.ofSeconds(3).toNanos();
+            while (closer.isAlive() && closer.getState() != Thread.State.BLOCKED && System.nanoTime() < deadline) {
+                Thread.yield();
+            }
+            assertEquals(Thread.State.BLOCKED, closer.getState(), "Close must include the client being constructed");
+        } finally {
+            finishCreation.countDown();
+            sender.join(3000);
+            closer.join(3000);
+            client.close();
+        }
+        assertFalse(sender.isAlive());
+        assertFalse(closer.isAlive());
+        assertTrue(sent.get(1, java.util.concurrent.TimeUnit.SECONDS).isCancelled());
+        verify(httpClient, org.mockito.Mockito.atLeastOnce()).close();
+    }
+
+    @Test
+    void nativeLimitUsesEachGatewaysExplicitPropertySource() throws Exception {
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var firstReceived = new java.util.concurrent.CountDownLatch(1);
+        var allReceived = new java.util.concurrent.CountDownLatch(3);
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        var workers = java.util.concurrent.Executors.newFixedThreadPool(3);
+        server.setExecutor(workers);
+        server.createContext("/", exchange -> {
+            firstReceived.countDown();
+            allReceived.countDown();
+            try {
+                if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Request was not released");
+                }
+                exchange.sendResponseHeaders(200, -1);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exchange.close();
+            }
+        });
+        server.start();
+        var limited = new DefaultWebRequestGateway(mock(GenericGateway.class), new JacksonSerializer(),
+                new SimplePropertySource(Map.of(DefaultWebRequestGateway.MAX_CONCURRENT_PER_ORIGIN_PROPERTY, "1")), null);
+        var compatible = new DefaultWebRequestGateway(mock(GenericGateway.class), new JacksonSerializer(),
+                new SimplePropertySource(Map.of(DefaultWebRequestGateway.MAX_CONCURRENT_PER_ORIGIN_PROPERTY, "0")), null);
+        try {
+            var request = WebRequest.get("http://127.0.0.1:" + server.getAddress().getPort()).build();
+            var settings = WebRequestSettings.builder().useNativeHttpClient(true).timeout(Duration.ofSeconds(5)).build();
+            var first = limited.send(request, settings);
+            assertTrue(firstReceived.await(3, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(503, limited.send(request, settings).get(3, java.util.concurrent.TimeUnit.SECONDS).getStatus());
+            var second = compatible.send(request, settings);
+            var third = compatible.send(request, settings);
+            assertTrue(allReceived.await(3, java.util.concurrent.TimeUnit.SECONDS));
+            release.countDown();
+            for (var result : List.of(first, second, third)) {
+                assertEquals(200, result.get(3, java.util.concurrent.TimeUnit.SECONDS).getStatus());
+            }
+        } finally {
+            release.countDown();
+            limited.close();
+            compatible.close();
+            server.stop(0);
+            workers.shutdownNow();
+        }
+    }
+
     private RedirectPolicy resolveRedirectPolicy(Map<String, String> properties) {
         return DefaultWebRequestGateway.resolveDefaultRedirectPolicy(new SimplePropertySource(properties));
     }
