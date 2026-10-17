@@ -1276,7 +1276,28 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Resolves the requested supertype's generic arguments in the context of the candidate class.\n"
+    "documentation" : "Resolves the requested supertype's generic arguments in the context of the candidate class. "
+  }, {
+    "name" : "getGenericType",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getGenericType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "candidate",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "wantedClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves a generic supertype from a parameterized declaration, preserving its argument bindings. "
   }, {
     "name" : "getMemberAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getMemberAnnotation",

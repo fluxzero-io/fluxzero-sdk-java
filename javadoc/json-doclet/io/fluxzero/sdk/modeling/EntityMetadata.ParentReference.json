@@ -5,7 +5,7 @@
   "kind" : "record",
   "modifiers" : [ "final", "public", "static" ],
   "annotations" : [ ],
-  "documentation" : " One outgoing parent relationship declared by a child model.\n\n @param pathInParent    optional parent-relative automatic composition path\n @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID\n @param apiDoc          optional documentation for the list-valued automatic composition path\n @param propagateSearch whether ancestor search composition may traverse this edge\n @param validateAncestors whether cascading assertions may traverse this parent route\n @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle\n",
+  "documentation" : " One outgoing parent relationship declared by a child model.\n\n @param idType          scalar ID type, or the resolved collection element type\n @param pathInParent    optional parent-relative automatic composition path\n @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID\n @param apiDoc          optional documentation for the list-valued automatic composition path\n @param propagateSearch whether ancestor search composition may traverse this edge\n @param validateAncestors whether cascading assertions may traverse this parent route\n @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
@@ -21,6 +21,14 @@
     "name" : "deleteOnParentDeletion",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.deleteOnParentDeletion",
     "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "idType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.idType",
+    "type" : "java.lang.Class<?>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -75,6 +83,11 @@
     "parameters" : [ {
       "name" : "property",
       "type" : "io.fluxzero.sdk.modeling.EntityMetadata.Property",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "idType",
+      "type" : "java.lang.Class<?>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -169,6 +182,33 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "idType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#idType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ids",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#ids",
+    "returnType" : "java.util.Collection<?>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -271,6 +311,22 @@
     "varArgs" : false,
     "documentation" : " Reads the parent-reference value from the supplied target.\n"
   }, {
+    "name" : "readIds",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#readIds",
+    "returnType" : "java.util.Collection<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads distinct scalar parent IDs; a null property or empty collection has no parents. "
+  }, {
     "name" : "repositoryId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#repositoryId",
     "returnType" : "java.lang.String",
@@ -334,6 +390,11 @@
   }, {
     "name" : "deleteOnParentDeletion",
     "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "idType",
+    "type" : "java.lang.Class<?>",
     "annotations" : [ ],
     "documentation" : null
   }, {

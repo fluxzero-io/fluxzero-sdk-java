@@ -59,6 +59,27 @@
     "varArgs" : false,
     "documentation" : " Resolves the target supertype in the supplied class hierarchy, substituting type variables from intervening\n generic declarations.\n"
   }, {
+    "name" : "getGenericType",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#getGenericType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves a target supertype while retaining the supplied type's actual generic arguments. "
+  }, {
     "name" : "matchAndResolve",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#matchAndResolve",
     "returnType" : "java.lang.reflect.Type",
