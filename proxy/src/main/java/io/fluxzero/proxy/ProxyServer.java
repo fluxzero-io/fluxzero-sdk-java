@@ -204,7 +204,7 @@ public class ProxyServer implements Registration {
             proxyServer = startHttpProxyOnly(
                     getConfiguredPort(), new ProxyRequestHandler(client), forwardProxy, forwardProxy::force,
                     Registration.noOp(), true, LifecycleState.STARTING,
-                    getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT));
+                    getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT), "0.0.0.0");
             proxyServer.probeRuntimeReadiness(client);
         } catch (RuntimeException | Error e) {
             forwardProxy.force();
@@ -247,6 +247,19 @@ public class ProxyServer implements Registration {
      * @return a ProxyServer instance representing the started proxy server and owned embedded resources
      */
     public static ProxyServer start(ProxyServerConfig config) {
+        return start(config, "0.0.0.0");
+    }
+
+    /**
+     * Starts an embedded proxy on an explicit interface, with the port and backend settings from {@code config}.
+     * Use {@code "127.0.0.1"} for isolated loopback tests; other overloads retain their all-interface binding.
+     * The returned proxy owns its client and forward consumer and must be stopped with {@link #cancel()}.
+     *
+     * @param config proxy configuration
+     * @param host interface address to bind
+     * @return the started proxy
+     */
+    public static ProxyServer start(ProxyServerConfig config, String host) {
         Client client = createClient(config);
         ForwardProxyConsumer.Lifecycle forwardProxyConsumer = null;
         try {
@@ -254,7 +267,7 @@ public class ProxyServer implements Registration {
             ProxyServer proxyServer = startHttpProxyOnly(
                     config.port(), new ProxyRequestHandler(client), forwardProxyConsumer,
                     forwardProxyConsumer::force, idempotent(client::shutDown), config.gracefulShutdown(),
-                    LifecycleState.STARTING, config.healthEndpoint());
+                    LifecycleState.STARTING, config.healthEndpoint(), host);
             proxyServer.probeRuntimeReadiness(client);
             logStarted(proxyServer);
             return proxyServer;
@@ -272,12 +285,14 @@ public class ProxyServer implements Registration {
     }
 
     /**
-     * Starts only the HTTP proxy surface for tests and embedded callers that provide their own forwarding lifecycle.
+     * Starts a loopback-only HTTP surface for in-process tests with their own forwarding lifecycle.
+     * Binding the exact client address prevents wildcard/specific-address port sharing on macOS.
      */
     static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler) {
         return startHttpProxyOnly(port, proxyHandler, Registration.noOp(), () -> {}, Registration.noOp(),
                                   false, LifecycleState.READY,
-                                  getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT));
+                                  getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT),
+                                  "127.0.0.1");
     }
 
     private static void logStarted(ProxyServer proxyServer) {
@@ -290,10 +305,9 @@ public class ProxyServer implements Registration {
     private static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler,
                                                  Registration shutdownRegistration, Runnable forceShutdown,
                                                  Registration ownedClientShutdown, boolean gracefulShutdown,
-                                                 LifecycleState initialState, String healthEndpoint) {
+                                                 LifecycleState initialState, String healthEndpoint, String host) {
         return startHttpProxyOnly(new Server(createThreadPool()), port, proxyHandler, shutdownRegistration,
-                                  forceShutdown, ownedClientShutdown, gracefulShutdown, initialState, healthEndpoint,
-                                  "0.0.0.0");
+                                  forceShutdown, ownedClientShutdown, gracefulShutdown, initialState, healthEndpoint, host);
     }
 
     /** Uses a caller-owned Jetty pool for isolated allocation tests and benchmarks. */

@@ -177,7 +177,15 @@ public class TestServer {
                            readRequestObserver, initialPositionLag);
     }
 
-    static Server startServer(InetSocketAddress address) {
+    /**
+     * Starts an embedded server bound to the supplied address. Use a loopback address and port {@code 0}
+     * to isolate local tests from other listeners and let the operating system allocate the port.
+     * The caller owns the returned server and must stop it when finished.
+     *
+     * @param address local interface and port to bind
+     * @return the started server
+     */
+    public static Server startServer(InetSocketAddress address) {
         return startServer(address, false, ignored -> {}, DEFAULT_INITIAL_POSITION_LAG);
     }
 
