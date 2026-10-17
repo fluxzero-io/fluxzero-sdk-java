@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
@@ -106,6 +107,18 @@ public class WebSocketClient extends AbstractClient {
 
     public static WebSocketClient newInstance(ClientConfig clientConfig) {
         return new WebSocketClient(clientConfig, null);
+    }
+
+    private final AtomicBoolean shutdownStarted = new AtomicBoolean();
+
+    @Override
+    public void prepareShutdown() {
+        shutdownStarted.set(true);
+    }
+
+    /** Whether this client or its owning application has started controlled shutdown. */
+    public boolean isShuttingDown() {
+        return shutdownStarted.get() || applicationClient != null && applicationClient.isShuttingDown();
     }
 
     @Override

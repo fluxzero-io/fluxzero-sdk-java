@@ -427,23 +427,37 @@ class DefaultTrackerTest {
     }
 
     @Test
-    void cancellationDoesNotWaitIndefinitelyWhenFetchIgnoresInterrupts() throws Exception {
+    void cancellationBoundsBlockedFetchesAndProcessingWithOneDeadline() throws Exception {
         TrackingClient trackingClient = trackingClient();
-        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").threads(2).build();
+        io.fluxzero.sdk.tracking.BatchInterceptor interceptor = mock(io.fluxzero.sdk.tracking.BatchInterceptor.class);
+        when(interceptor.intercept(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").threads(3)
+                .batchInterceptor(interceptor).build();
         CountDownLatch fetching = new CountDownLatch(2);
-        CountDownLatch releaseFetch = new CountDownLatch(1);
+        CountDownLatch processing = new CountDownLatch(1);
+        CountDownLatch releaseWork = new CountDownLatch(1);
+        AtomicInteger reads = new AtomicInteger();
         AtomicInteger activeFetches = new AtomicInteger();
-
+        AtomicBoolean interruptedProcessing = new AtomicBoolean();
+        List<Thread> workers = new java.util.concurrent.CopyOnWriteArrayList<>();
+        SerializedMessage message = mock(SerializedMessage.class);
+        when(message.getIndex()).thenReturn(1L);
+        when(trackingClient.storePosition(eq("consumer"), any(), eq(1L)))
+                .thenReturn(CompletableFuture.completedFuture(null));
         when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
         when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
+            workers.add(currentThread());
+            if (reads.getAndIncrement() == 0) {
+                return new MessageBatch(new int[]{0, 64}, List.of(message), 1L, Position.newPosition(), true);
+            }
             activeFetches.incrementAndGet();
             fetching.countDown();
             try {
-                while (releaseFetch.getCount() > 0L) {
+                while (releaseWork.getCount() > 0L) {
                     try {
-                        releaseFetch.await();
+                        releaseWork.await();
                     } catch (InterruptedException ignored) {
-                        // Deliberately emulate a broken/custom tracking client that ignores cancellation.
+                        // Deliberately emulate a custom client that ignores cancellation.
                     }
                 }
                 return null;
@@ -452,18 +466,46 @@ class DefaultTrackerTest {
             }
         });
 
-        Registration registration = DefaultTracker.start(messages -> {}, config, trackingClient);
+        Registration registration = DefaultTracker.start(messages -> {
+            processing.countDown();
+            try {
+                releaseWork.await();
+            } catch (InterruptedException e) {
+                interruptedProcessing.set(true);
+                currentThread().interrupt();
+            }
+        }, config, trackingClient);
         try {
             assertTrue(fetching.await(1, TimeUnit.SECONDS));
-
-            assertTimeout(Duration.ofMillis(1_800), registration::cancel);
-
-            assertEquals(2, activeFetches.get(), "Both test fetches should still be blocked after ignoring interruption");
+            assertTrue(processing.await(1, TimeUnit.SECONDS));
+            var cancellation = new java.util.concurrent.FutureTask<Void>(() -> {
+                registration.cancel();
+                return null;
+            });
+            Thread cancellingThread = new Thread(cancellation, "bounded-tracker-cancellation");
+            cancellingThread.start();
+            try {
+                cancellation.get(1_800, TimeUnit.MILLISECONDS);
+                assertEquals(2, activeFetches.get(), "Both fetches must still be blocked");
+                verify(interceptor, never()).shutdown(any());
+                assertFalse(interruptedProcessing.get(), "Cancellation must not interrupt an active handler");
+                verify(trackingClient, never()).storePosition(eq("consumer"), any(), eq(1L));
+                verify(trackingClient, never()).disconnectTerminatedTracker(anyString(), anyString(), any());
+            } finally {
+                releaseWork.countDown();
+                assertTrue(cancellingThread.join(Duration.ofSeconds(1)));
+            }
         } finally {
-            releaseFetch.countDown();
+            releaseWork.countDown();
             registration.cancel();
-            assertEquals(0, activeFetches.get());
+            for (Thread worker : workers) {
+                assertTrue(worker.join(Duration.ofSeconds(1)), "Released tracker must terminate");
+            }
         }
+        assertEquals(0, activeFetches.get());
+        verify(trackingClient).storePosition(eq("consumer"), any(), eq(1L));
+        verify(trackingClient, times(3)).disconnectTerminatedTracker(anyString(), anyString(), any());
+        verify(interceptor, times(3)).shutdown(any());
     }
 
     @Test
