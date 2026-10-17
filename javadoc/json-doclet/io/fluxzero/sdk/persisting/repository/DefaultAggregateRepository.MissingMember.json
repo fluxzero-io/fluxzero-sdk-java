@@ -1,0 +1,180 @@
+{
+  "name" : "MissingMember",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "class",
+  "modifiers" : [ "private" ],
+  "annotations" : [ ],
+  "documentation" : "A typed absence result with ordinary validation, but no implicit standalone member persistence. ",
+  "typeParameters" : [ "T" ],
+  "superClass" : "io.fluxzero.sdk.modeling.DelegatingEntity<T>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "MissingMember",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember#MissingMember",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember#apply",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember#assertLegal",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember#commit",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "previous",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember#previous",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "update",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember#update",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.UnaryOperator<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withEventIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember#withEventIndex",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "index",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withSequenceNumber",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember#withSequenceNumber",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember#withType",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -25,6 +25,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository",
     "kind" : "class"
   }, {
+    "file" : "DefaultAggregateRepository.MissingMember.json",
+    "name" : "DefaultAggregateRepository.MissingMember",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$MissingMember",
+    "kind" : "class"
+  }, {
     "file" : "DefaultModelRepository.json",
     "name" : "DefaultModelRepository",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository",

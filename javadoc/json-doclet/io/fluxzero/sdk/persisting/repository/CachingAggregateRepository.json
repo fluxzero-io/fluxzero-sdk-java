@@ -332,6 +332,30 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "loadEntityFallback",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository#loadEntityFallback",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "entityId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "loadFor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository#loadFor",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",

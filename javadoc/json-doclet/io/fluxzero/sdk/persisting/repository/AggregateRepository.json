@@ -159,6 +159,27 @@
     "varArgs" : false,
     "documentation" : " Load an aggregate by its identifier and type. The root type must declare or inherit\n {@link io.fluxzero.sdk.modeling.Aggregate @Aggregate}. An empty, untyped {@link Object} root is allowed until\n its type becomes known; the default repository validates inferred types and newly created roots as well.\n\n @param aggregateId   the aggregate identifier.\n @param aggregateType the expected class type.\n @param <T>           the aggregate type.\n @return the loaded aggregate wrapped in an {@link Entity}.\n @throws IllegalArgumentException if the known root type has no aggregate marker\n"
   }, {
+    "name" : "loadEntityFallback",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.AggregateRepository#loadEntityFallback",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "entityId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a typed entity lookup after no matching entity was found through the ownership index.\n Marked roots retain normal aggregate loading. The default Fluxzero repository returns an empty, typed\n lookup result for an absent unmarked member; that result cannot create an unmarked persistent root.\n Existing unmarked aggregate data still fails root validation.\n <p>\n Custom repositories retain their existing aggregate fallback unless they override this method.\n\n @param entityId the entity identifier, also used as root identifier for this fallback\n @param entityType the expected entity type\n @return the root or an empty entity lookup result\n"
+  }, {
     "name" : "loadFor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.AggregateRepository#loadFor",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",

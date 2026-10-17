@@ -1469,7 +1469,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads the entity with given id. If the entity is not associated with any aggregate yet, a new aggregate root is\n loaded with the entityId as aggregate identifier. In case multiple entities are associated with the given\n entityId the most recent entity is returned.\n <p>\n If the entity is loaded while handling an event its aggregate, the returned entity will automatically be played\n back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.\n"
+    "documentation" : " Loads the entity with given id. Marked roots retain aggregate loading when no owner is found. A typed lookup\n for an absent, unmarked member returns an empty entity with the requested ID and type, without creating a\n standalone aggregate. In case multiple entities are associated with the given entityId the most recent entity\n is returned.\n <p>\n If the entity is loaded while handling an event its aggregate, the returned entity will automatically be played\n back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.\n"
   }, {
     "name" : "loadEntity",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadEntity",
@@ -1490,7 +1490,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads the entity with given id. If the entity is not associated with any aggregate yet, a new aggregate root is\n loaded with the entityId as aggregate identifier. In case multiple entities are associated with the given\n entityId the most recent entity is returned.\n <p>\n If the entity is loaded while handling an event its aggregate, the returned entity will automatically be played\n back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.\n"
+    "documentation" : " Loads the entity with given id. Marked roots retain aggregate loading when no owner is found. A typed lookup\n for an absent, unmarked member returns an empty entity with the requested ID and type, without creating a\n standalone aggregate. In case multiple entities are associated with the given entityId the most recent entity\n is returned.\n <p>\n If the entity is loaded while handling an event its aggregate, the returned entity will automatically be played\n back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.\n"
   }, {
     "name" : "loadEntity",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadEntity",
@@ -1511,7 +1511,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads an entity by functional ID and expected type. The type makes {@link EntityId} affixes available for\n independent models and entities embedded in legacy aggregates.\n"
+    "documentation" : " Loads an entity by functional ID and expected type. The type makes {@link EntityId} affixes available for\n independent models and entities embedded in legacy aggregates. An absent unmarked member yields an empty\n entity retaining its ID and type; it can be inspected or validated but cannot be persisted as a standalone\n aggregate. Create members through their owning root. Marked roots retain the normal aggregate fallback.\n"
   }, {
     "name" : "loadEntityValue",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadEntityValue",
