@@ -29,7 +29,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
 
 class FixtureWebRequestGatewayTest {
 
@@ -71,7 +71,7 @@ class FixtureWebRequestGatewayTest {
     }
 
     @Test
-    void asynchronousWorkflowDoesNotRouteUnrelatedCallsThroughFixtureSpies() {
+    void asynchronousWorkflowPreservesSpiesAlongsideFixtureWebRequests() {
         RetryingEndpoint endpoint = new RetryingEndpoint();
         TestFixture fixture = TestFixture.createAsync(endpoint, new PublishingWorkflow()).spy();
         EventGateway eventGateway = fixture.getFluxzero().eventGateway();
@@ -80,7 +80,7 @@ class FixtureWebRequestGatewayTest {
                 .expectResult(200);
 
         assertEquals(2, endpoint.attempts.get());
-        verifyNoInteractions(eventGateway);
+        verify(eventGateway).publish(new EndpointCalled());
     }
 
     private static WebRequestSettings retrySettings() {
