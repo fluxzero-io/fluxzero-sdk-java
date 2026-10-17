@@ -2073,13 +2073,45 @@ public class HandleWebTest {
             }
 
             @Test
-            void testAutoHandshakeAuthFailureNamesHandshakePathAndHandlerReason() {
+            void testAutoHandshakeAuthFailureOmitsHandshakePathAndHandlerReason() {
                 TestFixture.create(new SecuredHandshakeHandler())
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/open").build())
                         .expectExceptionalResult((UnauthenticatedException e) ->
-                                ("Websocket handshake for /secured/open failed because "
-                                 + "SecuredHandshakeHandler#open requires authentication").equals(e.getMessage()));
+                                "Authentication required.".equals(e.getMessage()));
+            }
+
+            @Test
+            void testAutoHandshakePreservesApplicationAuthorizationMessage() {
+                User user = new User() {
+                    @Override
+                    public String id() {
+                        return "user";
+                    }
+
+                    @Override
+                    public String getName() {
+                        return id();
+                    }
+
+                    @Override
+                    public boolean hasRole(String role) {
+                        throw new io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException(
+                                "Please renew your membership");
+                    }
+                };
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(new FixedUserProvider(user)),
+                                   new CustomAuthorizationHandshakeHandler())
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/custom-auth").build())
+                        .expectExceptionalResult((io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException e) ->
+                                "Please renew your membership".equals(e.getMessage()));
+            }
+
+            static class CustomAuthorizationHandshakeHandler {
+                @HandleSocketOpen("/custom-auth")
+                @RequiresAnyRole("member")
+                void open() {
+                }
             }
 
             @Test

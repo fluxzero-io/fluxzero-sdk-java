@@ -19,6 +19,11 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.DeserializationException;
+import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
+import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
+import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
+import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -28,6 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -42,6 +48,32 @@ import static org.mockito.Mockito.when;
 
 class DefaultWebResponseMapperTest {
     private final DefaultWebResponseMapper mapper = new DefaultWebResponseMapper();
+
+    @Test
+    void hidesDeserializationDetailsWithoutChangingTheDiagnosticException() {
+        var cause = new IllegalArgumentException("raw input secret");
+        var failure = new DeserializationException("internal.Type: raw input secret", cause);
+        WebResponse response = mapper.map(failure);
+        assertEquals(400, response.getStatus());
+        assertEquals("The request could not be read. Please check its format.", response.getPayload());
+        assertEquals("internal.Type: raw input secret", failure.getMessage());
+        org.junit.jupiter.api.Assertions.assertSame(cause, failure.getCause());
+    }
+
+    @Test
+    void preservesExplicitApplicationAndValidationMessages() {
+        for (var failure : List.of(new UnauthorizedException("Custom denial"),
+                                   new UnauthenticatedException("Please sign in again"))) {
+            WebResponse response = mapper.map(failure);
+            assertEquals(401, response.getStatus());
+            assertEquals(failure.getMessage(), response.getPayload());
+        }
+        var validation = new ValidationException("Choose an address", Set.of("addresses[home].city is required"));
+        assertEquals("Choose an address", mapper.map(validation).getPayload());
+        assertEquals(400, mapper.map(validation).getStatus());
+        assertEquals("Order is already shipped", mapper.map(new IllegalCommandException("Order is already shipped")).getPayload());
+        assertEquals("An unexpected error occurred.", mapper.map(new IllegalStateException("internal secret")).getPayload());
+    }
 
     @Test
     void negotiatesJsonForObjectPayload() {

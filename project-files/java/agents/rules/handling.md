@@ -852,3 +852,13 @@ public class ProjectId extends Id<Project> {
 
 - **Infrastructure in Handlers**: Don't build 'services' or use SQL. Use queries or load entities directly.
 - **Aggregates Handling Messages**: Aggregates should be kept as "dumb" immutable state holders.
+
+### Public error messages
+
+Keep explicit `FunctionalException` messages suitable for callers: HTTP and socket request replies preserve them.
+SDK-generated authentication/role-denial messages omit user IDs and handler names, including automatic handshakes.
+HTTP deserialization failures use a fixed 400 request-format message; unexpected HTTP failures use a fixed 500
+message. Automatic `SocketResponse.error` replies use `Request failed` for technical failures and retain the request
+ID. The original technical socket cause is logged internally, without copying request/response bodies into
+failed-send or unmatched-response logs. Validation paths/map keys remain useful field identifiers. Explicit
+responses, custom mappers and application-written diagnostic messages remain application-controlled.

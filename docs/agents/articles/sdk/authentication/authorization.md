@@ -183,3 +183,8 @@ The normal fixture wraps the builder-configured provider with `TestUserProvider`
 Both forms bypass real HTTP credential extraction: `...ByUser` puts `$user` on the message after accepting or resolving the supplied identity. Add the raw cookie/bearer scenarios from HTTP authentication boundary testing before claiming a proxy-facing sign-in path works.
 
 `withProductionUserProvider()` has a different purpose: it disables the fixture's system-user fallback and switches to the process-wide `UserProvider.defaultUserProvider`, which is useful for unauthenticated behavior. It does not preserve an arbitrary provider registered only on the fixture builder. Use it in a separate anonymous/no-fallback scenario, not in the configured-provider lookup test above.
+
+
+SDK-generated authentication and role-denial messages omit user IDs and handler names, including during automatic
+WebSocket handshakes. Explicit application `FunctionalException` messages (also custom authentication and
+authorization messages) remain caller-facing and unchanged. Keep those messages suitable for the intended caller.
