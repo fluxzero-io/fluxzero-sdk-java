@@ -1875,6 +1875,24 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void childCreationMayAssertAnAncestorThroughCollectionParents() {
+        TestFixture.create().givenCommands(new CreateStringGrandparent("grandparent"),
+                        new CreateStringParent("first", "grandparent"),
+                        new CreateStringParent("second", "grandparent"))
+                .whenCommand(new CreateStringMultiChild("child", List.of("first", "second")))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectTrue(fc -> Fluxzero.loadGraph("child", StringMultiChild.class).parents().size() == 2);
+    }
+    @Model(searchable = false)
+    private record StringMultiChild(@EntityId String childId, @Parent(StringParent.class) List<String> parentIds) {}
+    private record CreateStringMultiChild(String childId, List<String> parentIds) {
+        @AssertLegal void assertGrandparent(StringGrandparent grandparent) {
+            assertEquals("grandparent", grandparent.grandparentId());
+        }
+        @Apply StringMultiChild apply() { return new StringMultiChild(childId, parentIds); }
+    }
+
+    @Test
     void searchesModelsByCurrentGrandparentDocument() {
         FamilyRootId wantedRoot =
                 new FamilyRootId("search-wanted");

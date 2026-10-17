@@ -383,8 +383,8 @@ public final class EntityMetadata {
             Object value = type.isInstance(source)
                     ? reference.read(source)
                     : ReflectionUtils.readProperty(reference.property().name(), source).orElse(null);
-            if (value != null) {
-                result.add(new ParentValue(reference, value, reference.parentModelType(value)));
+            for (Object id : reference.ids(value)) {
+                result.add(new ParentValue(reference, id, reference.parentModelType(id)));
             }
         }
         List<ParentValue> candidates = List.copyOf(result);
@@ -507,30 +507,28 @@ public final class EntityMetadata {
         LinkedHashMap<RelationshipKey, ParentRelationship> result =
                 new LinkedHashMap<>();
         for (ParentReference reference : parentReferences) {
-            Object parentId = reference.read(value);
-            if (parentId == null) {
-                continue;
+            for (Object parentId : reference.readIds(value)) {
+                String repositoryId = Objects.requireNonNull(
+                        reference.repositoryId(parentId),
+                        () -> "@Parent " + reference.property().name() + " returned a null ID string");
+                if (Objects.equals(modelId, repositoryId)) {
+                    throw new IllegalStateException(
+                            "Model '%s' cannot be its own parent".formatted(modelId));
+                }
+                Class<?> parentType = reference.parentModelType(parentId);
+                ParentRelationship relationship = new ParentRelationship(
+                        repositoryId, parentType,
+                        reference.pathInParent().isEmpty() ? null : reference.pathInParent(),
+                        reference.deleteOnParentDeletion(), !reference.propagateSearch());
+                RelationshipKey key = new RelationshipKey(
+                        repositoryId, parentType, relationship.pathInParent());
+                result.merge(
+                        key, relationship,
+                        (existing, duplicate) -> new ParentRelationship(
+                                existing.parentId(), existing.parentType(), existing.pathInParent(),
+                                existing.deleteOnParentDeletion() || duplicate.deleteOnParentDeletion(),
+                                existing.searchExcluded() || duplicate.searchExcluded()));
             }
-            String repositoryId = Objects.requireNonNull(
-                    reference.repositoryId(parentId),
-                    () -> "@Parent " + reference.property().name() + " returned a null ID string");
-            if (Objects.equals(modelId, repositoryId)) {
-                throw new IllegalStateException(
-                        "Model '%s' cannot be its own parent".formatted(modelId));
-            }
-            Class<?> parentType = reference.parentModelType(parentId);
-            ParentRelationship relationship = new ParentRelationship(
-                    repositoryId, parentType,
-                    reference.pathInParent().isEmpty() ? null : reference.pathInParent(),
-                    reference.deleteOnParentDeletion(), !reference.propagateSearch());
-            RelationshipKey key = new RelationshipKey(
-                    repositoryId, parentType, relationship.pathInParent());
-            result.merge(
-                    key, relationship,
-                    (existing, duplicate) -> new ParentRelationship(
-                            existing.parentId(), existing.parentType(), existing.pathInParent(),
-                            existing.deleteOnParentDeletion() || duplicate.deleteOnParentDeletion(),
-                            existing.searchExcluded() || duplicate.searchExcluded()));
         }
         return List.copyOf(result.values());
     }
@@ -855,12 +853,14 @@ public final class EntityMetadata {
 
         List<ParentReference> result = new ArrayList<>();
         for (ParentProperty parentProperty : properties.values()) {
-            validateScalarId(parentProperty.property(), "@Parent");
+            Type idType = parentIdType(parentProperty.property());
+            Class<?> idClass = Collection.class.isAssignableFrom(parentProperty.property().type())
+                    ? concreteType(idType) : parentProperty.property().type();
             Parent annotation = parentProperty.annotation();
             String pathInParent = validatePathInParent(
                     type, parentProperty.property(), annotation.pathInParent());
             Class<?> inferredType = inferIdTarget(
-                    parentProperty.property().type(), parentProperty.property().genericType()).orElse(null);
+                    idClass, idType).orElse(null);
             Class<?> explicitType = void.class.equals(annotation.value()) ? null : annotation.value();
             List<Class<?>> explicitTypes = List.of(annotation.types());
             if (explicitType != null && !explicitTypes.isEmpty()) {
@@ -895,7 +895,7 @@ public final class EntityMetadata {
                                       .formatted(type.getName(), parentProperty.property().name(),
                                                  parentModelType.getName()));
             }
-            if (parentTypes.size() > 1 && !Id.class.isAssignableFrom(parentProperty.property().type())) {
+            if (parentTypes.size() > 1 && !Id.class.isAssignableFrom(idClass)) {
                 throw invalid("Polymorphic @Parent %s.%s requires an Id property so its runtime parent type is unambiguous"
                                       .formatted(type.getName(), parentProperty.property().name()));
             }
@@ -904,7 +904,7 @@ public final class EntityMetadata {
                                       .formatted(pathInParent, type.getName(), parentProperty.property().name()));
             }
             result.add(new ParentReference(
-                    parentProperty.property(), pathInParent, List.copyOf(parentTypes), annotation.apiDoc(),
+                    parentProperty.property(), idClass, pathInParent, List.copyOf(parentTypes), annotation.apiDoc(),
                     annotation.deleteOnParentDeletion(), annotation.propagateSearch(), annotation.validateAncestors()));
         }
         return List.copyOf(result);
@@ -1364,6 +1364,27 @@ public final class EntityMetadata {
                 DefaultMemberInvoker.asInvoker((java.lang.reflect.Member) member));
     }
 
+    private static Type parentIdType(Property property) {
+        if (!Collection.class.isAssignableFrom(property.type())) {
+            validateScalarId(property, "@Parent");
+            return property.genericType();
+        }
+        Type collectionType = ReflectionUtils.getGenericType(property.genericType(), Collection.class);
+        List<Type> arguments = ReflectionUtils.getTypeArguments(collectionType);
+        Type element = arguments.size() == 1 ? arguments.getFirst() : Object.class;
+        if (element instanceof WildcardType wildcard && wildcard.getLowerBounds().length == 0) {
+            element = wildcard.getUpperBounds()[0];
+        }
+        Class<?> elementClass = ReflectionUtils.rawClass(element);
+        if (elementClass == Object.class || element instanceof java.lang.reflect.TypeVariable<?>
+            || element instanceof WildcardType || elementClass.isArray()
+            || Collection.class.isAssignableFrom(elementClass) || Map.class.isAssignableFrom(elementClass)) {
+            throw invalid("@Parent collection property %s requires a concrete scalar element type"
+                                  .formatted(property.name()));
+        }
+        return element;
+    }
+
     private static void validateScalarId(Property property, String annotation) {
         if (property == null) {
             return;
@@ -1405,6 +1426,7 @@ public final class EntityMetadata {
     /**
      * One outgoing parent relationship declared by a child model.
      *
+     * @param idType          scalar ID type, or the resolved collection element type
      * @param pathInParent    optional parent-relative automatic composition path
      * @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID
      * @param apiDoc          optional documentation for the list-valued automatic composition path
@@ -1414,6 +1436,7 @@ public final class EntityMetadata {
      */
     public record ParentReference(
             Property property,
+            Class<?> idType,
             String pathInParent,
             List<Class<?>> parentModelTypes,
             ApiDoc apiDoc,
@@ -1428,6 +1451,29 @@ public final class EntityMetadata {
          */
         public Object read(Object target) {
             return property.read(target);
+        }
+
+        /** Reads distinct scalar parent IDs; a null property or empty collection has no parents. */
+        public Collection<?> readIds(Object target) {
+            return ids(read(target));
+        }
+
+        Collection<?> ids(Object value) {
+            if (value == null) {
+                return List.of();
+            }
+            if (!Collection.class.isAssignableFrom(property.type())) {
+                return List.of(value);
+            }
+            Collection<?> values = (Collection<?>) value;
+            for (Object id : values) {
+                if (id == null || !idType.isInstance(id) || id.getClass().isArray()
+                    || id instanceof Collection<?> || id instanceof Map<?, ?>) {
+                    throw new IllegalArgumentException("@Parent collection " + property.name()
+                                                               + " must contain non-null scalar IDs");
+                }
+            }
+            return values instanceof Set<?> ? values : new LinkedHashSet<>(values);
         }
 
         /** Returns the statically unique parent type, or {@code null} for untyped and polymorphic references. */
