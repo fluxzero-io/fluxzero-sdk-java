@@ -112,6 +112,21 @@ class DefaultValidatorTest {
     }
 
     @Test
+    void preservesMapFieldIdentityAndExplicitValidationMessage() throws Exception {
+        ValidationException failure = assertThrows(ValidationException.class,
+                () -> subject.assertValid(new Addresses(java.util.Map.of("home", ""))));
+        assertEquals("Choose a city", failure.getMessage());
+        assertTrue(failure.getViolationSummaries().stream().anyMatch(
+                v -> v.path().contains("[home]") && v.message().equals("Choose a city")));
+        ValidationException restored = JacksonSerializer.defaultObjectMapper.readValue(
+                JacksonSerializer.defaultObjectMapper.writeValueAsString(failure), ValidationException.class);
+        assertEquals(failure.getViolationSummaries(), restored.getViolationSummaries());
+    }
+
+    private record Addresses(java.util.Map<String, @jakarta.validation.constraints.NotBlank(message = "Choose a city") String> cities) {
+    }
+
+    @Test
     void testGroupConstraints() {
         Object object = ConstrainedObject.builder()
                 .aString("foo").aNumber(5).aCustomString("bar")
