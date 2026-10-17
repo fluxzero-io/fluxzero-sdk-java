@@ -43,7 +43,9 @@ Register the handler with your application, or use Spring's `@Component`. A `GET
 `Hello, world!`. See [Hello world](/docs/getting-started/hello-world) for the local setup.
 
 A `@HandleGet` without a mapping value or `@Path` serves `/`. Empty request URLs also resolve to this root;
-automatic HEAD and OPTIONS use the same route. This applies in Java and Kotlin.
+automatic HEAD and OPTIONS use the same route. This applies in Java and Kotlin. When documented with `@ApiDoc`,
+this endpoint also appears under `/` in compiled and runtime OpenAPI. Absolute origins without a path use `/`
+as well, with the origin retained as the operation server.
 
 ### Multiple paths or methods
 
