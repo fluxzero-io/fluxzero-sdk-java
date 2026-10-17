@@ -443,3 +443,6 @@ Validation paths, including collection indexes and map keys, remain available fo
 Choose suitable public field keys and validation messages when exposing structured validation results. Internal
 error reporting still retains useful causes, stack traces and correlation context; it is not a general-purpose
 redactor for application-written exception messages or logs.
+
+Console error reporting limits automatic web request metadata to the method and bounded path, omitting headers,
+session data, origin, query and fragment. Correlation data and explicit application diagnostics remain available.

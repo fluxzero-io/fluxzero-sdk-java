@@ -94,3 +94,6 @@ failures to a fixed 400 request-format message and unexpected technical errors t
 original causes for internal diagnosis. Validation paths and map keys identify failing fields; do not blindly
 remove them or rewrite custom validation messages. Application-written logs, explicit responses and custom
 response mappers remain application-controlled, in both Java and Kotlin.
+
+Console error reporting limits automatic web request metadata to the method and bounded path, omitting headers,
+session data, origin, query and fragment. Correlation data and explicit application diagnostics remain available.
