@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.common.HttpOrigin;
 import io.fluxzero.common.MemoizingSupplier;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -29,9 +30,14 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -66,11 +72,24 @@ final class NativeWebRequestClient implements AutoCloseable {
     private final MemoizingSupplier<HttpClient> redirectingHttpClient;
     private final MemoizingSupplier<HttpClient> nonRedirectingHttpClient;
     private final Serializer serializer;
+    private final int maxConcurrentPerOrigin;
+    private final Map<HttpOrigin, Integer> activeOrigins = new HashMap<>();
+    private final Set<CancellableRequestFuture> limitedRequests = new HashSet<>();
+    private boolean closed;
     private final Function<Duration, CompletableFuture<Void>> retryDelay;
 
     NativeWebRequestClient(Serializer serializer) {
+        this(serializer, 0);
+    }
+
+    NativeWebRequestClient(Serializer serializer, int maxConcurrentPerOrigin) {
         this(() -> newHttpClient(HttpClient.Redirect.NORMAL), () -> newHttpClient(HttpClient.Redirect.NEVER),
-             serializer, NativeWebRequestClient::delay);
+             serializer, NativeWebRequestClient::delay, maxConcurrentPerOrigin);
+    }
+
+    NativeWebRequestClient(HttpClient httpClient, Serializer serializer,
+                           Function<Duration, CompletableFuture<Void>> retryDelay, int maxConcurrentPerOrigin) {
+        this(() -> httpClient, () -> httpClient, serializer, retryDelay, maxConcurrentPerOrigin);
     }
 
     NativeWebRequestClient(HttpClient httpClient, Serializer serializer) {
@@ -92,6 +111,17 @@ final class NativeWebRequestClient implements AutoCloseable {
     private NativeWebRequestClient(Supplier<HttpClient> redirectingHttpClient,
                                    Supplier<HttpClient> nonRedirectingHttpClient,
                                    Serializer serializer, Function<Duration, CompletableFuture<Void>> retryDelay) {
+        this(redirectingHttpClient, nonRedirectingHttpClient, serializer, retryDelay, 0);
+    }
+
+    NativeWebRequestClient(Supplier<HttpClient> redirectingHttpClient,
+                           Supplier<HttpClient> nonRedirectingHttpClient,
+                           Serializer serializer, Function<Duration, CompletableFuture<Void>> retryDelay,
+                           int maxConcurrentPerOrigin) {
+        if (maxConcurrentPerOrigin < 0) {
+            throw new IllegalArgumentException("maxConcurrentPerOrigin must be >= 0");
+        }
+        this.maxConcurrentPerOrigin = maxConcurrentPerOrigin;
         this.redirectingHttpClient = memoize(() -> Objects.requireNonNull(redirectingHttpClient.get()));
         this.nonRedirectingHttpClient = memoize(() -> Objects.requireNonNull(nonRedirectingHttpClient.get()));
         this.serializer = Objects.requireNonNull(serializer);
@@ -120,8 +150,28 @@ final class NativeWebRequestClient implements AutoCloseable {
         MetricState metricState = metricConsumer == null ? null
                 : new MetricState(request.getMethod(), normalizedTarget(request.getPath()), metricConsumer);
         CancellableRequestFuture result = new CancellableRequestFuture(metricState);
-        send(request, serializedRequest, settings, redirectPolicy, Math.max(0, settings.getMaxRetries()),
-             deadline, result, metricState).whenComplete((outcome, error) -> {
+        HttpOrigin acquiredOrigin = null;
+        CompletableFuture<RequestOutcome> execution;
+        try {
+            HttpOrigin origin = maxConcurrentPerOrigin == 0 ? null : HttpOrigin.of(URI.create(request.getPath()));
+            if (origin != null && !acquire(origin, result)) {
+                execution = CompletableFuture.completedFuture(new RequestOutcome(WebResponse.builder()
+                        .status(503).payload("Native HTTP origin capacity exhausted".getBytes(UTF_8)).build(),
+                        503, null));
+            } else {
+                acquiredOrigin = origin;
+                execution = send(request, serializedRequest, settings, redirectPolicy,
+                                 settings.retriesFor(request.getMethod(), request.getHeaders()),
+                                 deadline, result, metricState);
+            }
+        } catch (Throwable e) {
+            execution = CompletableFuture.completedFuture(failureOutcome(e));
+        }
+        HttpOrigin permit = acquiredOrigin;
+        execution.whenComplete((outcome, error) -> {
+            if (permit != null) {
+                release(permit, result);
+            }
             long completedNanos = System.nanoTime();
             if (error == null) {
                 if (metricState != null) {
@@ -190,13 +240,13 @@ final class NativeWebRequestClient implements AutoCloseable {
             HttpRequest request, RedirectPolicy redirectPolicy, Instant deadline,
             CancellableRequestFuture requestFuture, MetricState metricState) {
         return switch (redirectPolicy) {
-            case ALLOW -> sendOnce(redirectingHttpClient.get(), request, requestFuture).thenApply(raw -> {
+            case ALLOW -> sendOnce(httpClient(redirectingHttpClient), request, requestFuture).thenApply(raw -> {
                 if (metricState != null && raw.response() != null && hasRedirectLocation(raw.response())) {
                     metricState.redirectRejected.set(true);
                 }
                 return asOutcome(raw);
             });
-            case NEVER -> sendOnce(nonRedirectingHttpClient.get(), request, requestFuture).thenApply(raw -> {
+            case NEVER -> sendOnce(httpClient(nonRedirectingHttpClient), request, requestFuture).thenApply(raw -> {
                 if (metricState != null && raw.response() != null && hasRedirectLocation(raw.response())) {
                     metricState.redirectRejected.set(true);
                 }
@@ -211,7 +261,7 @@ final class NativeWebRequestClient implements AutoCloseable {
     private CompletableFuture<RawOutcome> followSameOrigin(
             HttpRequest request, URI origin, Instant deadline, CancellableRequestFuture requestFuture,
             MetricState metricState, int redirects) {
-        return sendOnce(nonRedirectingHttpClient.get(), request, requestFuture).thenCompose(outcome -> {
+        return sendOnce(httpClient(nonRedirectingHttpClient), request, requestFuture).thenCompose(outcome -> {
             if (requestFuture.isCancelled()) {
                 return CompletableFuture.failedFuture(new CancellationException());
             }
@@ -283,8 +333,7 @@ final class NativeWebRequestClient implements AutoCloseable {
     }
 
     private Duration normalizedRetryDelay(WebRequestSettings settings) {
-        Duration delay = settings.getRetryDelay();
-        return delay.isNegative() ? Duration.ZERO : delay;
+        return settings.nextRetryDelay();
     }
 
     private static CompletableFuture<Void> delay(Duration duration) {
@@ -441,8 +490,48 @@ final class NativeWebRequestClient implements AutoCloseable {
         return OTHER;
     }
 
+    private HttpClient httpClient(MemoizingSupplier<HttpClient> supplier) {
+        if (maxConcurrentPerOrigin == 0) {
+            return supplier.get();
+        }
+        synchronized (activeOrigins) {
+            if (closed) {
+                throw new CancellationException("Native HTTP client is closed");
+            }
+            // Publish lazy client ownership before close observes the initialized suppliers.
+            return supplier.get();
+        }
+    }
+
+    private boolean acquire(HttpOrigin origin, CancellableRequestFuture request) {
+        synchronized (activeOrigins) {
+            int count = activeOrigins.getOrDefault(origin, 0);
+            if (closed || count >= maxConcurrentPerOrigin) {
+                return false;
+            }
+            activeOrigins.put(origin, count + 1);
+            limitedRequests.add(request);
+            return true;
+        }
+    }
+
+    private void release(HttpOrigin origin, CancellableRequestFuture request) {
+        synchronized (activeOrigins) {
+            activeOrigins.computeIfPresent(origin, (key, count) -> count == 1 ? null : count - 1);
+            limitedRequests.remove(request);
+        }
+    }
+
     @Override
     public void close() {
+        if (maxConcurrentPerOrigin > 0) {
+            List<CancellableRequestFuture> pending;
+            synchronized (activeOrigins) {
+                closed = true;
+                pending = List.copyOf(limitedRequests);
+            }
+            pending.forEach(request -> request.cancel(true));
+        }
         try {
             if (redirectingHttpClient.isCached()) {
                 redirectingHttpClient.get().close();

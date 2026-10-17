@@ -22,7 +22,11 @@ import lombok.Value;
 import lombok.extern.jackson.Jacksonized;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.random.RandomGenerator;
 
 /**
  * Configuration settings for a {@link WebRequest} sent via the {@link WebRequestGateway}.
@@ -112,4 +116,58 @@ public class WebRequestSettings {
     @Default
     @NonNull
     Set<Integer> retryableStatusCodes = Set.of(500, 502, 503, 504);
+
+    /**
+     * Retry safety policy. LEGACY preserves existing behavior. SAFE permits HTTP-idempotent methods or a single
+     * nonblank Idempotency-Key whose deduplication semantics the upstream supports. IDEMPOTENT is an explicit
+     * application guarantee. Neither policy enables retries without a positive maxRetries.
+     */
+    @Default
+    @NonNull
+    RetryPolicy retryPolicy = RetryPolicy.LEGACY;
+
+    /**
+     * Randomize each retry delay uniformly between half and all of retryDelay, within the existing timeout budget.
+     * Disabled by default to preserve fixed-delay configurations. Does not change fixture execution time.
+     */
+    @Default
+    boolean retryJitter = false;
+
+    /** Returns the configured retry count after applying this request's safety policy. */
+    public int retriesFor(String method, Map<String, List<String>> headers) {
+        if (maxRetries <= 0) {
+            return 0;
+        }
+        if (retryPolicy != RetryPolicy.SAFE
+            || Set.of("GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE").contains(method)) {
+            return maxRetries;
+        }
+        List<String> keys = headers.entrySet().stream()
+                .filter(e -> "Idempotency-Key".equalsIgnoreCase(e.getKey()))
+                .flatMap(e -> e.getValue().stream()).toList();
+        return keys.size() == 1 && keys.getFirst() != null && !keys.getFirst().isBlank() ? maxRetries : 0;
+    }
+
+    /** Selects the next nonnegative retry delay; callers must still check their remaining timeout budget. */
+    public Duration nextRetryDelay() {
+        return nextRetryDelay(ThreadLocalRandom.current());
+    }
+
+    Duration nextRetryDelay(RandomGenerator random) {
+        Duration delay = retryDelay.isNegative() ? Duration.ZERO : retryDelay;
+        if (!retryJitter || delay.isZero()) {
+            return delay;
+        }
+        if (delay.getSeconds() < Long.MAX_VALUE / 1_000_000_000L) {
+            long nanos = delay.toNanos();
+            return Duration.ofNanos(random.nextLong(nanos / 2, nanos + 1));
+        }
+        // Retain fractional precision without overflowing even for Duration's largest supported values.
+        Duration half = delay.dividedBy(2);
+        Duration span = delay.minus(half);
+        Duration quotient = span.dividedBy(1_000_000);
+        Duration remainder = span.minus(quotient.multipliedBy(1_000_000));
+        int fraction = random.nextInt(1_000_001);
+        return half.plus(quotient.multipliedBy(fraction)).plus(remainder.multipliedBy(fraction).dividedBy(1_000_000));
+    }
 }
