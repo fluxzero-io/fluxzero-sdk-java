@@ -926,6 +926,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     public <T> List<Entity<T>> loadAll(
             @NonNull List<?> modelIds,
             @NonNull Class<T> modelType) {
+        return loadAllWithAffixes(modelIds, modelType, true);
+    }
+
+    @Override
+    public <T> List<Entity<T>> loadAll(@NonNull List<?> modelIds, @NonNull Class<T> modelType, boolean applyAffixes) {
+        return applyAffixes ? loadAll(modelIds, modelType) : loadAllWithAffixes(modelIds, modelType, false);
+    }
+
+    private <T> List<Entity<T>> loadAllWithAffixes(List<?> modelIds, Class<T> modelType, boolean applyAffixes) {
         if (modelIds.isEmpty()) {
             return List.of();
         }
@@ -936,7 +945,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         List<String> ids = modelIds.stream()
                 .map(modelId -> Objects.requireNonNull(
                         modelId, "Model ID must not be null"))
-                .map(metadata::repositoryId)
+                .map(id -> applyAffixes ? metadata.repositoryId(id) : id.toString())
                 .peek(modelId -> {
                     if (!uniqueIds.add(modelId)) {
                         throw new IllegalArgumentException(
@@ -1055,17 +1064,32 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @Override
     public ModelGraphResolver.Identity resolveCurrentGraphIdentity(
             Object modelId, boolean exact, Class<?> modelType, ModelBatchScope.Snapshot snapshot) {
+        return resolveCurrentGraphIdentityWithPolicy(modelId, ModelIdResolution.ofExact(exact), modelType, snapshot);
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveCurrentGraphIdentity(
+            Object modelId, ModelIdResolution resolution, Class<?> modelType, ModelBatchScope.Snapshot snapshot) {
+        return resolution == ModelIdResolution.LITERAL
+                ? resolveCurrentGraphIdentityWithPolicy(modelId, resolution, modelType, snapshot)
+                : ModelGraphResolver.super.resolveCurrentGraphIdentity(modelId, resolution, modelType, snapshot);
+    }
+
+    private ModelGraphResolver.Identity resolveCurrentGraphIdentityWithPolicy(
+            Object modelId, ModelIdResolution resolution, Class<?> modelType, ModelBatchScope.Snapshot snapshot) {
         // A cached root may be valid only through an older tracker cursor. Relationships can have changed since
         // that cursor without changing the root. Pin an explicitly current Graph at storage, not at the cache.
         for (int attempt = 1; ; attempt++) {
             try {
-                ModelGraphResolver.Identity identity = exact ? resolveCurrentGraphIdentity(modelId, true, modelType)
+                ModelGraphResolver.Identity identity = resolution == ModelIdResolution.LITERAL
+                        ? resolveGraphIdentity(modelId, resolution, modelType, ModelReadBoundary.current().forRequest(), false)
+                        : resolution.exact() ? resolveCurrentGraphIdentity(modelId, true, modelType)
                         : resolveCurrentGraphIdentity(modelId, modelType);
                 if (identity != null && identity.entity() instanceof ModelGraphResolver.HeadValue source
                     && source.type() != Object.class
                     && !EntityMetadata.validate(source.type()).rootConfiguration().orElseThrow().eventSourced()
                     && (snapshot.values().isEmpty()
-                        || Graphs.currentRootOverlay(modelId, exact, modelType, this, snapshot, identity) == null)) {
+                        || Graphs.currentRootOverlay(modelId, resolution, modelType, this, snapshot, identity) == null)) {
                     // DOCUMENT-only roots cannot reconstruct this revision after replacement. Resolve the
                     // head and value together before exposing the pinned identity, never retry its supplier.
                     Entity<?> value = source.get();
@@ -1100,11 +1124,37 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @Override
     public ModelGraphResolver.Identity resolveGraphIdentity(
             Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary selected, boolean historical) {
-        if (modelType != Object.class) {
-            modelName(modelType);
+        return resolveGraphIdentityWithPolicy(modelId, ModelIdResolution.ofExact(exact), modelType, selected, historical);
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveGraphIdentity(Object id, ModelIdResolution resolution, Class<?> type,
+                                                            ModelReadBoundary boundary) {
+        if (resolution != ModelIdResolution.LITERAL) {
+            return ModelGraphResolver.super.resolveGraphIdentity(id, resolution, type, boundary);
         }
+        PinnedBoundary handler = boundary.historical() ? null : handlerBoundary();
+        ModelGraphResolver.Identity result = resolveGraphIdentityWithPolicy(
+                id, resolution, type, handler == null ? boundary : boundary(handler),
+                handler == null ? boundary.historical() : boundary(handler).historical());
+        pin(handler, result.boundary().stateIndex());
+        return result;
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveGraphIdentity(Object id, ModelIdResolution resolution, Class<?> type,
+                                                            ModelReadBoundary boundary, boolean historical) {
+        return resolution == ModelIdResolution.LITERAL
+                ? resolveGraphIdentityWithPolicy(id, resolution, type, boundary, historical)
+                : ModelGraphResolver.super.resolveGraphIdentity(id, resolution, type, boundary, historical);
+    }
+
+    private ModelGraphResolver.Identity resolveGraphIdentityWithPolicy(
+            Object modelId, ModelIdResolution resolution, Class<?> modelType, ModelReadBoundary selected, boolean historical) {
+        if (modelType != Object.class) { modelName(modelType); }
         EntityMetadata metadata = EntityMetadata.of(modelType);
-        String primary = exact || modelType == Object.class ? modelId.toString() : metadata.repositoryId(modelId);
+        boolean exact = resolution.exact();
+        String primary = resolution.primaryId(modelId, modelType);
         // A root's cached revision cannot establish a current relationship boundary. The head read
         // pins the complete view; its value supplier can still reuse that exact cached revision.
         ModelGraphResolver.Identity result = replayCursor.graphIdentity(primary, modelType, selected,
@@ -1127,11 +1177,43 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @Override
     public ModelGraphResolver.Value loadGraphValue(
             Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary, boolean historical) {
+        return loadGraphValueWithPolicy(modelId, ModelIdResolution.ofExact(exact), modelType, boundary, historical);
+    }
+
+    @Override
+    public ModelGraphResolver.Value loadGraphValue(Object id, ModelIdResolution resolution, Class<?> type,
+                                                   ModelReadBoundary boundary) {
+        if (resolution != ModelIdResolution.LITERAL) {
+            return ModelGraphResolver.super.loadGraphValue(id, resolution, type, boundary);
+        }
+        PinnedBoundary handler = boundary.historical() ? null : handlerBoundary();
+        ModelReadBoundary selected = handler == null ? boundary : boundary(handler);
+        ModelGraphResolver.Value result = loadGraphValueWithPolicy(id, resolution, type, selected, selected.historical());
+        pin(handler, result.boundary().stateIndex());
+        return result;
+    }
+
+    @Override
+    public ModelGraphResolver.Value loadGraphValue(Object id, ModelIdResolution resolution, Class<?> type,
+                                                   ModelReadBoundary boundary, boolean historical) {
+        return resolution == ModelIdResolution.LITERAL
+                ? loadGraphValueWithPolicy(id, resolution, type, boundary, historical)
+                : ModelGraphResolver.super.loadGraphValue(id, resolution, type, boundary, historical);
+    }
+
+    @Override
+    public ModelGraphResolver.Value loadCurrentGraphValue(Object id, Class<?> type, boolean applyAffixes) {
+        return applyAffixes ? loadCurrentGraphValue(id, type)
+                : loadGraphValueWithPolicy(id, ModelIdResolution.LITERAL, type, ModelReadBoundary.current().forRequest(), false);
+    }
+
+    private ModelGraphResolver.Value loadGraphValueWithPolicy(
+            Object modelId, ModelIdResolution resolution, Class<?> modelType, ModelReadBoundary boundary, boolean historical) {
         boolean retryCurrent = !historical && !boundary.historical() && !boundary.before()
                                && CommitAttempt.currentReadContext(this) == null;
         for (int attempt = 1; ; attempt++) {
             try {
-                return loadGraphValueOnce(modelId, exact, modelType, boundary, historical);
+                return loadGraphValueOnce(modelId, resolution, modelType, boundary, historical);
             } catch (ModelReplayCursor.GraphBoundaryMovedException failure) {
                 if (!retryCurrent) { throw failure; }
                 if (attempt >= ModelReplayCursor.MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS) {
@@ -1144,10 +1226,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private ModelGraphResolver.Value loadGraphValueOnce(
-            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary, boolean historical) {
+            Object modelId, ModelIdResolution resolution, Class<?> modelType, ModelReadBoundary boundary, boolean historical) {
+        boolean exact = resolution.exact();
         modelName(modelType);
         EntityMetadata metadata = EntityMetadata.validate(modelType);
-        String primary = exact ? modelId.toString() : metadata.repositoryId(modelId);
+        String primary = resolution.primaryId(modelId, modelType);
         var probe = !exact && !primary.equals(modelId.toString()) && metadata.hasAliases()
                 ? new ModelReplayCursor.HeadProbe(modelId.toString()) : null;
         ModelGraphResolver.Value result = replayCursor.graphValue(primary, modelType, boundary, modelCacheTracker,

@@ -86,7 +86,7 @@ record cascade notifications.
 final class ReminderSchedules {
     @HandleEvent
     void changed(Graph<Reminder> change) {
-        Reminder current = Fluxzero.loadCurrentGraph(change.id(), Reminder.class).get();
+        Reminder current = Fluxzero.loadCurrentGraph(change.id(), Reminder.class, false).get();
         ScheduleId id = ScheduleId.of("reminder", change.id());
         if (current == null || current.completed()) {
             Fluxzero.cancelSchedule(id);
@@ -107,7 +107,7 @@ final class ReminderSchedules {
 class ReminderSchedules {
     @HandleEvent
     fun changed(change: Graph<Reminder>) {
-        val current = Fluxzero.loadCurrentGraph(change.id(), Reminder::class.java).get()
+        val current = Fluxzero.loadCurrentGraph(change.id(), Reminder::class.java, false).get()
         val id = ScheduleId.of("reminder", change.id())
         if (current == null || current.completed) {
             Fluxzero.cancelSchedule(id)
@@ -128,6 +128,10 @@ This consumer deliberately uses `ForeverRetryingErrorHandler` so a recoverable s
 Keep `awaitOutgoingWrites = true` (the default), monitor lag and repair permanent failures. An initial functional
 failure is excluded from retries by default. See [consumer error handling](../message-tracking#consumer-error-handling)
 for retry and stop policies.
+
+The `false` argument uses the already affixed repository identity from `change.id()` without adding affixes again;
+alias resolution remains enabled. When you already have the Graph, `change.current().get()` is the shorter alternative
+and also preserves its owning repository and namespace.
 
 The injected graph remains pinned to the triggering event. `loadCurrentGraph` deliberately escapes that historical
 boundary: redelivering an old creation event must not restore a deleted reminder or an obsolete deadline. This is a

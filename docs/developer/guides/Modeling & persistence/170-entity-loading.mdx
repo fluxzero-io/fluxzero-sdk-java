@@ -92,6 +92,33 @@ val order: Order? = Fluxzero.loadModel("order-123", Order::class.java).get()
 </TabItem>
 </Tabs>
 
+### Loading an existing repository key
+
+A typed load normally converts a functional ID and applies the Model's ID prefixes and postfixes. When you already
+have the complete repository key, pass `false` to use it unchanged. This also works for a full parent-scoped key.
+
+<Tabs>
+<TabItem label="Java">
+
+```java
+Graph<Order> current = Fluxzero.loadCurrentGraph(graph.id(), Order.class, false);
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val current = Fluxzero.loadCurrentGraph(graph.id(), Order::class.java, false)
+```
+
+</TabItem>
+</Tabs>
+
+The same option is available on `loadModel`, `loadGraph` and `loadModels`. It controls ID conversion and affixes,
+not aliases: both modes try the primary identity first and then resolve an alias. No prefix is removed from a typed
+ID's existing string representation. For an existing Graph, `graph.current()` is usually simpler and also retains
+its owning repository and namespace. Exact historical and verified-document reads keep their separate contracts.
+
 ## Alternative model identifiers
 
 Use `@Alias` when an independently stored model must also be addressable by a current business or external identifier:

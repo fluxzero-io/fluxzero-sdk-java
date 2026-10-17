@@ -57,7 +57,7 @@ class ModelGraphReadConflictTest {
     private static final AtomicReference<Graph<Aliased>> absentAliasGraph = new AtomicReference<>();
 
     @ParameterizedTest
-    @CsvSource({"typed,value", "typed,id", "typed,children", "untyped,value", "untyped,id", "current,value"})
+    @CsvSource({"typed,value", "typed,id", "typed,children", "untyped,value", "untyped,id", "current,value", "literal,value", "literal,id", "literal,children", "current-literal,value"})
     void missingAliasAssignmentInvalidatesTheRead(String route, String access) {
         GateClient client = new GateClient();
         try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
@@ -82,6 +82,8 @@ class ModelGraphReadConflictTest {
             Graph<?> graph = switch (route) {
                 case "untyped" -> Fluxzero.loadGraph("free");
                 case "current" -> Fluxzero.loadCurrentGraph("free", Aliased.class);
+                case "literal" -> Fluxzero.loadGraph("free", Aliased.class, false);
+                case "current-literal" -> Fluxzero.loadCurrentGraph("free", Aliased.class, false);
                 default -> Fluxzero.loadGraph("free", Aliased.class);
             };
             if (access.equals("children")) { graph.children(); }
@@ -93,7 +95,7 @@ class ModelGraphReadConflictTest {
 
     @ParameterizedTest
     @CsvSource({"remove,value", "remove,id", "remove,children", "remove,current",
-            "reassign,value", "reassign,id", "remove,sequence", "remove,revision", "remove,event", "remove,time"})
+            "reassign,value", "reassign,id", "remove,sequence", "remove,revision", "remove,event", "remove,time", "remove,literal", "reassign,literal", "remove,current-literal", "reassign,current-literal"})
     void positiveAliasSelectionIsProtectedEvenWithoutReadingItsValue(String change, String access) {
         GateClient client = new GateClient();
         try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
@@ -117,7 +119,11 @@ class ModelGraphReadConflictTest {
     record ObserveAlias(String receiptId, String access) {
         @AssertLegal void check() {
             attempts.incrementAndGet();
-            Graph<Aliased> graph = Fluxzero.loadGraph("selected", Aliased.class);
+            Graph<Aliased> graph = switch (access) {
+                case "literal" -> Fluxzero.loadGraph("selected", Aliased.class, false);
+                case "current-literal" -> Fluxzero.loadCurrentGraph("selected", Aliased.class, false);
+                default -> Fluxzero.loadGraph("selected", Aliased.class);
+            };
             switch (access) {
                 case "id" -> graph.id();
                 case "children" -> graph.children();
@@ -420,7 +426,7 @@ class ModelGraphReadConflictTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"typed", "untyped", "current"})
+    @ValueSource(strings = {"typed", "untyped", "current", "literal", "current-literal"})
     void manualReadsSeeOwnStagedAliasChangesAndDeletion(String route) {
         try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(new GateClient())) {
             commit(app, new ChangeAlias("aliased", "old", null, route));
@@ -448,6 +454,8 @@ class ModelGraphReadConflictTest {
             return switch (route) {
                 case "untyped" -> Fluxzero.loadGraph((Object) id);
                 case "current" -> Fluxzero.loadCurrentGraph(id, Aliased.class);
+                case "literal" -> Fluxzero.loadGraph(id, Aliased.class, false);
+                case "current-literal" -> Fluxzero.loadCurrentGraph(id, Aliased.class, false);
                 default -> Fluxzero.loadGraph(id, Aliased.class);
             };
         }

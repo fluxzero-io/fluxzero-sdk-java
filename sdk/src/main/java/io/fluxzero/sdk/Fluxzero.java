@@ -1136,6 +1136,14 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Untyped counterpart of {@link #loadModel(Object, Class, boolean)}. A typed ID supplies its model type;
+     * an untyped ID is already literal and discovers its type from storage in either mode.
+     */
+    static <T> Entity<T> loadModel(Object modelId, boolean applyAffixes) {
+        return currentModelRepository().load(modelId, applyAffixes);
+    }
+
+    /**
      * Loads an independently stored model by ID and expected type.
      * <p>
      * A primary model ID is tried first, followed by a current {@link Alias @Alias} value.
@@ -1143,6 +1151,25 @@ public interface Fluxzero extends AutoCloseable {
     static <T> Entity<T> loadModel(Object modelId, Class<T> modelType) {
         return currentModelRepository().load(modelId, modelType);
     }
+
+    /**
+     * Variant of {@link #loadModel(Object, Class)} with optional ID conversion and affixes.
+     * True preserves the default functional-ID lookup. False uses {@code modelId.toString()} unchanged,
+     * including any prefix already carried by a typed ID; it neither adds nor removes affixes or parent scope.
+     * Primary identities retain precedence over aliases in both modes. For an existing Graph,
+     * {@link Graph#current()} also preserves its owning repository and namespace.
+     *
+     * @param applyAffixes whether to convert a functional ID using the model's ID type and EntityId metadata
+     */
+    static <T> Entity<T> loadModel(Object modelId, Class<T> modelType, boolean applyAffixes) {
+        return currentModelRepository().load(modelId, modelType, applyAffixes);
+    }
+
+    /** Typed-ID counterpart of {@link #loadModel(Object, Class, boolean)}. */
+    static <T> Entity<T> loadModel(Id<T> modelId, boolean applyAffixes) {
+        return currentModelRepository().load(modelId, applyAffixes);
+    }
+
 
     /**
      * Loads a parent-scoped model by functional child ID and explicit parent type.
@@ -1193,6 +1220,14 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Untyped counterpart of {@link #loadGraph(Object, Class, boolean)}. Untyped strings already use literal
+     * identity/type discovery; the option changes normalization only when the supplied ID carries a type.
+     */
+    static Graph<?> loadGraph(Object modelId, boolean applyAffixes) {
+        return io.fluxzero.sdk.modeling.Graphs.lazy(modelId, currentModelRepository(), applyAffixes);
+    }
+
+    /**
      * Lazily loads an independently stored model by ID and expected type as a relationship graph.
      * Within a Model mutation this shares its pinned boundary, staged state and inspected readset. Otherwise the
      * default repository establishes a new nonhistorical snapshot at storage on the first storage read.
@@ -1202,6 +1237,25 @@ public interface Fluxzero extends AutoCloseable {
         return io.fluxzero.sdk.modeling.Graphs.lazy(
                 modelId, modelType, currentModelRepository());
     }
+
+    /**
+     * Variant of {@link #loadGraph(Object, Class)} with optional ID conversion and affixes.
+     * True preserves the default functional-ID lookup. False uses {@code modelId.toString()} unchanged,
+     * including any prefix already carried by a typed ID; it neither adds nor removes affixes or parent scope.
+     * Primary identities retain precedence over aliases in both modes. For an existing Graph,
+     * {@link Graph#current()} also preserves its owning repository and namespace.
+     *
+     * @param applyAffixes whether to convert a functional ID using the model's ID type and EntityId metadata
+     */
+    static <T> Graph<T> loadGraph(Object modelId, Class<T> modelType, boolean applyAffixes) {
+        return io.fluxzero.sdk.modeling.Graphs.lazy(modelId, modelType, currentModelRepository(), applyAffixes);
+    }
+
+    /** Typed-ID counterpart of {@link #loadGraph(Object, Class, boolean)}. */
+    static <T> Graph<T> loadGraph(Id<T> modelId, boolean applyAffixes) {
+        return loadGraph(modelId, modelId.getType(), applyAffixes);
+    }
+
 
     /**
      * Loads the latest state of an independently stored model as a relationship graph, without inheriting an event or
@@ -1223,6 +1277,25 @@ public interface Fluxzero extends AutoCloseable {
         return io.fluxzero.sdk.modeling.Graphs.lazyCurrent(
                 modelId, modelType, currentModelRepository());
     }
+
+    /**
+     * Variant of {@link #loadCurrentGraph(Object, Class)} with optional ID conversion and affixes.
+     * True preserves the default functional-ID lookup. False uses {@code modelId.toString()} unchanged,
+     * including any prefix already carried by a typed ID; it neither adds nor removes affixes or parent scope.
+     * Primary identities retain precedence over aliases in both modes. For an existing Graph,
+     * {@link Graph#current()} also preserves its owning repository and namespace.
+     *
+     * @param applyAffixes whether to convert a functional ID using the model's ID type and EntityId metadata
+     */
+    static <T> Graph<T> loadCurrentGraph(Object modelId, Class<T> modelType, boolean applyAffixes) {
+        return io.fluxzero.sdk.modeling.Graphs.lazyCurrent(modelId, modelType, currentModelRepository(), applyAffixes);
+    }
+
+    /** Typed-ID counterpart of {@link #loadCurrentGraph(Object, Class, boolean)}. */
+    static <T> Graph<T> loadCurrentGraph(Id<T> modelId, boolean applyAffixes) {
+        return loadCurrentGraph(modelId, modelId.getType(), applyAffixes);
+    }
+
 
     /**
      * Loads the latest state of the independently stored model identified by the typed ID as a relationship graph.
@@ -1258,6 +1331,14 @@ public interface Fluxzero extends AutoCloseable {
     static <T> List<Entity<T>> loadModels(
             List<?> modelIds, Class<T> modelType) {
         return currentModelRepository().loadAll(modelIds, modelType);
+    }
+
+    /**
+     * Loads several models at one coherent boundary with optional affixes, retaining alias resolution and input order.
+     * False uses each supplied string representation unchanged; the existing overload defaults to true.
+     */
+    static <T> List<Entity<T>> loadModels(List<?> modelIds, Class<T> modelType, boolean applyAffixes) {
+        return currentModelRepository().loadAll(modelIds, modelType, applyAffixes);
     }
 
     private static ModelRepository currentModelRepository() {
