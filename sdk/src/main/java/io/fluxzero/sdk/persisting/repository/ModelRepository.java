@@ -94,6 +94,13 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
                 : load(modelId.toString(), Object.class));
     }
 
+    /** Loads a possibly typed ID with optional affixes; untyped IDs remain literal in either mode. */
+    @SuppressWarnings("unchecked")
+    default <T> Entity<T> load(@NonNull Object modelId, boolean applyAffixes) {
+        if (applyAffixes) { return load(modelId); }
+        return modelId instanceof Id<?> id ? (Entity<T>) load(id, false) : load(modelId);
+    }
+
     /**
      * Loads a model using the string representation of the supplied ID, resolving a current model alias when no primary
      * model has that identity.
@@ -116,6 +123,20 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
         }
         Entity<T> alias = load(functionalId, modelType);
         return alias.isPresent() ? alias : result;
+    }
+
+    /**
+     * Loads by functional ID when {@code applyAffixes} is true, or by the supplied string representation when false.
+     * False skips typed-ID conversion and EntityId affixes (including parent scope); supply the full key or alias.
+     * Both modes retain primary-ID precedence and alias resolution. Existing overloads keep their own defaults.
+     */
+    default <T> Entity<T> load(@NonNull Object modelId, @NonNull Class<T> modelType, boolean applyAffixes) {
+        return applyAffixes ? load(modelId, modelType) : load(modelId.toString(), modelType);
+    }
+
+    /** Loads a typed ID with optional model affixes; false uses its existing string representation unchanged. */
+    default <T> Entity<T> load(@NonNull Id<T> modelId, boolean applyAffixes) {
+        return applyAffixes ? load(modelId) : load(modelId, modelId.getType(), false);
     }
 
     /**
@@ -143,8 +164,13 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
         return alias.isPresent() ? alias : result;
     }
 
+    /** Current counterpart of {@link #load(Object, Class, boolean)}, retaining aliases in either mode. */
+    default <T> Entity<T> loadCurrent(@NonNull Object modelId, @NonNull Class<T> modelType, boolean applyAffixes) {
+        return applyAffixes ? loadCurrent(modelId, modelType) : loadCurrent(modelId.toString(), modelType);
+    }
+
     /**
-     * Loads the latest model state by exact persisted identity. Custom repositories without contextual historical
+     * Loads the latest model state by literal primary key or alias, without adding affixes. Custom repositories without contextual historical
      * reads retain their normal behavior by delegating to {@link #load(String, Class)}.
      */
     default <T> Entity<T> loadCurrent(@NonNull String modelId, @NonNull Class<T> modelType) {
@@ -204,6 +230,16 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
             @NonNull Class<T> modelType) {
         throw new UnsupportedOperationException(
                 "Coherent multi-model reconstruction is not supported by this repository");
+    }
+
+    /**
+     * Loads models at one coherent boundary with optional ID conversion and affixes, retaining alias resolution.
+     * False uses each supplied string representation unchanged. Custom repositories must support literal batch reads
+     * explicitly; the default never substitutes independent reads at different boundaries.
+     */
+    default <T> List<Entity<T>> loadAll(@NonNull List<?> modelIds, @NonNull Class<T> modelType, boolean applyAffixes) {
+        if (applyAffixes) { return loadAll(modelIds, modelType); }
+        throw new UnsupportedOperationException("Literal coherent multi-model reconstruction is not supported by this repository");
     }
 
     /**

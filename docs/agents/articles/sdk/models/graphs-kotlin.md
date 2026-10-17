@@ -126,6 +126,19 @@ requires one unambiguous scope. Schedules and cascading assertions use every dec
 
 ## Loading and event parameters
 
+`loadModel`, `loadGraph`, `loadCurrentGraph` and coherent `loadModels` default to functional-ID conversion:
+construct the model's typed ID where needed and apply `@EntityId` affixes. Their `applyAffixes=false` overloads
+use the supplied `toString()` unchanged, including any prefix already present on a typed ID. Both modes try the
+primary identity first and retain alias resolution; they never guess whether a string already includes affixes.
+For a full parent-scoped key use the false overload; parent-argument overloads still accept functional child IDs.
+Untyped lookups already use literal strings. Historical repository Graph reads and verified `loadCurrentModelState`
+retain their separate exact-identity contracts. `graph.current()` retains exact identity and owning repository,
+without alias redirection. Neither the option nor current reads change the active mutation's snapshot/readset.
+
+```kotlin
+val current = Fluxzero.loadCurrentGraph(graph.id(), Project::class.java, false)
+```
+
 ```kotlin
 val project = Fluxzero.loadModel(projectId).get()
 

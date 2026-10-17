@@ -55,10 +55,10 @@ class ModelSchedulingDocumentationTest {
                 .whenCommand(new RescheduleReminder(reminderId, later))
                 .expectSuccessfulResult().expectNoErrors()
                 .expectOnlySchedules((Predicate<Schedule>) schedule ->
-                        schedule.getScheduleId().equals(ReminderSchedules.scheduleId(reminderId).toString())
+                        schedule.getScheduleId().equals(ReminderSchedules.scheduleId(reminderId.toString()).toString())
                         && schedule.getDeadline().equals(later))
                 .expectThat(fc -> assertEquals(later, fc.messageScheduler()
-                        .getSchedule(ReminderSchedules.scheduleId(reminderId)).orElseThrow().getDeadline()));
+                        .getSchedule(ReminderSchedules.scheduleId(reminderId.toString())).orElseThrow().getDeadline()));
     }
 
     @ParameterizedTest @ValueSource(booleans = {false, true})
@@ -72,7 +72,7 @@ class ModelSchedulingDocumentationTest {
                     schedules.changed(changes.getFirst());
                 }).expectNoErrors()
                 .expectThat(fc -> assertEquals(later, fc.messageScheduler()
-                        .getSchedule(ReminderSchedules.scheduleId(reminderId)).orElseThrow().getDeadline()));
+                        .getSchedule(ReminderSchedules.scheduleId(reminderId.toString())).orElseThrow().getDeadline()));
     }
 
     @ParameterizedTest @ValueSource(booleans = {false, true})
@@ -80,7 +80,7 @@ class ModelSchedulingDocumentationTest {
         fixture(async).givenCommands(new PlanReminder(reminderId, projectId, DEADLINE))
                 .whenCommand(new DeleteProject(projectId))
                 .expectSuccessfulResult().expectNoErrors().expectNoSchedules()
-                .expectThat(fc -> assertTrue(fc.messageScheduler().getSchedule(ReminderSchedules.scheduleId(reminderId)).isEmpty()))
+                .expectThat(fc -> assertTrue(fc.messageScheduler().getSchedule(ReminderSchedules.scheduleId(reminderId.toString())).isEmpty()))
                 .andThen().whenExecuting(fc -> schedules.changed(changes.getFirst()))
                 .expectNoSchedules().expectNoErrors();
     }
@@ -131,7 +131,7 @@ class ModelSchedulingDocumentationTest {
     @Consumer(name = "reminder-schedules", singleTracker = true, errorHandler = ThrowingErrorHandler.class)
     static class ReminderSchedules {
         @HandleEvent void changed(Graph<Reminder> change) {
-            Reminder current = Fluxzero.loadCurrentGraph(change.id(), Reminder.class).get();
+            Reminder current = Fluxzero.loadCurrentGraph(change.id(), Reminder.class, false).get();
             ScheduleId id = scheduleId(change.id());
             if (current == null || current.completed()) {
                 Fluxzero.cancelSchedule(id);
@@ -142,5 +142,5 @@ class ModelSchedulingDocumentationTest {
         static ScheduleId scheduleId(Object id) { return ScheduleId.of("reminder", id); }
     }
     static class ProjectId extends Id<Project> { ProjectId(String value) { super(value); } }
-    static class ReminderId extends Id<Reminder> { ReminderId(String value) { super(value); } }
+    static class ReminderId extends Id<Reminder> { ReminderId(String value) { super(value, "reminder-"); } }
 }

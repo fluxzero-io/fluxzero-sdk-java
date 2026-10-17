@@ -85,7 +85,7 @@ class ModelLifecycleKotlinTest {
             .expectSuccessfulResult().expectNoErrors()
             .expectThat {
                 assertEquals(deadline.plusSeconds(60), it.messageScheduler()
-                    .getSchedule(ScheduleId.of("reminder", reminderId)).orElseThrow().deadline)
+                    .getSchedule(ScheduleId.of("reminder", reminderId.toString())).orElseThrow().deadline)
             }.andThen().whenCommand(DeleteProject(projectId))
             .expectSuccessfulResult().expectNoErrors().expectNoSchedules()
     }
@@ -145,7 +145,7 @@ class ModelLifecycleKotlinTest {
 
     @Model(searchable = false) data class Reminder(@EntityId val reminderId: ReminderId, @Parent val projectId: ProjectId,
                               val deadline: Instant, val completed: Boolean)
-    class ReminderId(value: String) : Id<Reminder>(value)
+    class ReminderId(value: String) : Id<Reminder>(value, "reminder-")
     data class CreateProject(val projectId: ProjectId) {
         @Apply fun apply() = Project(projectId)
     }
@@ -168,7 +168,7 @@ class ModelLifecycleKotlinTest {
     @Consumer(name = "reminder-schedules", singleTracker = true, errorHandler = ThrowingErrorHandler::class)
     class ReminderSchedules {
         @HandleEvent fun changed(change: Graph<Reminder>) {
-            val current = Fluxzero.loadCurrentGraph(change.id(), Reminder::class.java).get()
+            val current = Fluxzero.loadCurrentGraph(change.id(), Reminder::class.java, false).get()
             val id = ScheduleId.of("reminder", change.id())
             if (current == null || current.completed) {
                 Fluxzero.cancelSchedule(id)

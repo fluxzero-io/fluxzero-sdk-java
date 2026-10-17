@@ -35,7 +35,7 @@ record cascade notifications.
 final class ReminderSchedules {
     @HandleEvent
     void changed(Graph<Reminder> change) {
-        Reminder current = Fluxzero.loadCurrentGraph(change.id(), Reminder.class).get();
+        Reminder current = Fluxzero.loadCurrentGraph(change.id(), Reminder.class, false).get();
         ScheduleId id = ScheduleId.of("reminder", change.id());
         if (current == null || current.completed()) {
             Fluxzero.cancelSchedule(id);
@@ -55,7 +55,7 @@ The Kotlin equivalent uses the same contract:
 class ReminderSchedules {
     @HandleEvent
     fun changed(change: Graph<Reminder>) {
-        val current = Fluxzero.loadCurrentGraph(change.id(), Reminder::class.java).get()
+        val current = Fluxzero.loadCurrentGraph(change.id(), Reminder::class.java, false).get()
         val id = ScheduleId.of("reminder", change.id())
         if (current == null || current.completed) {
             Fluxzero.cancelSchedule(id)
@@ -80,6 +80,10 @@ continue, this single tracker cannot advance. Monitor lag and repair permanent f
 `FunctionalException` is excluded by default, and interruption or retry filtering can end the loop: unlimited retries
 are not an unconditional delivery guarantee. `ThrowingErrorHandler` would instead stop the affected tracker until
 explicit restart; it does not provide automatic retry.
+
+The `false` argument uses the already affixed repository identity from `change.id()` without adding affixes again;
+alias resolution remains enabled. When you already have the Graph, `change.current().get()` is the shorter alternative
+and also preserves its owning repository and namespace.
 
 The injected graph remains pinned to the triggering event. `loadCurrentGraph` deliberately escapes that historical
 boundary: redelivering an old creation event must not restore a deleted reminder or an obsolete deadline. This is a

@@ -151,6 +151,49 @@ public interface ModelGraphResolver {
                 : resolveCurrentGraphIdentity(modelId, modelType);
     }
 
+    /** Resolves a root with independent normalization and alias policy. */
+    default Identity resolveGraphIdentity(Object id, ModelIdResolution resolution, Class<?> type, ModelReadBoundary boundary) {
+        if (resolution == ModelIdResolution.LITERAL) { throw literalLookupUnsupported(); }
+        return resolveGraphIdentity(id, resolution.exact(), type, boundary);
+    }
+
+    /** Resolves a root at a pinned boundary with independent normalization and alias policy. */
+    default Identity resolveGraphIdentity(Object id, ModelIdResolution resolution, Class<?> type,
+                                          ModelReadBoundary boundary, boolean historical) {
+        if (resolution == ModelIdResolution.LITERAL) { throw literalLookupUnsupported(); }
+        return resolveGraphIdentity(id, resolution.exact(), type, boundary, historical);
+    }
+
+    /** Loads a source value with independent normalization and alias policy. */
+    default Value loadGraphValue(Object id, ModelIdResolution resolution, Class<?> type, ModelReadBoundary boundary) {
+        if (resolution == ModelIdResolution.LITERAL) { throw literalLookupUnsupported(); }
+        return loadGraphValue(id, resolution.exact(), type, boundary);
+    }
+
+    /** Loads a source value at a pinned boundary with independent normalization and alias policy. */
+    default Value loadGraphValue(Object id, ModelIdResolution resolution, Class<?> type,
+                                 ModelReadBoundary boundary, boolean historical) {
+        if (resolution == ModelIdResolution.LITERAL) { throw literalLookupUnsupported(); }
+        return loadGraphValue(id, resolution.exact(), type, boundary, historical);
+    }
+
+    /** Resolves a deliberately current root with independent normalization and alias policy. */
+    default Identity resolveCurrentGraphIdentity(Object id, ModelIdResolution resolution, Class<?> type,
+                                                 ModelBatchScope.Snapshot snapshot) {
+        if (resolution == ModelIdResolution.LITERAL) { throw literalLookupUnsupported(); }
+        return resolveCurrentGraphIdentity(id, resolution.exact(), type, snapshot);
+    }
+
+    /** Loads deliberately current state with optional ID conversion and affixes. */
+    default Value loadCurrentGraphValue(Object id, Class<?> type, boolean applyAffixes) {
+        if (!applyAffixes) { throw literalLookupUnsupported(); }
+        return loadCurrentGraphValue(id, type);
+    }
+
+    private static UnsupportedOperationException literalLookupUnsupported() {
+        return new UnsupportedOperationException("Graph resolver does not support literal identifiers with alias resolution");
+    }
+
     /** Optional untyped root discovery; an implementation supplies its resolved class through {@link HeadValue}. */
     default Identity resolveUntypedGraphIdentity(Object modelId) {
         return null;
