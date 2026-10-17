@@ -141,8 +141,8 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
             Optional<Throwable> throwable =
                     ofNullable((ThrowableProxy) event.getThrowableProxy()).map(ThrowableProxy::getThrowable);
             if (ignoreEvent(event)) {
-                String errorMessage = "Ignoring error: %s".formatted(event.getFormattedMessage());
-                throwable.ifPresentOrElse(e -> log.info(errorMessage, e), () -> log.info(errorMessage));
+                throwable.ifPresentOrElse(e -> log.info("Ignoring error: {}", event.getFormattedMessage(), e),
+                                          () -> log.info("Ignoring error: {}", event.getFormattedMessage()));
                 return;
             }
             Optional<Fluxzero> fluxzero = Fluxzero.getOptionally();

@@ -203,7 +203,7 @@ public class ForwardingWebConsumer implements AutoCloseable {
 
     protected SerializedMessage toMessage(Throwable error,
                                           Map<String, String> correlationData) {
-        log.error("Failed to handle web request: " + error.getMessage() + ". Continuing with next request.", error);
+        log.error("Failed to handle web request: {}. Continuing with next request.", error.getMessage(), error);
         return new SerializedMessage(
                 new Data<>("The request failed due to a server error".getBytes(), null, 0, "text/plain"),
                 Metadata.of(correlationData).with(WebResponse.asMetadata(500, Collections.emptyMap())),

@@ -37,7 +37,7 @@ import java.util.concurrent.CompletableFuture;
  * keyValueClient.send(new GetValue("missingKey"))
  *            .exceptionally(error -> {
  *                if (error instanceof ServiceException) {
- *                    log.warn("Failed: " + error.getMessage());
+ *                    log.warn("Failed: {}", error.getMessage());
  *                }
  *                return null;
  *            });
