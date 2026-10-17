@@ -45,6 +45,10 @@ code.
 By default, every class has a revision of `0`. When you make a breaking change to a class (e.g., renaming a field or
 changing a type), you must increment its revision.
 
+Enum constants with a class body use the declaring enum's type and revision. Legacy constant-subclass envelopes
+remain readable while that class is available. Working custom subtype, map-key and container codecs retain their
+existing type contracts.
+
 ```kotlin
 @Revision(2)
 data class Project(
