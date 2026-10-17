@@ -1,0 +1,62 @@
+{
+  "name" : "PathSegments",
+  "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$PathSegments",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "names",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$PathSegments.names",
+    "type" : "java.lang.String[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "PathSegments",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$PathSegments#PathSegments",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "parse",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$PathSegments#parse",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "start",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
