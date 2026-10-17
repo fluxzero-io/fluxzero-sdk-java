@@ -29,6 +29,18 @@ package io.fluxzero.common.handling;
 public interface HandlerMethodPlan<M> extends HandlerDescriptor {
 
     /**
+     * Checks invocation-specific eligibility without changing this reusable plan. Callers must perform this check
+     * immediately before invocation, including when the plan was cached. A false result means that ordinary
+     * per-message handler selection is required; it is not a successful null handler result.
+     *
+     * @param input the current invocation input
+     * @return whether this plan can handle the current input
+     */
+    default boolean isApplicable(HandlerInput<M> input) {
+        return true;
+    }
+
+    /**
      * Invokes the selected handler method using the supplied input.
      *
      * @param input the current input; it must satisfy the cache conditions under which this plan was prepared

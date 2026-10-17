@@ -18,6 +18,9 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
+import io.fluxzero.sdk.tracking.handling.authentication.ForbidsAnyRole;
+import io.fluxzero.sdk.tracking.handling.authentication.MockUser;
+import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import jakarta.validation.Valid;
@@ -28,6 +31,7 @@ import lombok.Value;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -134,6 +138,44 @@ class ValidationUtilsTest {
                 () -> ValidationUtils.assertAuthorized(AdminOnly.class, null));
         assertEquals("Authentication required.", failure.getMessage());
     }
+
+    @Test
+    void forbiddenRolesWinBeforePositiveRolesWithoutReorderingUserChecks() {
+        var checks = new java.util.ArrayList<String>();
+        User allowed = new User() {
+            @Override public String getName() { return "actor"; }
+            @Override public boolean hasRole(String role) { checks.add(role); return role.equals("editor"); }
+        };
+        assertTrue(ValidationUtils.assertAuthorized(MixedRoles.class, allowed));
+        assertEquals(List.of("suspended", "admin", "editor"), checks);
+        assertFalse(ValidationUtils.assertAuthorized(MixedRoles.class, new MockUser("admin", "suspended")));
+        assertThrows(UnauthorizedException.class,
+                     () -> ValidationUtils.assertAuthorized(MixedRoles.class, new MockUser("reader")));
+    }
+
+    @Test
+    void emptyNegativePolicyStillSilentlyRejectsAnonymousUsers() {
+        assertFalse(ValidationUtils.assertAuthorized(EmptyNegativeRoles.class, null));
+        assertTrue(ValidationUtils.assertAuthorized(EmptyNegativeRoles.class, new MockUser()));
+    }
+
+    @Test
+    void explicitPublicPolicyStillOverridesPositiveAndNegativeRoles() {
+        assertTrue(ValidationUtils.assertAuthorized(PublicRoles.class, null));
+        assertTrue(ValidationUtils.assertAuthorized(PublicRoles.class, new MockUser("suspended")));
+    }
+
+    @RequiresAnyRole({"admin", "editor"})
+    @ForbidsAnyRole(value = "suspended", throwIfUnauthorized = false)
+    private static class MixedRoles {}
+
+    @ForbidsAnyRole
+    private static class EmptyNegativeRoles {}
+
+    @NoUserRequired
+    @RequiresAnyRole("admin")
+    @ForbidsAnyRole("suspended")
+    private static class PublicRoles {}
 
     @Value
     public static class Foo {

@@ -139,19 +139,26 @@ An annotation on a package automatically covers all classes within it and its su
 
 **Silent Exclusion**:
 To silently skip a handler without throwing an error if the user lacks permissions, combine security annotations with
-`throwIfUnauthorized = false`. This is typically used to provide different handlers for the same message.
+`throwIfUnauthorized = false` on the authorization annotation. A denied handler is skipped so another eligible
+handler can respond. A denied payload skips all handlers and produces no response, including no successful `null`.
+Authorization is rechecked per request and before invocation, including asynchronous handling. Negative role checks
+require an authenticated caller; an empty negative-role list silently skips anonymous callers.
+
+Payload type policy overrides package policy. Handler policy uses method, class, then the nearest package with any
+authorization policy. That package replaces broader package policies. Package lookup uses the owning class's module
+and loader, including packages in JAR files; unrelated annotation types do not stop inheritance.
 
 ```kotlin
 @Component
 class LogHandler {
     // Only admins can see admin logs
-    @HandleQuery(throwIfUnauthorized = false)
-    @RequiresAnyRole("admin")
+    @HandleQuery
+    @RequiresAnyRole("admin", throwIfUnauthorized = false)
     fun handleAdminQuery(query: GetLogs): List<Log> { ... }
 
     // Standard users are forbidden from admin logs and see this handler instead
     @HandleQuery
-    @ForbidsAnyRole("admin")
+    @ForbidsAnyRole("admin", throwIfUnauthorized = false)
     fun handleStandardQuery(query: GetLogs): List<Log> { ... }
 }
 ```
