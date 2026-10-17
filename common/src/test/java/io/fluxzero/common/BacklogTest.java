@@ -33,6 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 class BacklogTest {
 
@@ -137,19 +140,33 @@ class BacklogTest {
     }
 
     @Test
-    void collectionDelayMicroBatchesItemsThatArriveAfterAnIdleStart() {
+    void collectionDelayMicroBatchesItemsThatArriveAfterAnIdleStart() throws Exception {
         List<List<String>> batches = new ArrayList<>();
-        Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
+        CountDownLatch collecting = new CountDownLatch(1);
+        CountDownLatch releaseCollection = new CountDownLatch(1);
+        Backlog<String> subject = spy(Backlog.forAsyncConsumer(batch -> {
             batches.add(List.copyOf(batch));
             return CompletableFuture.completedFuture(null);
-        }, 10, String::length, 100L, 1, Duration.ofMillis(100));
-
-        CompletableFuture<Void> first = subject.add("first");
-        CompletableFuture<Void> second = subject.add("second");
-        CompletableFuture.allOf(first, second).join();
-        subject.shutDown();
-
-        assertEquals(List.of(List.of("first", "second")), batches);
+        }, 10, String::length, 100L, 1, Duration.ofMillis(100)));
+        doAnswer(invocation -> {
+            assertEquals(Duration.ofMillis(100).toNanos(), (long) invocation.getArgument(0));
+            collecting.countDown();
+            assertTrue(releaseCollection.await(2, TimeUnit.SECONDS));
+            return null;
+        }).when(subject).awaitCollectionDelay(anyLong());
+        try (AutoCloseable cleanup = () -> {
+            releaseCollection.countDown();
+            subject.shutDownAsync().toCompletableFuture().get(2, TimeUnit.SECONDS);
+        }) {
+            CompletableFuture<Void> first = subject.add("first");
+            assertTrue(collecting.await(2, TimeUnit.SECONDS));
+            CompletableFuture<Void> second = subject.add("second");
+            assertFalse(first.isDone());
+            assertFalse(second.isDone());
+            releaseCollection.countDown();
+            CompletableFuture.allOf(first, second).get(2, TimeUnit.SECONDS);
+            assertEquals(List.of(List.of("first", "second")), batches);
+        }
     }
 
     @Test

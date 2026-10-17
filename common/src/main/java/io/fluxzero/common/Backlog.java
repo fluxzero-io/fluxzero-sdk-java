@@ -433,10 +433,15 @@ public class Backlog<T> implements Monitored<List<T>> {
         }
     }
 
+    // Package-private scheduling boundary for deterministic collection tests.
+    void awaitCollectionDelay(long delayNanos) {
+        LockSupport.parkNanos(delayNanos);
+    }
+
     private void flush(boolean collectBeforeFlush) {
         try {
             if (collectBeforeFlush && batchCollectionDelayNanos > 0L) {
-                LockSupport.parkNanos(batchCollectionDelayNanos);
+                awaitCollectionDelay(batchCollectionDelayNanos);
             }
             while (!queue.isEmpty() && inFlightBatches.get() < maxInFlightBatches) {
                 dispatch(nextBatch());
