@@ -1,5 +1,10 @@
 Use serialization guidance before changing a payload, document, Model state, or stateful handler type that may already be stored. Historical messages are immutable; compatibility is handled during deserialization.
 
+Jackson serializes constants with a class body using their declaring enum's type and revision, including enum types
+in inferred collection/map signatures. Legacy constant-subclass names remain readable when the class is available;
+upcasters still match the original stored type and revision before enum resolution. Working custom subtype, map-key
+and container codecs retain their existing type contracts. This applies equally to Java and Kotlin enum constants.
+
 Polymorphic ID properties (`Id<?>` / Kotlin `Id<*>`, or abstract ID classes) retain a discriminator automatically:
 Model IDs use `{"name":"project","id":"owner-a"}` with their logical Model name; non-Model IDs use
 `{"@class":"example.ExternalId","id":"owner-a"}`. Concrete ID properties and standalone IDs remain scalar.

@@ -25,11 +25,14 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.deser.DefaultDeserializationContext;
+import com.fasterxml.jackson.databind.exc.InvalidDefinitionException;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
 import com.fasterxml.jackson.databind.ser.BeanSerializer;
 import com.fasterxml.jackson.databind.ser.impl.UnwrappingBeanPropertyWriter;
 import com.fasterxml.jackson.databind.ser.impl.UnwrappingBeanSerializer;
+import com.fasterxml.jackson.databind.type.MapLikeType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedObject;
@@ -64,7 +67,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
-import static io.fluxzero.sdk.common.ClientUtils.getRevisionNumber;
+import static io.fluxzero.sdk.common.ClientUtils.getRevisionNumberForType;
 import static java.lang.String.format;
 
 /**
@@ -450,22 +453,93 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
 
     /**
      * Resolves a canonical or registered simple/partial {@link JavaType} for the given string-based type name.
+     * Historical constant-specific enum subclass names are accepted after type aliases and upcasters have run.
      */
     protected JavaType getJavaType(String type) {
-        return objectMapper.getTypeFactory().constructFromCanonical(resolveTypeName(type));
+        return normalizeEnumType(objectMapper.getTypeFactory().constructFromCanonical(resolveTypeName(type)));
     }
 
     /**
-     * Computes the canonical string representation of a {@link Type}.
+     * Computes the canonical string representation of a {@link Type}. Constant-specific enum subclasses use their
+     * declaring enum unless the configured mapper already supports their original type. This also applies to
+     * inferred collection elements and map keys/values.
      */
     protected String getCanonicalType(Type type) {
-        return objectMapper.constructType(type).toCanonical();
+        return normalizeEnumType(objectMapper.constructType(type)).toCanonical();
+    }
+
+    /**
+     * Uses the declaring enum's revision when its constant-specific subclass is normalized to that enum.
+     * Explicitly supported subtype codecs retain their original type and revision.
+     */
+    @Override
+    protected int getRevision(Object object) {
+        if (object instanceof Enum<?> value && value.getClass() != value.getDeclaringClass()
+            && getTypeString(value).equals(asString(value.getDeclaringClass()))) {
+            return getRevisionNumberForType(value.getDeclaringClass());
+        }
+        return super.getRevision(object);
+    }
+
+    private JavaType normalizeEnumType(JavaType type) {
+        return normalizeEnumType(type, false);
+    }
+
+    private JavaType normalizeEnumType(JavaType type, boolean mapKey) {
+        if (!containsEnumSubclass(type) || supportsEnumType(type, mapKey)) {
+            return type;
+        }
+        Class<?> superclass = type.getRawClass().getSuperclass();
+        if (superclass != null && superclass.isEnum()) {
+            // Constant-specific bodies have no enum constants of their own. Keep working custom codecs,
+            // but let Jackson's ordinary enum codec use the declaring class for new and historical envelopes.
+            JavaType result = objectMapper.constructType(superclass).withHandlersFrom(type);
+            return type.useStaticType() ? result.withStaticTyping() : result;
+        }
+        if (type instanceof MapLikeType mapType) {
+            JavaType key = normalizeEnumType(mapType.getKeyType(), true);
+            if (key != mapType.getKeyType()) {
+                type = mapType.withKeyType(key);
+            }
+        }
+        if (type.getContentType() != null) {
+            JavaType content = normalizeEnumType(type.getContentType());
+            if (content != type.getContentType()) {
+                type = type.withContentType(content);
+            }
+        }
+        return type;
+    }
+
+    private boolean containsEnumSubclass(JavaType type) {
+        Class<?> superclass = type.getRawClass().getSuperclass();
+        return superclass != null && superclass.isEnum()
+               || type.getKeyType() != null && containsEnumSubclass(type.getKeyType())
+               || type.getContentType() != null && containsEnumSubclass(type.getContentType());
+    }
+
+    private boolean supportsEnumType(JavaType type, boolean mapKey) {
+        try {
+            var context = ((DefaultDeserializationContext) objectMapper.getDeserializationContext())
+                    .createInstance(objectMapper.getDeserializationConfig(), null, objectMapper.getInjectableValues());
+            // Unlike canDeserialize(), contextual lookup also checks map keys and container elements.
+            return mapKey ? context.findKeyDeserializer(type, null) != null
+                    : context.findRootValueDeserializer(type) != null;
+        } catch (InvalidDefinitionException e) {
+            // Jackson wraps EnumResolver's missing-constants error without retaining its cause. Only that
+            // definition failure justifies normalization; a custom codec's own failure must keep its route.
+            return e.getType() == null || !containsEnumSubclass(e.getType())
+                   || !e.getOriginalMessage().startsWith("No enum constants for class ");
+        } catch (Exception e) {
+            // A custom contextual codec may require a real parser. Preserve its original resolution path.
+            return true;
+        }
     }
 
     @Override
     public SerializedDocument toDocument(Object value, String id, String collection, Instant timestamp, Instant end,
                                          Metadata metadata) {
-        return inverter.toDocument(value, getTypeString(value), getRevisionNumber(value), id, collection, timestamp,
+        return inverter.toDocument(value, getTypeString(value), getRevision(value), id, collection, timestamp,
                                    end, metadata);
     }
 
