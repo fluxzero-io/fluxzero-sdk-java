@@ -86,6 +86,10 @@ sixty seconds. Explicit properties override either default;
 per-consumer `ConsumerConfiguration` builder values and explicit `@Consumer(maxWaitDuration = ...)` seconds win over
 the wait property. Omitted annotation values inherit. Resolve from the owning application's property source.
 
+A waiting read or segment claim must resume when a rebalance assigns it work, including when another tracker joins
+during an active claim. Existing messages in the newly assigned range need no additional publication or idle timeout.
+Do not add application polling or dummy publications to trigger delivery after a rebalance.
+
 Payload selection is derived per handler method from the active resolver chain and `allowedClasses`, then unioned
 per effective consumer. Known bean and trigger resolvers only constrain their annotated parameters; an extra
 `JsonNode` view does not widen a separate typed payload parameter. Final classes can supply
