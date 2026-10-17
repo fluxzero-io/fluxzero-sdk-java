@@ -2000,6 +2000,17 @@
     "varArgs" : false,
     "documentation" : " Delay before outstanding requests from a closed session are resent on a replacement session.\n"
   }, {
+    "name" : "runtimeIngressMonitoringActive",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#runtimeIngressMonitoringActive",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "schedulePing",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#schedulePing",
     "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.PingRegistration",
@@ -2346,6 +2357,22 @@
     }, {
       "name" : "resultCallback",
       "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "suppressIngressMetric",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#suppressIngressMetric",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketTransportMetric.Event",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
