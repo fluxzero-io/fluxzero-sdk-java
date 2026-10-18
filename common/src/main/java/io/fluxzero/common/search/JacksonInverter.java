@@ -18,6 +18,7 @@ package io.fluxzero.common.search;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.introspect.AnnotatedField;
 import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
 import com.fasterxml.jackson.databind.introspect.AnnotatedMethod;
@@ -42,6 +43,7 @@ import io.fluxzero.common.search.Document.Entry;
 import io.fluxzero.common.search.Document.EntryType;
 import io.fluxzero.common.search.Document.Path;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.common.serialization.DecimalSerializer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -115,6 +117,10 @@ public class JacksonInverter implements Inverter<JsonNode> {
         this.summarizer = createSummarizer(this);
     }
 
+    @Getter(value = AccessLevel.PRIVATE, lazy = true)
+    private final ObjectWriter documentWriter = objectMapper.writer()
+            .withAttribute(DecimalSerializer.NUMERIC_DOCUMENT, true);
+
     /*
         Summarize
      */
@@ -148,7 +154,7 @@ public class JacksonInverter implements Inverter<JsonNode> {
 
     private record SearchSummarizer(JacksonInverter inverter) implements ThrowingFunction<Object, String> {
         Map<Entry, List<Path>> entries(Object value) throws Exception {
-            return inverter.invert(inverter.objectMapper.writeValueAsBytes(value));
+            return inverter.invert(inverter.getDocumentWriter().writeValueAsBytes(value));
         }
 
         @Override
@@ -177,7 +183,7 @@ public class JacksonInverter implements Inverter<JsonNode> {
     @SneakyThrows
     public SerializedDocument toDocument(Object value, String type, int revision, String id, String collection,
                                          Instant timestamp, Instant end, Metadata metadata) {
-        byte[] data = objectMapper.writeValueAsBytes(value);
+        byte[] data = getDocumentWriter().writeValueAsBytes(value);
         Map<Entry, List<Path>> entries = new LinkedHashMap<>(invert(data));
         var searchableEntries = summarizer instanceof SearchSummarizer s && isDefaultSummary()
                 ? s.entries(value) : null;

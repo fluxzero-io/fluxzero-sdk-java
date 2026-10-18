@@ -39,6 +39,64 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OpenApiRendererTest {
+    @Test
+    void describesExactDecimalTransportAndServerBounds() {
+        var document = OpenApiRenderer.render(ApiDocExtractor.extract(DecimalHandler.class),
+                new OpenApiOptions("Decimal", "1", "", List.of()));
+        var amount = document.path("components").path("schemas").path("DecimalRequest")
+                .path("properties").path("amount");
+        assertEquals("string", amount.path("oneOf").get(0).path("type").asText());
+        assertEquals("number", amount.path("oneOf").get(1).path("type").asText());
+        assertEquals("0.01", amount.path("x-decimal-minimum").asText());
+        assertFalse(amount.has("minimum"));
+        var result = document.path("paths").path("/decimal").path("post").path("responses").path("200")
+                .path("content").path("application/json").path("schema");
+        assertEquals("string", result.path("type").asText());
+        assertEquals("decimal", result.path("format").asText());
+    }
+
+    @Test
+    void sharedRecursiveDecimalDtosKeepSeparateInputAndOutputSchemas() {
+        for (String version : List.of("3.0.4", "3.1.1")) {
+            var document = OpenApiRenderer.render(ApiDocExtractor.extract(SharedDecimalHandler.class),
+                    new OpenApiOptions("Decimal", "1", "", List.of(), version));
+            DecimalOpenApiAssertions.assertShared(document);
+        }
+    }
+
+    @Test
+    void explicitComponentOverridesRetainPriorityAndOpaqueExamples() {
+        var document = OpenApiRenderer.render(ApiDocExtractor.extract(OverrideHandler.class),
+                new OpenApiOptions("Overrides", "1", "", List.of()));
+        DecimalOpenApiAssertions.assertOverride(document);
+    }
+
+    @ApiDocInfo(components = @ApiDocComponent(path = "schemas.OverridePayload", json =
+            "{\"type\":\"object\",\"required\":[\"value\"],\"example\":{\"$ref\":\"#/x-fluxzero-input/literal\"}}"))
+    static class OverrideHandler {
+        @ApiDoc @HandlePost("/override")
+        void receive(OverridePayload body) { }
+    }
+    record OverridePayload(String value) { }
+
+    static class SharedDecimalHandler {
+        @ApiDoc @HandlePost("/shared-decimal")
+        SharedDecimal shared(SharedDecimal value) { return value; }
+    }
+    record SharedDecimal(io.fluxzero.common.Decimal amount, List<SharedDecimal> children,
+                         SharedDecimal examples,
+                         SharedDecimal example,
+                         SharedDecimal properties,
+                         SharedDecimal $ref) { }
+
+    static class DecimalHandler {
+        @ApiDoc @HandlePost("/decimal")
+        io.fluxzero.common.Decimal decimal(DecimalRequest body) { return body.amount(); }
+    }
+
+    record DecimalRequest(@jakarta.validation.constraints.DecimalMin("0.01")
+                          io.fluxzero.common.Decimal amount) {}
+
 
     @Test
     void polymorphicIdsRetainOptionalNullabilityInBothOpenApiVersions() {

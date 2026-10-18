@@ -114,3 +114,6 @@ identity/state changes and split/drop upcasts are rejected; a full-head/body/pro
 The typed searchable node uses the same guarded schema route and stays ancestor-queryable.
 Do not use ordinary writes to replace internal Model state. Follow the Model migration recipe for
 before/after queries and the distinction between these representations.
+
+Use `Decimal` for scale-independent numerical equality and exact browser JSON transport. See the linked Decimal article
+for the full BigDecimal API, numeric document indexing, constraints and migration boundaries.

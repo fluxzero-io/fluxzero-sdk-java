@@ -52,6 +52,20 @@ record ConstraintMeta(Annotation annotation, String messageTemplate, boolean cus
              attributes(annotation), validationAppliesTo);
     }
 
+    // Annotation equality compares array attributes by content. Record-generated equality on the attributes map
+    // would compare those arrays by identity and execute the same record/type-use constraint repeatedly.
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof ConstraintMeta meta && annotation.equals(meta.annotation)
+               && groups.equals(meta.groups) && payload.equals(meta.payload)
+               && validationAppliesTo == meta.validationAppliesTo;
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(annotation, groups, payload, validationAppliesTo);
+    }
+
     boolean crossParameter() {
         if (validationAppliesTo == ConstraintTarget.PARAMETERS) {
             return true;

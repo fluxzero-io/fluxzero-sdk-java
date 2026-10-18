@@ -23,6 +23,21 @@ import org.junit.jupiter.api.Test
 
 class KotlinValidationTest {
     @Test
+    fun decimalDataClassKeepsNumericalEqualityAndValidates() {
+        val amount = DecimalAmount(io.fluxzero.common.Decimal("900.00"))
+        assertEquals(amount, DecimalAmount(io.fluxzero.common.Decimal("900")))
+        ValidationUtils.assertValid(amount)
+        assertFailsWith<ValidationException> {
+            ValidationUtils.assertValid(DecimalAmount(io.fluxzero.common.Decimal("-1")))
+        }
+        val json = io.fluxzero.common.serialization.JsonUtils.asJson(amount)
+        assertEquals("{\"amount\":\"900.00\"}", json)
+        assertEquals(amount, io.fluxzero.common.serialization.JsonUtils.fromJson(json, DecimalAmount::class.java))
+    }
+
+    data class DecimalAmount(@field:jakarta.validation.constraints.Positive val amount: io.fluxzero.common.Decimal)
+
+    @Test
     fun reminderExampleNeedsNoRedundantNullGuard() {
         ValidationUtils.assertValid(ConfigureReminder(Duration.ZERO))
         assertFailsWith<ValidationException> {

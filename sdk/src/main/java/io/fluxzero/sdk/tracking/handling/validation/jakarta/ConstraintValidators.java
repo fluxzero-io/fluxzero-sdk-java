@@ -361,8 +361,12 @@ private static final class BuiltInConstraintValidators {
     }
 
     private static boolean digitsValid(BigDecimal value, Digits digits) {
+        // Negative scales add integer digits; count them before stripping to avoid scale underflow.
+        long integerDigits = value.signum() == 0 ? 1 : Math.max(0L, (long) value.precision() - value.scale());
+        if (integerDigits > digits.integer()) {
+            return false;
+        }
         BigDecimal normalized = value.abs().stripTrailingZeros();
-        int integerDigits = Math.max(0, normalized.precision() - Math.max(0, normalized.scale()));
         int fractionDigits = Math.max(0, normalized.scale());
         return integerDigits <= digits.integer() && fractionDigits <= digits.fraction();
     }
