@@ -230,3 +230,5 @@ cannot inherit search activation; enable the child explicitly. For polymorphic p
 must include the concrete parent types and their ancestors to guarantee their AWAIT settings. The SDK expands that
 catalog without loading ancestor values; Runtime selects the actual old/new roots from the commit's relationship
 history. A writer that only knows an open base contract cannot infer unknown concrete applications' completion policy.
+
+For a custom current searchable summary, read `/docs/sdk/search/current-projections`: it separates representation, triggers, persistence and read boundaries, including deletion, shared dependencies and retry.

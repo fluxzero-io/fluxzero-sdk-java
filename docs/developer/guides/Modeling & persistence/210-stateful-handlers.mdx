@@ -286,3 +286,7 @@ graph TD
 <Aside type="note">
 This entire process typically runs behind a **message tracker**, which continuously delivers messages to eligible stateful handlers. It’s not an on-demand invocation, but part of Fluxzero’s ongoing tracking loop.
 </Aside>
+
+## Searchable read models
+
+`@Stateful` also maintains custom searchable projections. For a complete current-state recipe, including document versus event triggers, pinned reads, deletion, schedules and storage retry, see [Current searchable projections](./215-current-projections.mdx). This is distinct from saga execution memory; keep collected source facts and pure assessments separate.

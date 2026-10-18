@@ -38,3 +38,5 @@ Keep this historical comparison separate from current-intent reconciliation. A l
 open a current Graph and recheck each candidate before changing it. See `/docs/sdk/sagas` for bounded continuation
 and the limits of retained pending-effect documents. Kotlin uses the same injected `Graph<Project>` contract;
 read `graph.previous()?.get()` before comparing it with `graph.get()`.
+
+For a custom current searchable summary, read `/docs/sdk/search/current-projections`: it separates representation, triggers, persistence and read boundaries, including deletion, shared dependencies and retry.

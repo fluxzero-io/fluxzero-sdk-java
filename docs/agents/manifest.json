@@ -2731,6 +2731,10 @@
         {
           "description": "Persist nested stateful members and apply lifecycle return semantics",
           "path": "/docs/sdk/sagas/members-and-lifecycle"
+        },
+        {
+          "path": "/docs/sdk/search/current-projections",
+          "description": "Build a current Stateful read model with explicit lifecycle and read boundaries"
         }
       ]
     },
@@ -5183,6 +5187,10 @@
         {
           "description": "Control search document identity time retention and asynchronous completion",
           "path": "/docs/sdk/search/document-lifecycle"
+        },
+        {
+          "path": "/docs/sdk/search/current-projections",
+          "description": "Build a current Stateful read model with explicit lifecycle and read boundaries"
         }
       ]
     },
@@ -7963,6 +7971,10 @@
         {
           "path": "/docs/sdk/models/temporal-graphs",
           "description": "Explore temporal navigation and before/after views"
+        },
+        {
+          "path": "/docs/sdk/search/current-projections",
+          "description": "Build a current Stateful read model with explicit lifecycle and read boundaries"
         }
       ],
       "title": "Graph Change Subscriptions",
@@ -8017,6 +8029,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Qualify existing data and value-preserving schema migrations"
+        },
+        {
+          "path": "/docs/sdk/search/current-projections",
+          "description": "Build a current Stateful read model with explicit lifecycle and read boundaries"
         }
       ],
       "title": "Choosing Model and Graph queries",
@@ -8217,6 +8233,41 @@
         {
           "path": "/docs/sdk/serialization/type-aliases",
           "description": "Resolve historical serialized identifiers"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/search/current-projections",
+      "title": "Current Stateful search projections",
+      "summary": "Choose Graph versus custom rows; qualify one-writer current projections with pinned reads, dependency invalidation, deletion, schedules, rebuild and storage retry.",
+      "source": "articles/sdk/search/current-projections.md",
+      "symbols": [
+        "Stateful projection",
+        "current projection",
+        "RefreshProject",
+        "loadGraphAt",
+        "single-writer projection"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/search",
+          "description": "Choose indexed representation and query filters"
+        },
+        {
+          "path": "/docs/sdk/sagas",
+          "description": "Distinguish read models from execution memory"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Understand Graph search and materialization costs"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-events",
+          "description": "Observe every root and descendant transition"
+        },
+        {
+          "path": "/docs/sdk/testing/tracked-projection-failures",
+          "description": "Qualify storage failure and consumer advancement"
         }
       ]
     }

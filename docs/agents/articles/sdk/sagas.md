@@ -130,4 +130,6 @@ public record PaymentSaga(@EntityId PaymentId paymentId) {
 }
 ```
 
-Avoid loading data or searching inside saga state transition logic. If the workflow is better expressed as Model state plus events, keep it stateless. Ordinary cancellation, expiry, and rejection compensation belongs in the workflow state machine; it is separate from error-stream correction.
+Avoid loading data or searching inside saga state transition logic. Current-state read-model projections are a separate use of `@Stateful`: collect source facts at an explicit boundary and keep assessments pure; see `/docs/sdk/search/current-projections`. If the workflow is better expressed as Model state plus events, keep it stateless. Ordinary cancellation, expiry, and rejection compensation belongs in the workflow state machine; it is separate from error-stream correction.
+
+For a custom current searchable summary, read `/docs/sdk/search/current-projections`: it separates representation, triggers, persistence and read boundaries, including deletion, shared dependencies and retry.
