@@ -149,6 +149,7 @@ public final class OpenApiRenderer {
             }
             documentInfo.components().forEach((path, value) -> setComponent(components, path, value.deepCopy()));
         }
+        InputSchemas.resolve(document, schemaContext.inputSchemas, documentInfo.components());
         stripModelGraphExtensions(document);
         return document;
     }
@@ -937,6 +938,9 @@ public final class OpenApiRenderer {
         if (double.class.equals(type) || Double.class.equals(type)) {
             return object().put("type", "number").put("format", "double");
         }
+        if (io.fluxzero.common.Decimal.class.equals(type)) {
+            return DecimalSchema.create(responseSchema);
+        }
         if (BigDecimal.class.equals(type) || Number.class.isAssignableFrom(type)) {
             return object().put("type", "number");
         }
@@ -1401,8 +1405,12 @@ public final class OpenApiRenderer {
         }
         putSchemaValue(schema, "example", metadata.example);
         putSchemaValue(schema, "default", metadata.defaultValue);
-        putDecimal(schema, "minimum", metadata.minimum);
-        putDecimal(schema, "maximum", metadata.maximum);
+        if (schema.path("x-decimal").asBoolean()) {
+            DecimalSchema.bounds(schema, metadata.minimum, metadata.maximum);
+        } else {
+            putDecimal(schema, "minimum", metadata.minimum);
+            putDecimal(schema, "maximum", metadata.maximum);
+        }
         if (metadata.minSize != null) {
             schema.put(sizeKeyword(schema, "min"), metadata.minSize);
         }
@@ -1700,6 +1708,7 @@ public final class OpenApiRenderer {
     private static final class SchemaContext {
         private final Map<Class<?>, String> names = new LinkedHashMap<>();
         private final Map<String, ObjectNode> schemas = new LinkedHashMap<>();
+        private final Map<String, ObjectNode> inputSchemas = new LinkedHashMap<>();
         private final Set<String> responseSchemas = new LinkedHashSet<>();
         private final Set<ModelGraphExpansion> expandedModelGraphs = new LinkedHashSet<>();
         private final Map<Class<?>, List<String>> modelGraphSelections = new LinkedHashMap<>();
@@ -1718,13 +1727,20 @@ public final class OpenApiRenderer {
 
         ObjectNode ref(Class<?> type, Set<Type> visiting, boolean responseSchema) {
             String name = name(type);
-            if (!schemas.containsKey(name) || responseSchema && !responseSchemas.contains(name)) {
-                ObjectNode placeholder = schemas.computeIfAbsent(name, ignored -> object());
-                if (responseSchema) {
-                    responseSchemas.add(name);
+            if (!responseSchema) {
+                if (!inputSchemas.containsKey(name)) {
+                    ObjectNode placeholder = object();
+                    inputSchemas.put(name, placeholder);
+                    schemas.putIfAbsent(name, placeholder);
+                    placeholder.setAll(objectSchema(type, visiting, this, false));
                 }
-                placeholder.removeAll();
-                placeholder.setAll(objectSchema(type, visiting, this, responseSchema));
+                return object().put("$ref", InputSchemas.reference(name));
+            }
+            if (!schemas.containsKey(name) || !responseSchemas.contains(name)) {
+                ObjectNode placeholder = object();
+                schemas.put(name, placeholder);
+                responseSchemas.add(name);
+                placeholder.setAll(objectSchema(type, visiting, this, true));
             }
             return object().put("$ref", "#/components/schemas/" + name);
         }

@@ -52,7 +52,26 @@ class OpenApiProcessorContractTest {
             import java.util.Map;
 
             @ApiDoc
+            @io.fluxzero.sdk.web.ApiDocInfo(components = @io.fluxzero.sdk.web.ApiDocComponent(
+                path = "schemas.OverridePayload", json = "{\\"type\\":\\"object\\",\\"required\\":[\\"value\\"],\\"example\\":{\\"$ref\\":\\"#/x-fluxzero-input/literal\\"}}"))
             public class ContractApi {
+                @HandlePost("/override") void override(OverridePayload body) {}
+                record OverridePayload(String value) {}
+
+                @HandlePost("/shared-decimal")
+                SharedDecimal shared(SharedDecimal value) { return value; }
+                record SharedDecimal(io.fluxzero.common.Decimal amount, java.util.List<SharedDecimal> children,
+                    SharedDecimal examples,
+                    SharedDecimal example,
+                    SharedDecimal properties,
+                    SharedDecimal $ref) {}
+
+                @HandlePost("/decimal")
+                io.fluxzero.common.Decimal decimal(DecimalRequest body) { return body.amount(); }
+
+                record DecimalRequest(@jakarta.validation.constraints.DecimalMin("0.01")
+                                      io.fluxzero.common.Decimal amount) {}
+
                 @HandlePost("/required")
                 void required(@ApiDoc(required = true)
                         Map<@Pattern(regexp = "[a-z]{2}") @Size(min = 2, max = 2) String,
@@ -105,7 +124,19 @@ class OpenApiProcessorContractTest {
         for (String version : List.of("3.0.4", "3.1.1")) {
             JsonNode document = compile(version);
             assertEquals(version, document.path("openapi").asText());
+            DecimalOpenApiAssertions.assertShared(document);
+            DecimalOpenApiAssertions.assertOverride(document);
             JsonNode paths = document.path("paths");
+            var amount = document.path("components").path("schemas").path("DecimalRequest")
+                    .path("properties").path("amount");
+            assertEquals("string", amount.path("oneOf").get(0).path("type").asText());
+            assertEquals("number", amount.path("oneOf").get(1).path("type").asText());
+            assertEquals("0.01", amount.path("x-decimal-minimum").asText());
+            assertFalse(amount.has("minimum"));
+            var result = paths.path("/decimal").path("post").path("responses").path("200")
+                    .path("content").path("application/json").path("schema");
+            assertEquals("string", result.path("type").asText());
+            assertEquals("decimal", result.path("format").asText());
 
             JsonNode requiredBody = paths.path("/required").path("post").path("requestBody");
             assertTrue(requiredBody.path("required").asBoolean());

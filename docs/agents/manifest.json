@@ -5004,6 +5004,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/serialization/decimal",
+          "description": "Exact decimal values, transport and numeric constraints"
         }
       ]
     },
@@ -6178,6 +6182,10 @@
         {
           "description": "Test validation and authorization independently",
           "path": "/docs/sdk/testing/behavior-matrices"
+        },
+        {
+          "path": "/docs/sdk/serialization/decimal",
+          "description": "Exact decimal values, transport and numeric constraints"
         }
       ]
     },
@@ -8268,6 +8276,31 @@
         {
           "path": "/docs/sdk/testing/tracked-projection-failures",
           "description": "Qualify storage failure and consumer advancement"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/serialization/decimal",
+      "title": "Exact Decimal values",
+      "summary": "Use numerical equality, exact JSON strings, numerical document indexing and standard SDK validation with the full BigDecimal API.",
+      "source": "articles/sdk/serialization/decimal.md",
+      "symbols": [
+        "Decimal",
+        "Decimal.toBigDecimal",
+        "Decimal.valueOf",
+        "DecimalSerializer",
+        "DecimalDeserializer",
+        "numeric decimal equality",
+        "decimal JSON precision"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/serialization",
+          "description": "Serialization and migration contracts"
+        },
+        {
+          "path": "/docs/sdk/validation/capabilities",
+          "description": "Supported validation profile"
         }
       ]
     }

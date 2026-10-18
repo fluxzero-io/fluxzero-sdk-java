@@ -179,6 +179,7 @@ public class SortableEntry implements Comparable<SortableEntry> {
     static BigDecimal toBigDecimal(Number number) {
         return switch (number) {
             case BigDecimal bd -> bd;
+            case io.fluxzero.common.Decimal decimal -> decimal.toBigDecimal();
             case Integer i -> new BigDecimal(i);
             case Long i -> new BigDecimal(i);
             case BigInteger bi -> new BigDecimal(bi);

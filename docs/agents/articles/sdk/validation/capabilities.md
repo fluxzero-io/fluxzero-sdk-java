@@ -67,3 +67,11 @@ only to shape an otherwise permitted response. Test scalar, list, map, nested-ro
 
 Protected values have a separate storage, restoration, and deletion lifecycle. Read the protected-data article before
 using them; validation rules alone do not define when the original value remains available to later handlers.
+
+## Decimal constraints and records
+
+The SDK's Decimal value type supports the same applicable built-in numerical constraints as BigDecimal, plus Range,
+without conversion through double. Custom validators typed specifically to BigDecimal are not adapted automatically.
+Digits counts negative-scale integer digits correctly and keeps the existing trailing-fractional-zero policy.
+Equivalent constraints propagated across a record's field/accessor/type use are deduplicated by annotation content,
+including array-valued groups and payloads. Distinct constraints still produce distinct violations.

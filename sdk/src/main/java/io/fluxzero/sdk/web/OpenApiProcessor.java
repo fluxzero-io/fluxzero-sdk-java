@@ -671,6 +671,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             }
             documentInfo.components().forEach((path, value) -> setComponent(components, path, value.deepCopy()));
         }
+        InputSchemas.resolve(document, schemaContext.inputSchemas, documentInfo.components());
         return document;
     }
 
@@ -1279,7 +1280,8 @@ public class OpenApiProcessor extends AbstractProcessor {
             return node;
         }
         String qualifiedName = qualifiedName(typeElement);
-        ObjectNode knownSchema = knownSchema(qualifiedName, type);
+        ObjectNode knownSchema = "io.fluxzero.common.Decimal".equals(qualifiedName)
+                ? DecimalSchema.create(responseSchema) : knownSchema(qualifiedName, type);
         if (knownSchema != null) {
             applySchemaMetadata(knownSchema, metadata(type), schemaContext);
             return knownSchema;
@@ -1763,8 +1765,12 @@ public class OpenApiProcessor extends AbstractProcessor {
         }
         putSchemaValue(schema, "example", metadata.example());
         putSchemaValue(schema, "default", metadata.defaultValue());
-        putDecimal(schema, "minimum", metadata.minimum());
-        putDecimal(schema, "maximum", metadata.maximum());
+        if (schema.path("x-decimal").asBoolean()) {
+            DecimalSchema.bounds(schema, metadata.minimum(), metadata.maximum());
+        } else {
+            putDecimal(schema, "minimum", metadata.minimum());
+            putDecimal(schema, "maximum", metadata.maximum());
+        }
         if (metadata.minSize() != null) {
             schema.put(sizeKeyword(schema, "min"), metadata.minSize());
         }
@@ -1923,6 +1929,17 @@ public class OpenApiProcessor extends AbstractProcessor {
                        || findAnnotation(element, API_DOC_EXCLUDE) != null);
         for (AnnotationMirror annotation : element.getAnnotationMirrors()) {
             builder.applyValidation(annotation);
+        }
+        if (isRecordComponent(element)) {
+            // Declaration constraints propagate to the backing field even when a qualified type prevents them
+            // from appearing on the component's TypeMirror. Do not depend on source import spelling.
+            for (Element member : element.getEnclosingElement().getEnclosedElements()) {
+                if (member.getKind() == ElementKind.FIELD && member.getSimpleName().equals(element.getSimpleName())) {
+                    for (AnnotationMirror annotation : member.getAnnotationMirrors()) {
+                        builder.applyValidation(annotation);
+                    }
+                }
+            }
         }
         return builder.build();
     }
@@ -2602,6 +2619,7 @@ public class OpenApiProcessor extends AbstractProcessor {
     private final class SchemaContext {
         private final Map<String, String> names = new LinkedHashMap<>();
         private final Map<String, ObjectNode> schemas = new LinkedHashMap<>();
+        private final Map<String, ObjectNode> inputSchemas = new LinkedHashMap<>();
         private final Set<String> responseSchemas = new LinkedHashSet<>();
         private final Set<String> expandedModelGraphs = new LinkedHashSet<>();
         private final Set<String> preparedModelGraphs = new LinkedHashSet<>();
@@ -2616,13 +2634,20 @@ public class OpenApiProcessor extends AbstractProcessor {
         ObjectNode ref(TypeElement type, Set<String> visiting, boolean responseSchema) {
             String qualifiedName = qualifiedName(type);
             String name = name(type);
-            if (!schemas.containsKey(name) || responseSchema && !responseSchemas.contains(name)) {
-                ObjectNode placeholder = schemas.computeIfAbsent(name, ignored -> object());
-                if (responseSchema) {
-                    responseSchemas.add(name);
+            if (!responseSchema) {
+                if (!inputSchemas.containsKey(name)) {
+                    ObjectNode placeholder = object();
+                    inputSchemas.put(name, placeholder);
+                    schemas.putIfAbsent(name, placeholder);
+                    placeholder.setAll(objectSchema(type, visiting, this, false));
                 }
-                placeholder.removeAll();
-                placeholder.setAll(objectSchema(type, visiting, this, responseSchema));
+                return object().put("$ref", InputSchemas.reference(name));
+            }
+            if (!schemas.containsKey(name) || !responseSchemas.contains(name)) {
+                ObjectNode placeholder = object();
+                schemas.put(name, placeholder);
+                responseSchemas.add(name);
+                placeholder.setAll(objectSchema(type, visiting, this, true));
             }
             names.putIfAbsent(qualifiedName, name);
             if (markModelGraphTypes) {
