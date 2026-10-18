@@ -1,0 +1,1832 @@
+{
+  "name" : "Decimal",
+  "qualifiedName" : "io.fluxzero.common.Decimal",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "com.fasterxml.jackson.databind.annotation.JsonSerialize",
+    "values" : {
+      "using" : "io.fluxzero.common.serialization.DecimalSerializer"
+    }
+  }, {
+    "annotationType" : "com.fasterxml.jackson.databind.annotation.JsonDeserialize",
+    "values" : {
+      "using" : "io.fluxzero.common.serialization.DecimalDeserializer"
+    }
+  } ],
+  "documentation" : " Immutable arbitrary-precision decimal with numerical equality, independent of trailing zeros.\n <p>Arithmetic, scale, conversions, rounding and exceptions follow {@link BigDecimal}. Decimal-valued results\n remain Decimal, including array elements. Both Decimal and BigDecimal operands are accepted. Scale is preserved,\n but does not participate in equality or hashing. Equality with other Number types is deliberately false.\n <p>JSON uses an exact decimal string; readers also accept numeric tokens. Document indexing uses numeric entries.\n Use string constructors or {@link #valueOf(long)} for exact input; double constructors retain BigDecimal's\n exact binary-floating-point conversion semantics. {@link #valueOf(double)} follows BigDecimal.valueOf(double).\n Standard numeric constraints are supported by the Fluxzero validator; third-party providers may require adapters.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Number",
+  "interfaces" : [ "java.lang.Comparable<io.fluxzero.common.Decimal>" ],
+  "fields" : [ {
+    "name" : "ONE",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ONE",
+    "type" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "The value BigDecimal.ONE, as a Decimal. ",
+    "constantValue" : null
+  }, {
+    "name" : "ROUND_CEILING",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ROUND_CEILING",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "documentation" : "@deprecated Use {@link RoundingMode#CEILING}. ",
+    "constantValue" : 2
+  }, {
+    "name" : "ROUND_DOWN",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ROUND_DOWN",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "documentation" : "@deprecated Use {@link RoundingMode#DOWN}. ",
+    "constantValue" : 1
+  }, {
+    "name" : "ROUND_FLOOR",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ROUND_FLOOR",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "documentation" : "@deprecated Use {@link RoundingMode#FLOOR}. ",
+    "constantValue" : 3
+  }, {
+    "name" : "ROUND_HALF_DOWN",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ROUND_HALF_DOWN",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "documentation" : "@deprecated Use {@link RoundingMode#HALF_DOWN}. ",
+    "constantValue" : 5
+  }, {
+    "name" : "ROUND_HALF_EVEN",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ROUND_HALF_EVEN",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "documentation" : "@deprecated Use {@link RoundingMode#HALF_EVEN}. ",
+    "constantValue" : 6
+  }, {
+    "name" : "ROUND_HALF_UP",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ROUND_HALF_UP",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "documentation" : "@deprecated Use {@link RoundingMode#HALF_UP}. ",
+    "constantValue" : 4
+  }, {
+    "name" : "ROUND_UNNECESSARY",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ROUND_UNNECESSARY",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "documentation" : "@deprecated Use {@link RoundingMode#UNNECESSARY}. ",
+    "constantValue" : 7
+  }, {
+    "name" : "ROUND_UP",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ROUND_UP",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "documentation" : "@deprecated Use {@link RoundingMode#UP}. ",
+    "constantValue" : 0
+  }, {
+    "name" : "TEN",
+    "qualifiedName" : "io.fluxzero.common.Decimal.TEN",
+    "type" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "The value BigDecimal.TEN, as a Decimal. ",
+    "constantValue" : null
+  }, {
+    "name" : "TWO",
+    "qualifiedName" : "io.fluxzero.common.Decimal.TWO",
+    "type" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "The value BigDecimal.TWO, as a Decimal. ",
+    "constantValue" : null
+  }, {
+    "name" : "ZERO",
+    "qualifiedName" : "io.fluxzero.common.Decimal.ZERO",
+    "type" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "The value BigDecimal.ZERO, as a Decimal. ",
+    "constantValue" : null
+  }, {
+    "name" : "serialVersionUID",
+    "qualifiedName" : "io.fluxzero.common.Decimal.serialVersionUID",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.Decimal.value",
+    "type" : "java.math.BigDecimal",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.experimental.Delegate",
+      "values" : {
+        "types" : "java.lang.Number.class"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "char[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(char[])}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "char[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(char[], int, int)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "char[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(char[], int, int, MathContext)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "char[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(char[], MathContext)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "double",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(double)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "double",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(double, MathContext)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(int)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(int, MathContext)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(String)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(String, MathContext)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Wraps an immutable BigDecimal without rounding or changing its scale. "
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.math.BigInteger",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(BigInteger)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.math.BigInteger",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(BigInteger, int)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.math.BigInteger",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(BigInteger, int, MathContext)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.math.BigInteger",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(BigInteger, MathContext)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(long)}.\n"
+  }, {
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a value with {@link BigDecimal#BigDecimal(long, MathContext)}.\n"
+  } ],
+  "methods" : [ {
+    "name" : "abs",
+    "qualifiedName" : "io.fluxzero.common.Decimal#abs",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#abs()}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "abs",
+    "qualifiedName" : "io.fluxzero.common.Decimal#abs",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#abs(MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.common.Decimal#add",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#add(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.common.Decimal#add",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#add(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.common.Decimal#add",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#add(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.common.Decimal#add",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#add(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "byteValueExact",
+    "qualifiedName" : "io.fluxzero.common.Decimal#byteValueExact",
+    "returnType" : "byte",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#byteValueExact()}.\n"
+  }, {
+    "name" : "compareTo",
+    "qualifiedName" : "io.fluxzero.common.Decimal#compareTo",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#compareTo(BigDecimal)}.\n"
+  }, {
+    "name" : "compareTo",
+    "qualifiedName" : "io.fluxzero.common.Decimal#compareTo",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#compareTo(BigDecimal)}.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, int)}. Decimal results retain this value type.\n @deprecated Use the corresponding RoundingMode overload.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, int, int)}. Decimal results retain this value type.\n @deprecated Use the corresponding RoundingMode overload.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "java.math.RoundingMode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, int, RoundingMode)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "java.math.RoundingMode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, RoundingMode)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, int)}. Decimal results retain this value type.\n @deprecated Use the corresponding RoundingMode overload.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, int, int)}. Decimal results retain this value type.\n @deprecated Use the corresponding RoundingMode overload.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "java.math.RoundingMode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, int, RoundingMode)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divide",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divide",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "java.math.RoundingMode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divide(BigDecimal, RoundingMode)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divideAndRemainder",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divideAndRemainder",
+    "returnType" : "io.fluxzero.common.Decimal[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divideAndRemainder(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divideAndRemainder",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divideAndRemainder",
+    "returnType" : "io.fluxzero.common.Decimal[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divideAndRemainder(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divideAndRemainder",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divideAndRemainder",
+    "returnType" : "io.fluxzero.common.Decimal[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divideAndRemainder(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divideAndRemainder",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divideAndRemainder",
+    "returnType" : "io.fluxzero.common.Decimal[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divideAndRemainder(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divideToIntegralValue",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divideToIntegralValue",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divideToIntegralValue(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divideToIntegralValue",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divideToIntegralValue",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divideToIntegralValue(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divideToIntegralValue",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divideToIntegralValue",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divideToIntegralValue(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "divideToIntegralValue",
+    "qualifiedName" : "io.fluxzero.common.Decimal#divideToIntegralValue",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#divideToIntegralValue(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.Decimal#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.Decimal#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "intValueExact",
+    "qualifiedName" : "io.fluxzero.common.Decimal#intValueExact",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#intValueExact()}.\n"
+  }, {
+    "name" : "longValueExact",
+    "qualifiedName" : "io.fluxzero.common.Decimal#longValueExact",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#longValueExact()}.\n"
+  }, {
+    "name" : "max",
+    "qualifiedName" : "io.fluxzero.common.Decimal#max",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#max(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "max",
+    "qualifiedName" : "io.fluxzero.common.Decimal#max",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#max(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "min",
+    "qualifiedName" : "io.fluxzero.common.Decimal#min",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#min(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "min",
+    "qualifiedName" : "io.fluxzero.common.Decimal#min",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#min(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "movePointLeft",
+    "qualifiedName" : "io.fluxzero.common.Decimal#movePointLeft",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "distance",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#movePointLeft(int)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "movePointRight",
+    "qualifiedName" : "io.fluxzero.common.Decimal#movePointRight",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "distance",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#movePointRight(int)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "multiply",
+    "qualifiedName" : "io.fluxzero.common.Decimal#multiply",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#multiply(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "multiply",
+    "qualifiedName" : "io.fluxzero.common.Decimal#multiply",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#multiply(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "multiply",
+    "qualifiedName" : "io.fluxzero.common.Decimal#multiply",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#multiply(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "multiply",
+    "qualifiedName" : "io.fluxzero.common.Decimal#multiply",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#multiply(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "negate",
+    "qualifiedName" : "io.fluxzero.common.Decimal#negate",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#negate()}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "negate",
+    "qualifiedName" : "io.fluxzero.common.Decimal#negate",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#negate(MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "plus",
+    "qualifiedName" : "io.fluxzero.common.Decimal#plus",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#plus()}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "plus",
+    "qualifiedName" : "io.fluxzero.common.Decimal#plus",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#plus(MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "pow",
+    "qualifiedName" : "io.fluxzero.common.Decimal#pow",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exponent",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#pow(int)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "pow",
+    "qualifiedName" : "io.fluxzero.common.Decimal#pow",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exponent",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#pow(int, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "precision",
+    "qualifiedName" : "io.fluxzero.common.Decimal#precision",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#precision()}.\n"
+  }, {
+    "name" : "remainder",
+    "qualifiedName" : "io.fluxzero.common.Decimal#remainder",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#remainder(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "remainder",
+    "qualifiedName" : "io.fluxzero.common.Decimal#remainder",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#remainder(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "remainder",
+    "qualifiedName" : "io.fluxzero.common.Decimal#remainder",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#remainder(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "remainder",
+    "qualifiedName" : "io.fluxzero.common.Decimal#remainder",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#remainder(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "round",
+    "qualifiedName" : "io.fluxzero.common.Decimal#round",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#round(MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "scale",
+    "qualifiedName" : "io.fluxzero.common.Decimal#scale",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#scale()}.\n"
+  }, {
+    "name" : "scaleByPowerOfTen",
+    "qualifiedName" : "io.fluxzero.common.Decimal#scaleByPowerOfTen",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exponent",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#scaleByPowerOfTen(int)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "setScale",
+    "qualifiedName" : "io.fluxzero.common.Decimal#setScale",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#setScale(int)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "setScale",
+    "qualifiedName" : "io.fluxzero.common.Decimal#setScale",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#setScale(int, int)}. Decimal results retain this value type.\n @deprecated Use the corresponding RoundingMode overload.\n"
+  }, {
+    "name" : "setScale",
+    "qualifiedName" : "io.fluxzero.common.Decimal#setScale",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundingMode",
+      "type" : "java.math.RoundingMode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#setScale(int, RoundingMode)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "shortValueExact",
+    "qualifiedName" : "io.fluxzero.common.Decimal#shortValueExact",
+    "returnType" : "short",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#shortValueExact()}.\n"
+  }, {
+    "name" : "signum",
+    "qualifiedName" : "io.fluxzero.common.Decimal#signum",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#signum()}.\n"
+  }, {
+    "name" : "sqrt",
+    "qualifiedName" : "io.fluxzero.common.Decimal#sqrt",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#sqrt(MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "stripTrailingZeros",
+    "qualifiedName" : "io.fluxzero.common.Decimal#stripTrailingZeros",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#stripTrailingZeros()}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "subtract",
+    "qualifiedName" : "io.fluxzero.common.Decimal#subtract",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#subtract(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "subtract",
+    "qualifiedName" : "io.fluxzero.common.Decimal#subtract",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#subtract(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "subtract",
+    "qualifiedName" : "io.fluxzero.common.Decimal#subtract",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#subtract(BigDecimal)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "subtract",
+    "qualifiedName" : "io.fluxzero.common.Decimal#subtract",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.math.BigDecimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.math.MathContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#subtract(BigDecimal, MathContext)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "toBigDecimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal#toBigDecimal",
+    "returnType" : "java.math.BigDecimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the underlying immutable value, preserving its scale. "
+  }, {
+    "name" : "toBigInteger",
+    "qualifiedName" : "io.fluxzero.common.Decimal#toBigInteger",
+    "returnType" : "java.math.BigInteger",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#toBigInteger()}.\n"
+  }, {
+    "name" : "toBigIntegerExact",
+    "qualifiedName" : "io.fluxzero.common.Decimal#toBigIntegerExact",
+    "returnType" : "java.math.BigInteger",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#toBigIntegerExact()}.\n"
+  }, {
+    "name" : "toEngineeringString",
+    "qualifiedName" : "io.fluxzero.common.Decimal#toEngineeringString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#toEngineeringString()}.\n"
+  }, {
+    "name" : "toPlainString",
+    "qualifiedName" : "io.fluxzero.common.Decimal#toPlainString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#toPlainString()}.\n"
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.Decimal#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ulp",
+    "qualifiedName" : "io.fluxzero.common.Decimal#ulp",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#ulp()}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "unscaledValue",
+    "qualifiedName" : "io.fluxzero.common.Decimal#unscaledValue",
+    "returnType" : "java.math.BigInteger",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#unscaledValue()}.\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.Decimal#valueOf",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "double",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#valueOf(double)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.Decimal#valueOf",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#valueOf(long)}. Decimal results retain this value type.\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.Decimal#valueOf",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scale",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delegates to {@link BigDecimal#valueOf(long, int)}. Decimal results retain this value type.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

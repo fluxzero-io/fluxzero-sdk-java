@@ -1,0 +1,65 @@
+{
+  "name" : "DecimalSerializer",
+  "qualifiedName" : "io.fluxzero.common.serialization.DecimalSerializer",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Writes decimals exactly as strings in JSON and as numbers in the document index. ",
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.ser.std.StdScalarSerializer<io.fluxzero.common.Decimal>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "NUMERIC_DOCUMENT",
+    "qualifiedName" : "io.fluxzero.common.serialization.DecimalSerializer.NUMERIC_DOCUMENT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Internal serialization context set by the document inverter; never changes an ObjectMapper globally. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DecimalSerializer",
+    "qualifiedName" : "io.fluxzero.common.serialization.DecimalSerializer#DecimalSerializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "serialize",
+    "qualifiedName" : "io.fluxzero.common.serialization.DecimalSerializer#serialize",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.Decimal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "provider",
+      "type" : "com.fasterxml.jackson.databind.SerializerProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

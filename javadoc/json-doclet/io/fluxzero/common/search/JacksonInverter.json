@@ -43,6 +43,20 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "documentWriter",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter.documentWriter",
+    "type" : "com.fasterxml.jackson.databind.ObjectWriter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true",
+        "value" : "PRIVATE"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "objectMapper",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter.objectMapper",
     "type" : "com.fasterxml.jackson.databind.json.JsonMapper",

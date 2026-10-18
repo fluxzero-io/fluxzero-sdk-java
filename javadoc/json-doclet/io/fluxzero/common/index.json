@@ -35,6 +35,11 @@
     "qualifiedName" : "io.fluxzero.common.ConsistentHashing",
     "kind" : "class"
   }, {
+    "file" : "Decimal.json",
+    "name" : "Decimal",
+    "qualifiedName" : "io.fluxzero.common.Decimal",
+    "kind" : "class"
+  }, {
     "file" : "DefaultMemoizingBiFunction.json",
     "name" : "DefaultMemoizingBiFunction",
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction",

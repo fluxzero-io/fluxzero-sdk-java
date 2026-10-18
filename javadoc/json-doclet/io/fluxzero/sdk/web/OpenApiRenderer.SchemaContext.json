@@ -18,6 +18,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "inputSchemas",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext.inputSchemas",
+    "type" : "java.util.Map<java.lang.String,com.fasterxml.jackson.databind.node.ObjectNode>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "modelGraphSelections",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext.modelGraphSelections",
     "type" : "java.util.Map<java.lang.Class<?>,java.util.List<java.lang.String>>",

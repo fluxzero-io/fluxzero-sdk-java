@@ -1,0 +1,52 @@
+{
+  "name" : "DecimalDeserializer",
+  "qualifiedName" : "io.fluxzero.common.serialization.DecimalDeserializer",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Reads exact decimal strings and legacy numeric JSON tokens without a floating-point intermediate. ",
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer<io.fluxzero.common.Decimal>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "DecimalDeserializer",
+    "qualifiedName" : "io.fluxzero.common.serialization.DecimalDeserializer#DecimalDeserializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "deserialize",
+    "qualifiedName" : "io.fluxzero.common.serialization.DecimalDeserializer#deserialize",
+    "returnType" : "io.fluxzero.common.Decimal",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parser",
+      "type" : "com.fasterxml.jackson.core.JsonParser",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "com.fasterxml.jackson.databind.DeserializationContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -15,6 +15,16 @@
     "qualifiedName" : "io.fluxzero.common.serialization.Converter",
     "kind" : "interface"
   }, {
+    "file" : "DecimalDeserializer.json",
+    "name" : "DecimalDeserializer",
+    "qualifiedName" : "io.fluxzero.common.serialization.DecimalDeserializer",
+    "kind" : "class"
+  }, {
+    "file" : "DecimalSerializer.json",
+    "name" : "DecimalSerializer",
+    "qualifiedName" : "io.fluxzero.common.serialization.DecimalSerializer",
+    "kind" : "class"
+  }, {
     "file" : "DefaultTypeRegistry.json",
     "name" : "DefaultTypeRegistry",
     "qualifiedName" : "io.fluxzero.common.serialization.DefaultTypeRegistry",
