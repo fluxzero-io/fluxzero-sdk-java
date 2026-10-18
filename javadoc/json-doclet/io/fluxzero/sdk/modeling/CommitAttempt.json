@@ -370,6 +370,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "replayBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.replayBoundary",
+    "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "replayRepository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.replayRepository",
+    "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "resolution",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.resolution",
     "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
@@ -799,6 +815,22 @@
     "varArgs" : false,
     "documentation" : "Returns this repository's active mutation read context, never an event-replay or escaped async context. "
   }, {
+    "name" : "currentReplayContext",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#currentReplayContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns this repository's active replay input; never borrows another application's or namespace's context. "
+  }, {
     "name" : "deadlineContext",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#deadlineContext",
     "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
@@ -1179,6 +1211,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Loaded and staged values visible to Graph reads at this attempt's boundary. "
+  }, {
+    "name" : "graphReadBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#graphReadBoundary",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Input boundary for lazy Graph values and relationships, including earlier stored commit substeps. "
   }, {
     "name" : "graphReadContext",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#graphReadContext",
@@ -2324,6 +2367,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withReplayReads",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#withReplayReads",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Binds replay reads to their original input without joining live mutation/conflict tracking. "
   }, {
     "name" : "withValue",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#withValue",

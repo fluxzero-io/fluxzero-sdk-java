@@ -1079,6 +1079,22 @@
     "varArgs" : false,
     "documentation" : "Internal result view retaining a known revision without consulting a subsequent current cache entry. "
   }, {
+    "name" : "readContext",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#readContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "related",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#related",
     "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<?>>",

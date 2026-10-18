@@ -3197,6 +3197,11 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "replay",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

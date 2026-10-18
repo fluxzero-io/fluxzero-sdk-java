@@ -1637,7 +1637,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Lazily loads the independently stored model identified by the typed ID as a relationship graph.\n <p>\n The source model is loaded only when its value, history or relationship contents are requested. A typed ancestor\n lookup can normally resolve directly from stored relationship identities.\n Within a Model mutation this joins the active attempt's pinned boundary, staged state and inspected readset.\n Otherwise, outside historical event handling, the default repository establishes the snapshot at storage on the first\n storage read, independently of the root cache and whether value or relationships are requested first.\n"
+    "documentation" : " Lazily loads the independently stored model identified by the typed ID as a relationship graph.\n <p>\n The source model is loaded only when its value, history or relationship contents are requested. A typed ancestor\n lookup can normally resolve directly from stored relationship identities.\n Within a Model mutation this joins the active attempt's pinned boundary, staged state and inspected readset.\n During replay, synchronous reads use the step's original input and earlier same-commit substeps,\n excluding the step's completed output and unrelated pending message-batch state.\n Otherwise, outside historical event handling, the default repository establishes the snapshot at storage on the first\n storage read, independently of the root cache and whether value or relationships are requested first.\n"
   }, {
     "name" : "loadGraph",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
