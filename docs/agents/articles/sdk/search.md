@@ -89,3 +89,5 @@ Manual indexing and bulk updates overwrite existing documents by ID unless `ifNo
 Runtime search pushes filtering and sorting into managed storage when possible and may use an in-memory fallback for unsupported parts. Application code should express the required indexed constraints and verify their behavior; storage extensions and database tuning belong to the managed platform.
 
 Runtime search supports PostgreSQL full-text style indexes, facets, histograms, stats, bulk updates, and document collection messages. Do not promise embedding, semantic, or vector search unless a future implementation adds it.
+
+For a custom current searchable summary, read `/docs/sdk/search/current-projections`: it separates representation, triggers, persistence and read boundaries, including deletion, shared dependencies and retry.

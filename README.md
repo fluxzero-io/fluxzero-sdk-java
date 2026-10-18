@@ -19,6 +19,8 @@ Fluxzero handles delivery, routing, persistence, retries, and observability arou
 
 Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concepts) or browse the full [guides, tutorials, and reference documentation](https://fluxzero.io/docs).
 
+For custom current read models, see [Current searchable projections](docs/developer/guides/Modeling%20%26%20persistence/215-current-projections.mdx): choose Graph search or Stateful rows and qualify their read boundaries, dependencies and recovery.
+
 ## Start building
 
 Building with a coding agent? Give it this:

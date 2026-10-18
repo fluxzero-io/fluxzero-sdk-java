@@ -98,13 +98,14 @@ class ModelEntityParameterResolverTest {
                     return firstEvent.apply(message -> {
                         Graph<Account> historical = Fluxzero.loadGraph(accountId);
                         return List.of(historical.get(), Fluxzero.loadCurrentGraph(accountId).get(),
-                                       historical.current().get(), historical.get());
+                                       historical.current().get(), historical.get(), Fluxzero.loadGraph(accountId).get());
                     });
                 })
                 .expectResult(List.of(
                         new Account(accountId, 10),
                         new Account(accountId, 20),
                         new Account(accountId, 20),
+                        new Account(accountId, 10),
                         new Account(accountId, 10)));
     }
 
