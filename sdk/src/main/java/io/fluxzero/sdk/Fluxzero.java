@@ -1201,6 +1201,8 @@ public interface Fluxzero extends AutoCloseable {
      * The source model is loaded only when its value, history or relationship contents are requested. A typed ancestor
      * lookup can normally resolve directly from stored relationship identities.
      * Within a Model mutation this joins the active attempt's pinned boundary, staged state and inspected readset.
+     * During replay, synchronous reads use the step's original input and earlier same-commit substeps,
+     * excluding the step's completed output and unrelated pending message-batch state.
      * Otherwise, outside historical event handling, the default repository establishes the snapshot at storage on the first
      * storage read, independently of the root cache and whether value or relationships are requested first.
      */

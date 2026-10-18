@@ -2890,6 +2890,9 @@ final class ModelReplayCursor {
                 CommitAttempt context,
                 MutationPlan definition) {
             try {
+                context.withReplayReads(repository, membership.getSubstep() == 0
+                        ? ModelReadBoundary.at(membership.getReadStateIndex())
+                        : ModelReadBoundary.commit(membership.getCommitId(), membership.getSubstep() - 1));
                 DeserializingMessage replayEvent = definition.direct()
                         ? event : new DeserializingMessage(
                                 event.toMessage(), EVENT, null, serializer);
@@ -2928,7 +2931,8 @@ final class ModelReplayCursor {
                 loaded.putAll(viewsAt(missing, membership.getReadStateIndex(), membership.getCommitId(),
                         membership.getSubstep(), membership.getStateIndex()));
             }
-            return CommitAttempt.create(context.readStateIndex(), resolution, loaded);
+            return CommitAttempt.create(context.readStateIndex(), resolution, loaded)
+                    .withReplayReads(repository, context.graphReadBoundary());
         }
 
         private List<DeserializingMessage> deserialize(

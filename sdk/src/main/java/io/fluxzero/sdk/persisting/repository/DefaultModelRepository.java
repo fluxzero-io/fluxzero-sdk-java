@@ -978,11 +978,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             @NonNull Class<T> rootType,
             @NonNull Graph.Options options) {
         EntityMetadata.validate(rootType);
-        PinnedBoundary handlerBoundary =
-                handlerBoundary();
+        CommitAttempt replay = CommitAttempt.currentReplayContext(this);
+        PinnedBoundary handlerBoundary = replay == null ? handlerBoundary() : null;
         return reconstructGraph(
                 rootId, rootType, options, boundary(handlerBoundary),
-                handlerBoundary, true);
+                handlerBoundary, true, replay);
     }
 
     @Override
@@ -1271,7 +1271,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             @NonNull Graph.Options options) {
         return reconstructGraph(
                 rootId, rootType, options, boundary, null,
-                boundary.includeMessageBatch());
+                boundary.includeMessageBatch(), boundary.historical() ? null : CommitAttempt.currentReplayContext(this));
     }
 
     @Override
@@ -1424,12 +1424,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Graph.Options options,
             ModelReadBoundary boundary,
             PinnedBoundary handlerBoundary,
-            boolean includeMessageBatch) {
+            boolean includeMessageBatch,
+            CommitAttempt replay) {
         modelName(rootType);
         EntityMetadata.validate(rootType);
         CommitAttempt mutation = boundary.historical() ? null : CommitAttempt.currentReadContext(this);
+        if (mutation == null) { mutation = replay; }
         Map<String, Entity<?>> staged =
-                includeMessageBatch
+                includeMessageBatch && replay == null
                         ? ModelBatchScope.currentValues(
                                 messageBatchNamespace(), modelDefinitionCompiler)
                         : Map.of();
@@ -1441,7 +1443,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Map<String, Entity<?>> overlay = new LinkedHashMap<>(staged);
             overlay.putAll(mutation.graphEntities());
             result = mutation.trackGraph(replayCursor.graphAtBoundary(
-                    rootId, rootType, options, ModelReadBoundary.state(mutation.readStateIndex(), true),
+                    rootId, rootType, options, mutation.graphReadBoundary(),
                     messageBatchNamespace(), overlay, false), this);
         }
         pin(handlerBoundary, result.stateIndex());
