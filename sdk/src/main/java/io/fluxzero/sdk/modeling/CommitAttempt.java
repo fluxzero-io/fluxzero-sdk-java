@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -53,6 +54,8 @@ public final class CommitAttempt {
     private Map<String, String> aliasSelections = Map.of();
     private CommitAttempt graphReadOwner;
     private ModelReducer.SubstepResolver readResolver;
+    private ModelRepository replayRepository;
+    private ModelReadBoundary replayBoundary;
     private Map<String, Class<?>> graphReadTypes;
     private Map<String, Entity<?>> graphReadEntities;
     private Map<String, Entity<?>> graphOverlayEntities;
@@ -187,6 +190,28 @@ public final class CommitAttempt {
         ModelRepository owner = context.graphReadOwner.readResolver.repository();
         return owner == repository || owner instanceof DefaultModelRepository standard
                                      && standard.sharesReadContext(repository) ? context : null;
+    }
+
+    /** Binds replay reads to their original input without joining live mutation/conflict tracking. */
+    public CommitAttempt withReplayReads(ModelRepository repository, ModelReadBoundary boundary) {
+        replayRepository = repository;
+        replayBoundary = boundary;
+        return this;
+    }
+
+    /** Returns this repository's active replay input; never borrows another application's or namespace's context. */
+    public static CommitAttempt currentReplayContext(ModelRepository repository) {
+        CommitAttempt context = graphInvocation.get();
+        if (!Entity.isLoading() || context == null || context.replayRepository == null) { return null; }
+        ModelRepository owner = context.replayRepository;
+        return owner == repository || owner instanceof DefaultModelRepository standard
+                                     && standard.sharesReadContext(repository) ? context : null;
+    }
+
+    /** Input boundary for lazy Graph values and relationships, including earlier stored commit substeps. */
+    public ModelReadBoundary graphReadBoundary() {
+        return replayBoundary == null ? ModelReadBoundary.state(readStateIndex(), !readsDurableStateOnly())
+                : replayBoundary;
     }
 
     void durableReadsOnly() { durableReadsOnly = true; }
@@ -362,7 +387,7 @@ public final class CommitAttempt {
     static <R> R withGraphReads(CommitAttempt context, Supplier<R> action) {
         CommitAttempt previous = graphInvocation.get();
         CommitAttempt owner = context.graphReadOwner;
-        if (owner == null && previous == null) {
+        if (owner == null && previous == null && context.replayRepository == null) {
             return action.get();
         }
         CommitAttempt previousInvocation = owner == null ? null : owner.activeGraphInvocation;
@@ -1039,6 +1064,8 @@ public final class CommitAttempt {
         result.resolution = resolution;
         result.entities = immutable(updated);
         result.deferredBoundary = deferredBoundary;
+        result.replayRepository = replayRepository;
+        result.replayBoundary = replayBoundary;
         result.graphReadOwner = graphReadOwner;
         result.readCollector = readCollector;
         if (graphUpdated != null) {

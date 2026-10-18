@@ -165,6 +165,14 @@ relationship reads join its conflict dependencies, including empty collections. 
 snapshot mid-mutation. Outside mutations, ordinary event-handler reads remain event-bound; explicit current reads
 open a fresh view for deliberate reconciliation, such as scheduling against current intent.
 
+
+During event-sourced reconstruction, synchronous Graph reads made by `@Apply` use that step's input context,
+just like injected Models/Graphs. Earlier substeps in the same commit and payload-to-Model phase updates remain
+visible; later changes, the current step's completed output and unrelated pending message-batch values do not.
+This includes a dynamically discovered Model that the apply itself returns as a write. Current shortcuts stay in
+this replay context too. Explicit historical views retain their requested boundary, and another repository or
+namespace cannot borrow the replay context. Ordinary event handlers still see the state including their event.
+
 Outside historical event handling, a new detached Graph establishes its snapshot against storage, not the age of a
 cached root. Reading `get()` before `children(...)` therefore does not hide already committed relation changes.
 Typed lazy loads pin on their first storage read; an untyped load pins when it resolves the root identity.

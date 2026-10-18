@@ -152,13 +152,13 @@ public final class Graphs {
     public static Graph<?> lazy(Object modelId, ModelRepository repository, boolean applyAffixes) {
         ModelIdResolution resolution = applyAffixes ? ModelIdResolution.FUNCTIONAL : ModelIdResolution.LITERAL;
         Class<?> requestedType = modelId instanceof Id<?> id ? id.getType() : Object.class;
-        CommitAttempt context = CommitAttempt.currentReadContext(repository);
+        CommitAttempt context = readContext(repository);
         if (context != null) {
             context.ensureReadBoundary();
             if (!(repository instanceof ModelGraphResolver resolver)) {
                 throw new UnsupportedOperationException("Transactional Graph reads require a ModelGraphResolver");
             }
-            ModelReadBoundary boundary = ModelReadBoundary.state(context.readStateIndex(), !context.readsDurableStateOnly());
+            ModelReadBoundary boundary = context.graphReadBoundary();
             ModelGraphResolver.Identity identity = resolution.resolveIdentity(resolver, modelId, requestedType, boundary, false);
             if (identity == null) {
                 throw new UnsupportedOperationException("Transactional untyped Graph reads require identity metadata");
@@ -285,6 +285,11 @@ public final class Graphs {
         return GraphState.identity(modelId, repositoryId, true, modelType, repository).root();
     }
 
+    private static CommitAttempt readContext(ModelRepository repository) {
+        CommitAttempt mutation = CommitAttempt.currentReadContext(repository);
+        return mutation == null ? CommitAttempt.currentReplayContext(repository) : mutation;
+    }
+
     private static <T> Graph<T> inMutation(Object requestedId, String repositoryId, boolean exact,
                                           Class<T> type, ModelRepository repository) {
         return inMutation(requestedId, repositoryId, ModelIdResolution.ofExact(exact), type, repository);
@@ -293,7 +298,7 @@ public final class Graphs {
     private static <T> Graph<T> inMutation(Object requestedId, String repositoryId, ModelIdResolution resolution,
                                           Class<T> type, ModelRepository repository) {
         boolean exact = resolution.exact();
-        CommitAttempt context = CommitAttempt.currentReadContext(repository);
+        CommitAttempt context = readContext(repository);
         if (context == null) { return null; }
         context.ensureReadBoundary();
         if (!(repository instanceof ModelGraphResolver)) {
@@ -301,7 +306,7 @@ public final class Graphs {
         }
         Map<String, Entity<?>> models = context.graphEntities();
         Entity<?> loaded = models.get(repositoryId);
-        ModelReadBoundary boundary = ModelReadBoundary.state(context.readStateIndex(), !context.readsDurableStateOnly());
+        ModelReadBoundary boundary = context.graphReadBoundary();
         GraphState state = loaded != null && type.isAssignableFrom(loaded.type())
                 ? GraphState.entity(loaded, context.readStateIndex(), repository, models, false, true, boundary, Map.of())
                 : GraphState.identity(requestedId, repositoryId, resolution, type, repository, boundary, models);
@@ -315,7 +320,7 @@ public final class Graphs {
         context.ensureReadBoundary();
         GraphState state = GraphState.entity(
                 entity, context.readStateIndex(), repository, context.graphEntities(), false, true,
-                context.mutationContext() ? ModelReadBoundary.state(context.readStateIndex(), !context.readsDurableStateOnly())
+                context.mutationContext() || CommitAttempt.currentReplayContext(repository) != null ? context.graphReadBoundary()
                         : handlerBoundary(context.readStateIndex()), Map.of());
         if (context.mutationContext()) { state.valueHistory(false); }
         return withReadProof(context.trackGraph(state.root(), repository),

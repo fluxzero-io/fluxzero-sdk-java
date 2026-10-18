@@ -115,3 +115,12 @@ segment is not blindly inherited: external producers or interceptors may have as
 Dedicated overrides win in both directions. Their conventional environment-variable names are `FLUXZERO_MODEL_AUTOMATIC_ROUTING`
 and `FLUXZERO_MODEL_CONFLICT_POLICY`; the compact aliases remain supported. The defaults marker is `FLUXZERO_DEFAULTS_VERSION`. Routing reduces avoidable
 concurrency but never replaces read-dependency validation.
+
+## Graph reads during reconstruction
+
+During event-sourced reconstruction, synchronous Graph reads made by `@Apply` use that step's input context,
+just like injected Models/Graphs. Earlier substeps in the same commit and payload-to-Model phase updates remain
+visible; later changes, the current step's completed output and unrelated pending message-batch values do not.
+This includes a dynamically discovered Model that the apply itself returns as a write. Current shortcuts stay in
+this replay context too. Explicit historical views retain their requested boundary, and another repository or
+namespace cannot borrow the replay context. Ordinary event handlers still see the state including their event.

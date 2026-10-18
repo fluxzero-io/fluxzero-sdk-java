@@ -26,8 +26,11 @@ check; it does not make a factory an overwrite or make an implementation safe fo
 
 Payload applies can be followed by Model applies. Multiple applicable transitions can update independent Models in
 one commit. Keep the transition deterministic because event-sourced reconstruction runs it again. Inject required
-Models/Graphs and persisted message context; do not manually load, search, generate random IDs, call an external
-service or consult a wall clock inside `@Apply`.
+Models/Graphs and persisted message context when their identity is available for injection. Synchronous
+`loadGraph`, `loadCurrentGraph` and `graph.current()` reads on the operation's repository/namespace are supported
+when the target is discovered during the transition. During replay they see the original step's input, including
+earlier steps in the same commit and the current phase's staged values, never the event's own completed output.
+Do not use arbitrary Model loads, search, random IDs, external services or a wall clock to derive replayed state.
 
 Inject `Sender` for actor-dependent state and `Instant` for the stored message time. Avoid ambient user state.
 Use `@AssertLegal` for business refusals and `@InterceptApply` to transform, suppress or expand the accepted update.
