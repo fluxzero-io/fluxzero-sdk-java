@@ -630,8 +630,10 @@ final class ModelCacheTracker implements AutoCloseable {
             if (closed.get() || unsupported) {
                 return false;
             }
-            if (bootstrap == null
-                || bootstrap.isDone()) {
+            // Bootstrap completes outside startMonitor. Check started after observing completion: a successful
+            // attempt may have finished since the check above, and must not launch a second cursor owner.
+            // Failed attempts leave started false and remain retryable.
+            if ((bootstrap == null || bootstrap.isDone()) && !started.get()) {
                 CompletableFuture<Boolean> readiness =
                         new CompletableFuture<>();
                 bootstrap = readiness;

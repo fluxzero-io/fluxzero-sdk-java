@@ -48,6 +48,18 @@ submission, without reevaluation even under RETRY or provisional batch dependenc
 original commit ID, unavailable canonical Model ID and pinned read index; `result` is null because no storage response
 exists. Ordinary storage conflicts instead have `result` and no `readConflict`, retaining normal conflict handling.
 
+## Model cache tracking
+
+Current Model loads can use cache entries whose state has been validated against the model store. The SDK starts
+boundary observation asynchronously and maintains one tracking loop per cache tracker; concurrent first loads do
+not create additional loops or reset its cursor. A transient initial failure leaves current loads on the ordinary
+store-validation path and allows a later load to retry initialization.
+
+Update pages use an exclusive cursor and strictly increasing state indices. Empty heartbeats retain that cursor;
+fixed or backwards-moving fixture clocks do not permit repeated indices. If tracking fails, current loads validate
+against the store until a valid recovery page has been fully processed. Applications should not suppress ordering
+failures or disable the cache to compensate. These guarantees do not change event-bound or historical read semantics.
+
 ## Non-searchable is not private
 
 A DOCUMENT Model keeps one internal current document. Searchability adds indexes to that canonical representation;
