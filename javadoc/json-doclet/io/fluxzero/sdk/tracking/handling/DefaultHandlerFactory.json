@@ -413,6 +413,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "describePayloads",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#describePayloads",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "describeSelfPayload",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#describeSelfPayload",
     "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",

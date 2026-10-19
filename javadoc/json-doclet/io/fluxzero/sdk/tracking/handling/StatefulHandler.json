@@ -223,6 +223,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "describeConsumerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#describeConsumerFilter",
+    "returnType" : "io.fluxzero.common.api.tracking.ConsumerFilter",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "describe",
+      "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>,io.fluxzero.common.api.tracking.ConsumerFilter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "discoverStatefulMembers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#discoverStatefulMembers",
     "returnType" : "java.util.List<io.fluxzero.sdk.tracking.handling.StatefulHandler.StatefulMember>",

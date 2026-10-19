@@ -146,6 +146,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "mayApply",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberParameterResolver#mayApply",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberParameterResolver#resolve",
     "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
