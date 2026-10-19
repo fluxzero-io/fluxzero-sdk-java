@@ -123,6 +123,7 @@ remain eligible for all declaring consumers while invocation retains one owner. 
 admission when local and tracked registration orders differ. Socket consumers preserve known HTTP and handshake paths;
 session-correlated websocket replies, pongs and cleanup remain eligible on unmatched paths where session lookup can
 handle them. This only widens the necessary websocket methods. Websocket methods do not imply automatic OPTIONS.
+Methods with multiple message annotations retain their payload selection for each message type.
 Unknown metadata/formats remain eligible. Standard document/interceptor wrappers preserve selection; subclasses
 that can widen invocation remain unrestricted unless they explicitly supply conservative metadata. Standard Stateful
 handlers contribute the union of their own and recursively discovered member payload types, including static creation

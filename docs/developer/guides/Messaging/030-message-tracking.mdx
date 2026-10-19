@@ -421,7 +421,8 @@ settings apply equally to Java and Kotlin applications.
 
 The SDK describes the actual registered handlers, including payload revisions, legacy upcaster inputs, aliases and
 web routes. It derives the selection per handler method from payload parameters and `allowedClasses`, then combines
-it per consumer. Open and sealed supertypes remain broad until a complete subtype catalog is available.
+it per consumer. A method annotated for several message types (for example, `@HandleEvent` and `@HandleSchedule`)
+retains its payload selection on each log. Open and sealed supertypes remain broad until a complete subtype catalog is available.
 Reflection may omit unloadable permitted subclasses, so its visible sealed leaves cannot prove completeness.
 This also preserves nested sealed interfaces, concrete sealed bases, `non-sealed` branches and enum specializations.
 A final `@TrackSelf` payload contributes its required type even without a payload parameter; web self-handlers
