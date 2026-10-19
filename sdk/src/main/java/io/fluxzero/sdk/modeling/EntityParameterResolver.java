@@ -192,6 +192,9 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     private static boolean canResolveModel(
             Parameter parameter, EntityMetadata.ModelParameter model, Object input,
             EntityMetadata.ExecutableParameters plan) {
+        if (model.graphWrapped() && GraphChangeHandlerDecorator.excludedFromPayloadSelection(parameter)) {
+            return false;
+        }
         if (GraphChangeHandlerDecorator.resolvingGraphChange()) {
             return GraphChangeHandlerDecorator.suppliesGraph(parameter);
         }

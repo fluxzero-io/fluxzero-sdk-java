@@ -337,6 +337,13 @@ Creation has no previous graph; deletion supplies an empty current graph and the
 cache depth. One handler object may declare several such methods for distinct root types. Adding an explicit event
 payload turns the method back into ordinary payload handling with direct/ancestor Graph injection.
 
+Complete subscriptions select roots from the durable change targets and their current/previous parent relationships,
+not from a unique ID property in the event payload. An event may therefore contain several typed IDs for the same
+model (for example, `sourceId` and `destinationId`). Plain references do not create parent relationships: an unrelated
+model change invokes no subscription for those IDs. An ordinary event without Model commit metadata also invokes none.
+Explicit payload handlers retain their normal precedence and ambiguity checks; use `@Association` when their injected
+Model or Graph must select one of several references. The same rules apply to `@HandleNotification`.
+
 Cascade deletions use the same contract: a complete-change `Graph<Task>` handler sees an empty Task and its previous value even
 when a Project deletion caused it. No parent-specific cleanup handler or extra public technical event is required.
 The original domain event identifies the internal deletion boundary. Ordinary payload handlers keep their own event

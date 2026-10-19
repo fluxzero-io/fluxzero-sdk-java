@@ -49,7 +49,10 @@ import java.lang.annotation.Target;
  * {@link io.fluxzero.sdk.common.Message} and {@link io.fluxzero.common.api.Metadata} parameters may appear in any order.
  * The complete-change handler is invoked once per affected root and can inspect the complete before-state through
  * {@link io.fluxzero.sdk.modeling.Graph#previous()}. An explicit payload parameter, association-qualified Graph,
- * or second Graph keeps ordinary handler selection.</p>
+ * or second Graph keeps ordinary handler selection. Complete subscriptions use durable change targets and parent
+ * relationships, so multiple IDs of the same model type in the payload are not ambiguous for them. Unrelated model
+ * changes and ordinary events without Model commit metadata do not invoke them. Explicit payload handlers retain
+ * their precedence and ambiguity checks.</p>
  *
  * @see HandleMessage
  * @see MessageType#EVENT

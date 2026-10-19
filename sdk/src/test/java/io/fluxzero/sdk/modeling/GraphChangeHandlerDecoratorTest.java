@@ -44,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class GraphChangeHandlerDecoratorTest {
@@ -150,6 +151,35 @@ class GraphChangeHandlerDecoratorTest {
         assertNull(GraphChangeHandlerDecorator
                            .wrapGraphChanges(source, MessageType.EVENT)
                            .getInvokerOrNull(event));
+    }
+
+    @Test
+    void restoresPayloadSelectionAfterNestedAndFailingCustomHandlers() throws Exception {
+        Parameter outerParameter = GraphOnlyHandler.class.getDeclaredMethod("handle", Graph.class).getParameters()[0];
+        Parameter innerParameter = AllowedGraphHandler.class.getDeclaredMethod("handle", Graph.class).getParameters()[0];
+        var failure = new IllegalStateException("selection failed");
+        Handler<DeserializingMessage> inner = GraphChangeHandlerDecorator.wrapGraphChanges(new Handler<>() {
+            @Override public Class<?> getTargetClass() { return AllowedGraphHandler.class; }
+            @Override public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                assertTrue(GraphChangeHandlerDecorator.excludedFromPayloadSelection(innerParameter));
+                assertFalse(GraphChangeHandlerDecorator.excludedFromPayloadSelection(outerParameter));
+                throw failure;
+            }
+        }, MessageType.EVENT);
+        Handler<DeserializingMessage> outer = GraphChangeHandlerDecorator.wrapGraphChanges(new Handler<>() {
+            @Override public Class<?> getTargetClass() { return GraphOnlyHandler.class; }
+            @Override public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                assertTrue(GraphChangeHandlerDecorator.excludedFromPayloadSelection(outerParameter));
+                assertSame(failure, assertThrows(IllegalStateException.class, () -> inner.getInvokerOrNull(message)));
+                assertTrue(GraphChangeHandlerDecorator.excludedFromPayloadSelection(outerParameter));
+                assertFalse(GraphChangeHandlerDecorator.excludedFromPayloadSelection(innerParameter));
+                throw failure;
+            }
+        }, MessageType.EVENT);
+        var event = new DeserializingMessage(new Message("ordinary"), MessageType.EVENT, null);
+        assertSame(failure, assertThrows(IllegalStateException.class, () -> outer.getInvokerOrNull(event)));
+        assertFalse(GraphChangeHandlerDecorator.excludedFromPayloadSelection(outerParameter));
+        assertFalse(GraphChangeHandlerDecorator.excludedFromPayloadSelection(innerParameter));
     }
 
     @Test
