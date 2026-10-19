@@ -124,7 +124,12 @@ admission when local and tracked registration orders differ. Socket consumers pr
 session-correlated websocket replies, pongs and cleanup remain eligible on unmatched paths where session lookup can
 handle them. This only widens the necessary websocket methods. Websocket methods do not imply automatic OPTIONS.
 Unknown metadata/formats remain eligible. Standard document/interceptor wrappers preserve selection; subclasses
-that can widen invocation remain unrestricted unless they explicitly supply conservative metadata. Stateful/member routing remains broad. Graph-change expansion preserves a proven delegate payload boundary
+that can widen invocation remain unrestricted unless they explicitly supply conservative metadata. Standard Stateful
+handlers contribute the union of their own and recursively discovered member payload types, including static creation
+handlers. Parent/member context injection is not a payload requirement. Associations still resolve instances on the
+client; a matching type can arrive without an associated instance. Unknown/custom matching and open payload types
+remain broad. Stateful web handlers retain broad selection; HTTP body types are not wire payload types.
+Graph-change expansion preserves a proven delegate payload boundary
 (e.g. `allowedClasses`); graph-only handlers remain broad. Runtime uses the Common implementation; Test Server/local tracking match.
 `SerializedMessage.route` is optional and independent of body `Data.type`. Web producers project method + space +
 origin/raw path after their final serialized interceptors, including proxy chunks and socket frames. Query and fragment

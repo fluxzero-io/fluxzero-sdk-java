@@ -427,7 +427,12 @@ This also preserves nested sealed interfaces, concrete sealed bases, `non-sealed
 A final `@TrackSelf` payload contributes its required type even without a payload parameter; web self-handlers
 keep route-based selection, including automatic OPTIONS. Bean/trigger injection and an additional JSON view do not
 widen a separate typed payload parameter. Standard interceptor/document wrappers preserve selection; unknown
-subclasses and stateful/member routing retain conservative broad delivery. Graph-change wrappers preserve any
+subclasses retain conservative broad delivery. Standard `@Stateful` handlers include the payload types accepted by
+both the root and its recursively discovered `@Member` handlers, including static creation methods. Injected parent
+or member state is not a payload requirement. Associations still resolve matching stored instances on the client:
+a type that the handler supports can arrive even when no instance currently matches. Open payload types and custom
+matching remain conservative, and aliases/upcasters follow the same rules as ordinary handlers. Stateful web handlers
+retain broad selection because HTTP body types are not wire payload types. Graph-change wrappers preserve any
 payload boundary already proven by their delegate, including `allowedClasses`.
 Automatic Model commands contribute the payload boundary of their actual command matcher, including commands whose
 `@Apply` is declared on a registered Model. Scheduled commands first match the `ScheduledCommand` wrapper on the

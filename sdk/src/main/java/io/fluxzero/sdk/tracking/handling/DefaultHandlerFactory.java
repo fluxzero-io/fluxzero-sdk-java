@@ -268,13 +268,30 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 Stateful handler = ReflectionUtils.getTypeAnnotation(targetClass, Stateful.class);
                 if (handler != null) {
                     var statefulConfig = config;
-                    return new StatefulHandler(targetClass, createHandlerMatcher(targetClass, config),
+                    var statefulHandler = new StatefulHandler(targetClass, createHandlerMatcher(targetClass, config),
                                                handlerRepositorySupplier.apply(targetClass),
                                                parameterResolvers,
                                                e -> statefulConfig.getAnnotation(e).orElse(null),
                                                (memberType, resolvers) -> createHandlerMatcher(
                                                        memberType, statefulConfig, resolvers),
                                                serializer);
+                    // Stateful web handling keeps its existing broad selection: body types are not wire types.
+                    if (getClass() != DefaultHandlerFactory.class || messageType == MessageType.WEBREQUEST) {
+                        return statefulHandler;
+                    }
+                    var filter = memoize(() -> statefulHandler.describeConsumerFilter(
+                            (type, resolvers) -> describePayloads(type, statefulConfig, resolvers)));
+                    return new Handler.DelegatingHandler<>(statefulHandler) {
+                        @Override
+                        public ConsumerFilter getConsumerFilter() {
+                            return filter.get();
+                        }
+
+                        @Override
+                        public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                            return delegate.getInvoker(message);
+                        }
+                    };
                 }
             }
 
@@ -471,6 +488,11 @@ public class DefaultHandlerFactory implements HandlerFactory {
     }
 
     private ConsumerFilter describePayloads(Class<?> targetClass, HandlerConfiguration<DeserializingMessage> config) {
+        return describePayloads(targetClass, config, parameterResolvers);
+    }
+
+    private ConsumerFilter describePayloads(Class<?> targetClass, HandlerConfiguration<DeserializingMessage> config,
+                                           List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         List<ConsumerFilter.PayloadType> inputs = new ArrayList<>();
         for (var executable : Stream.concat(ReflectionUtils.getAllMethods(targetClass).stream(),
                                             Stream.of(targetClass.getDeclaredConstructors()))
