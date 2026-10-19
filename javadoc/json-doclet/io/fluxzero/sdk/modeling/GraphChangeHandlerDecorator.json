@@ -17,6 +17,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "payloadSelectionExclusions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator.payloadSelectionExclusions",
+    "type" : "java.lang.ThreadLocal<java.util.Set<java.lang.reflect.Parameter>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "GraphChangeHandlerDecorator",
@@ -122,6 +130,22 @@
     }, {
       "name" : "rootType",
       "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "excludedFromPayloadSelection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#excludedFromPayloadSelection",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -256,6 +280,32 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selectPayloadHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#selectPayloadHandler",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exclusions",
+      "type" : "java.util.Set<java.lang.reflect.Parameter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
