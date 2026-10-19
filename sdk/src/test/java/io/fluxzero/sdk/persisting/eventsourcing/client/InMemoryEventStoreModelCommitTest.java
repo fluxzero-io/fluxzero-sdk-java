@@ -38,6 +38,7 @@ import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -56,6 +58,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -604,7 +607,7 @@ class InMemoryEventStoreModelCommitTest {
                 var expected = java.util.stream.LongStream.range(Math.min(cursor + 1L, 7L), 7L)
                         .limit(size).boxed().toList();
                 assertEquals(expected, page.getUpdates().stream().map(
-                        io.fluxzero.common.api.modeling.ModelUpdate::getStateIndex).toList());
+                        ModelUpdate::getStateIndex).toList());
                 assertEquals(expected.isEmpty() ? cursor : expected.getLast(), page.getLastStateIndex());
                 assertEquals(6L, page.getCurrentStateIndex());
                 assertEquals(6L, page.getMaterializedStateIndex());
@@ -622,11 +625,11 @@ class InMemoryEventStoreModelCommitTest {
         }
         var first = store.trackModelUpdates(new TrackModelUpdates(5L, 10, 0L, 1L)).join();
         assertEquals(List.of(10L), first.getUpdates().stream().map(
-                io.fluxzero.common.api.modeling.ModelUpdate::getStateIndex).toList());
+                ModelUpdate::getStateIndex).toList());
         assertEquals(10L, first.getLastStateIndex());
         var next = store.trackModelUpdates(new TrackModelUpdates(first.getLastStateIndex(), 10, 0L, 1L)).join();
         assertEquals(List.of(20L), next.getUpdates().stream().map(
-                io.fluxzero.common.api.modeling.ModelUpdate::getStateIndex).toList());
+                ModelUpdate::getStateIndex).toList());
         var beyondTail = store.trackModelUpdates(new TrackModelUpdates(Long.MAX_VALUE, 10, 0L)).join();
         assertTrue(beyondTail.getUpdates().isEmpty());
         assertEquals(Long.MAX_VALUE, beyondTail.getLastStateIndex());
@@ -770,6 +773,29 @@ class InMemoryEventStoreModelCommitTest {
                 deleted.getStateIndex(),
                 deletionPage
                         .getLastStateIndex());
+    }
+
+    @Test
+    void stateIndicesRemainOrderedWhenTheClockStandsStillOrMovesBackwards() {
+        long base = IndexUtils.indexFromTimestamp(Instant.parse("2026-07-26T12:00:00Z"));
+        var clockIndex = new AtomicLong(base);
+        var store = new InMemoryEventStore(Duration.ofMinutes(2), clockIndex::get);
+        var assigned = new ArrayList<Long>();
+        long[] clockOffsets = {0L, 0L, -100L, 100L, 0L};
+        for (int i = 0; i < clockOffsets.length; i++) {
+            clockIndex.set(base + clockOffsets[i]);
+            var result = store.commitModels(commit("clock-" + i, ModelCommitStep.builder()
+                    .event(event("clock-event-" + i))
+                    .targets(List.of(storedTarget("clock-model-" + i))).build())).join();
+            assigned.add(result.getUpdates().getFirst().getStateIndex());
+        }
+        assertEquals(List.of(base, base + 1L, base + 2L, base + 100L, base + 101L), assigned);
+        var page = store.trackModelUpdates(new TrackModelUpdates(-1L, 10, 0L)).join();
+        assertEquals(assigned, page.getUpdates().stream()
+                .map(ModelUpdate::getStateIndex).toList());
+        assertEquals(base + 101L, page.getLastStateIndex());
+        assertTrue(store.trackModelUpdates(new TrackModelUpdates(base + 101L, 10, 0L))
+                .join().getUpdates().isEmpty());
     }
 
     @Test

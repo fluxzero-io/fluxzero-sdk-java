@@ -165,6 +165,18 @@ Before adding a workaround, identify the values and relationships that carry the
 read boundary and conflict policy. `@AssertLegal`, a current read or RETRY alone does not make arbitrary I/O
 transactional. The query guide at [Model query guide](../model-query-guide) covers document/search consistency separately.
 
+## Model cache tracking
+
+Current Model loads can use cache entries whose state has been validated against the model store. The SDK starts
+boundary observation asynchronously and maintains one tracking loop per cache tracker; concurrent first loads do
+not create additional loops or reset its cursor. A transient initial failure leaves current loads on the ordinary
+store-validation path and allows a later load to retry initialization.
+
+Update pages use an exclusive cursor and strictly increasing state indices. Empty heartbeats retain that cursor;
+fixed or backwards-moving fixture clocks do not permit repeated indices. If tracking fails, current loads validate
+against the store until a valid recovery page has been fully processed. Applications should not suppress ordering
+failures or disable the cache to compensate. These guarantees do not change event-bound or historical read semantics.
+
 ## Non-searchable is not private
 
 A DOCUMENT Model keeps one internal current document. Searchability adds indexes to that canonical representation;
