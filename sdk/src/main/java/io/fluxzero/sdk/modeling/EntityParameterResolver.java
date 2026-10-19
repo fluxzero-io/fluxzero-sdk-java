@@ -110,7 +110,9 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     @Override
     public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
         return getClass() != EntityParameterResolver.class || isModelParameter(parameter)
-               || !(methodAnnotation instanceof HandleEvent || methodAnnotation instanceof HandleNotification)
+               // A method can handle several message types. Use the actual annotation being described:
+               // ordinary value parameters cannot be injected from any message's aggregate metadata.
+               || methodAnnotation == null || methodAnnotation.annotationType().getAnnotation(HandleMessage.class) == null
                || isLegacyMessageParameter(parameter);
     }
 
