@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
@@ -150,6 +151,17 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         this.entityHelper = new DefaultEntityHelper(this.parameterResolvers, false);
         this.statefulMembers = memberHandlerMatcherFactory == null
                                ? List.of() : discoverStatefulMembers(targetClass, "", new HashSet<>());
+    }
+
+    // Use the same discovered members and context resolvers as invocation. Associations cannot narrow wire types.
+    ConsumerFilter describeConsumerFilter(
+            BiFunction<Class<?>, List<ParameterResolver<? super DeserializingMessage>>, ConsumerFilter> describe) {
+        List<ConsumerFilter> filters = new ArrayList<>();
+        filters.add(describe.apply(targetClass, parameterResolvers));
+        for (StatefulMember member : statefulMembers) {
+            filters.add(describe.apply(member.type, memberParameterResolvers(member.ownerType, member.type)));
+        }
+        return ConsumerFilter.union(filters);
     }
 
     @Override
@@ -921,6 +933,12 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                 }
             }
             return false;
+        }
+
+        @Override
+        public boolean mayApply(Parameter parameter, java.lang.annotation.Annotation methodAnnotation,
+                                Class<?> targetClass) {
+            return matches(parameter, methodAnnotation, null);
         }
 
         private Entity<?> findEntity(Parameter parameter, Entity<?> entity) {
