@@ -69,6 +69,8 @@ public final class GraphChangeHandlerDecorator {
     private static final ThreadLocal<GraphArgument> graphArgument =
             ThreadLocalContext.create();
 
+    private static final ThreadLocal<Set<Parameter>> payloadSelectionExclusions = ThreadLocalContext.create();
+
     /** Wraps event and notification handlers that observe complete graph changes with optional Message/Metadata context. */
     public static Handler<DeserializingMessage> wrapGraphChanges(
             Handler<DeserializingMessage> handler,
@@ -78,6 +80,8 @@ public final class GraphChangeHandlerDecorator {
         if (graphHandlers.isEmpty()) {
             return handler;
         }
+        Set<Parameter> subscriptionParameters = graphHandlers.stream().map(GraphHandler::parameter)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
         return new Handler.DelegatingHandler<>(handler) {
             @Override
             public ConsumerFilter getConsumerFilter() {
@@ -95,7 +99,7 @@ public final class GraphChangeHandlerDecorator {
             @SneakyThrows
             public HandlerInvoker getInvokerOrNull(
                     DeserializingMessage message) {
-                HandlerInvoker selected = handler.getInvokerOrNull(message);
+                HandlerInvoker selected = selectPayloadHandler(handler, message, subscriptionParameters);
                 Parameter parameter = selected == null ? null : graphParameter(selected.getMethod());
                 if (parameter == null && selected != null) {
                     return selected;
@@ -144,6 +148,27 @@ public final class GraphChangeHandlerDecorator {
                 };
             }
         };
+    }
+
+    private static HandlerInvoker selectPayloadHandler(
+            Handler<DeserializingMessage> handler, DeserializingMessage message, Set<Parameter> exclusions) {
+        // Complete subscriptions bind from durable changed targets, never from payload ID candidates.
+        Set<Parameter> previous = payloadSelectionExclusions.get();
+        payloadSelectionExclusions.set(exclusions);
+        try {
+            return handler.getInvokerOrNull(message);
+        } finally {
+            if (previous == null) {
+                payloadSelectionExclusions.remove();
+            } else {
+                payloadSelectionExclusions.set(previous);
+            }
+        }
+    }
+
+    static boolean excludedFromPayloadSelection(Parameter parameter) {
+        Set<Parameter> exclusions = payloadSelectionExclusions.get();
+        return exclusions != null && exclusions.contains(parameter);
     }
 
     private static HandlerInvoker representativeInvoker(
