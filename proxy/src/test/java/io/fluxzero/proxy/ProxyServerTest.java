@@ -143,8 +143,46 @@ class ProxyServerTest {
         }
     }
 
+    record TypedWebInput(java.time.LocalDate date, int count) {}
+
     @Nested
     class Basic {
+
+        @Test
+        void malformedTypedJsonReturnsBadRequestWithoutInvokingHandler() {
+            var invocations = new java.util.concurrent.atomic.AtomicInteger();
+            testFixture.registerHandlers(new Object() {
+                @HandlePost("/typed-input")
+                String post(TypedWebInput input) {
+                    invocations.incrementAndGet();
+                    return "accepted";
+                }
+            });
+            for (String body : List.of("{", "{\"date\":\"102026-01-20\",\"count\":1}",
+                                       "{\"date\":\"2026-01-20\",\"count\":\"invalid\"}")) {
+                testFixture.whenApplying(fc -> httpClient.send(
+                                newBuilder(URI.create("http://127.0.0.1:" + proxyPort + "/typed-input"))
+                                        .header("Content-Type", "application/json")
+                                        .timeout(Duration.ofSeconds(5)).POST(BodyPublishers.ofString(body)).build(),
+                                BodyHandlers.ofString()))
+                        .verifyResult(response -> {
+                            assertEquals(400, response.statusCode());
+                            assertEquals("The request could not be read. Please check its format.", response.body());
+                        });
+                assertEquals(0, invocations.get());
+            }
+            testFixture.whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create("http://127.0.0.1:" + proxyPort + "/typed-input"))
+                                    .header("Content-Type", "application/json")
+                                    .timeout(Duration.ofSeconds(5))
+                                    .POST(BodyPublishers.ofString("{\"date\":\"2026-01-20\",\"count\":1}")).build(),
+                            BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals("accepted", response.body());
+                    });
+            assertEquals(1, invocations.get());
+        }
 
         @Test
         void httpOnlyListenerBindsAnEphemeralLoopbackPort() throws Exception {

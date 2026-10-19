@@ -35,6 +35,7 @@ import io.fluxzero.sdk.common.exception.FunctionalException;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.search.DocumentMessageReader;
@@ -1436,7 +1437,8 @@ public class DefaultTracking implements Tracking {
         }
         if (result instanceof Throwable) {
             result = unwrapException((Throwable) result);
-            if (!(result instanceof FunctionalException)) {
+            if (!(result instanceof FunctionalException)
+                && !(message.getMessageType() == MessageType.WEBREQUEST && result instanceof DeserializationException)) {
                 result = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
                         h.getMethod().toString(), message.toString(), (Throwable) result), (Throwable) result);
             }

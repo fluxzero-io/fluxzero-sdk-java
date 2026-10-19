@@ -94,6 +94,8 @@ data class RegisterFolioRequest(
 )
 ```
 
+For a selected route, malformed JSON or a value that cannot be read as the body DTO (for example an invalid date) produces HTTP 400 without invoking the endpoint. This also applies when a `UserProvider` is registered: body conversion is not a reason to discard a matching route. The default response contains a safe request-format message; the original deserialization cause remains available internally. Verify raw invalid bodies through routed HTTP tests, including asynchronous tracking, rather than calling the handler directly.
+
 The request is a whole-body DTO, so its properties have validation annotations, not `@BodyParam`/`@QueryParam`.
 Use Kotlin annotation use-site targets such as `@field:NotBlank` to make DTO validation unambiguous, and enable kapt
 as described by Kotlin setup for generated API discovery. Test the exact route and decoded response through the

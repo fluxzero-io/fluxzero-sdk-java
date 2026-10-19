@@ -443,8 +443,9 @@ The default response mapper preserves explicit `FunctionalException` messages, i
 validation and authorization feedback. Treat these messages as public. SDK-generated authentication and role-denial
 messages omit the user ID and handler name. The same rule applies to automatic WebSocket handshakes.
 
-Deserialization failures return HTTP 400 with a fixed request-format message; unexpected technical failures return
-HTTP 500 with a fixed message. The original exceptions and causes remain available internally for diagnosis.
+If a request matches a route but its JSON body is malformed or contains an unreadable value, such as an invalid
+date, the endpoint is not invoked. Deserialization failures return HTTP 400 with a fixed request-format message,
+including when a `UserProvider` is configured. Unexpected technical failures return HTTP 500 with a fixed message. The original exceptions and causes remain available internally for diagnosis.
 Explicit `WebResponse` objects and custom response mappers remain under application control. These rules apply to
 both Java and Kotlin handlers.
 

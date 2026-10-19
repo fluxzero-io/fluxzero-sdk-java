@@ -15,13 +15,16 @@
 
 package io.fluxzero.sdk.web;
 
-import io.fluxzero.common.handling.ParameterResolver;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
+import lombok.SneakyThrows;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -50,10 +53,13 @@ import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.ignor
  *   <li>If {@code authoriseUser} is {@code true}, the current {@link User} must be authorized to execute the payload’s type via {@code assertAuthorized()}.</li>
  * </ul>
  *
+ * Body deserialization failures are reported during invocation rather than treated as a route mismatch.
+ * The default web response mapper returns HTTP 400 without exposing internal deserialization details.
+ *
  * @see HandleWeb
  */
 @AllArgsConstructor
-public class WebPayloadParameterResolver implements ParameterResolver<HasMessage> {
+public class WebPayloadParameterResolver implements PreparedParameterResolver<HasMessage> {
     private final boolean validatePayload;
     private final boolean authoriseUser;
 
@@ -82,6 +88,21 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     }
 
     @Override
+    public Function<HasMessage, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation,
+                                                         HasMessage message) {
+        if (!matches(parameter, methodAnnotation, message)) {
+            return null;
+        }
+        try {
+            return test(message, parameter) ? resolve(parameter, methodAnnotation) : null;
+        } catch (DeserializationException failure) {
+            // The route still applies. Report this exact binding failure during invocation, inside the normal
+            // error handling and response mapping, without attempting to deserialize the same body again.
+            return ignored -> { throw failure; };
+        }
+    }
+
+    @Override
     public boolean test(HasMessage m, Parameter p) {
         if (authoriseUser && !hasStreamingPayload(m)) {
             Object payload = resolvePayload(m, p, p.getParameterizedType());
@@ -89,7 +110,7 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
                 return false;
             }
         }
-        return ParameterResolver.super.test(m, p);
+        return PreparedParameterResolver.super.test(m, p);
     }
 
     private boolean hasStreamingPayload(HasMessage message) {
@@ -115,12 +136,23 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
         return ReflectionUtils.isMethodAnnotationPresent(method, HandleWeb.class);
     }
 
+    @SneakyThrows
     Object resolvePayload(HasMessage message, Parameter parameter, Type type) {
-        if (message instanceof DeserializingMessage m && shouldBindFormPayload(m, parameter)) {
-            var formObject = DefaultWebRequestContext.getWebRequestContext(m).formObject();
-            return formObject.isEmpty() ? null : JsonUtils.convertValue(formObject, type);
+        try {
+            if (message instanceof DeserializingMessage m && shouldBindFormPayload(m, parameter)) {
+                var formObject = DefaultWebRequestContext.getWebRequestContext(m).formObject();
+                return formObject.isEmpty() ? null : JsonUtils.convertValue(formObject, type);
+            }
+            return message.getPayloadAs(type);
+        } catch (Exception e) {
+            // Local and form binding use Jackson directly rather than the message serializer. Keep the same
+            // deserialization contract on these paths, without reclassifying unrelated application failures.
+            if (e instanceof JsonProcessingException
+                || e instanceof IllegalArgumentException && e.getCause() instanceof JsonProcessingException) {
+                throw new DeserializationException("Could not deserialize web request body", e);
+            }
+            throw e;
         }
-        return message.getPayloadAs(type);
     }
 
     boolean shouldBindFormPayload(DeserializingMessage message, Parameter parameter) {
