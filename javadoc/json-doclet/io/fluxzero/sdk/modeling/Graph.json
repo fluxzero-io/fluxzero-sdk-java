@@ -1415,7 +1415,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns the current and preceding revisions, newest first, excluding the empty state before creation.\n An empty model that has never existed has no revisions; non-empty provisional views remain included.\n A deletion is a real revision whose value is {@code null};\n it remains in the stream. Traversal is lazy and may reconstruct history independently of cache depth.\n"
+    "documentation" : " Returns the current and preceding revisions, newest first, excluding the empty state before creation.\n An empty model that has never existed has no revisions; non-empty provisional views remain included.\n A deletion is a real revision whose value is {@code null};\n it remains in the stream. Traversal is lazy and may reconstruct history independently of cache depth.\n <p>Stored revisions include SDK-owned metadata changes, such as an ancestor-triggered deadline cancellation,\n even when {@link #get()} is unchanged. Use {@link #sequenceNumber()} or {@link #revisionStateIndex()} for revision\n identity, not an application-owned version property. To select a business history, filter with\n {@link #hasChanged(Function)} on the relevant property before limiting the result. Such filtering may traverse\n more stored revisions than the number of returned rows.</p>\n"
   }, {
     "name" : "root",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#root",
