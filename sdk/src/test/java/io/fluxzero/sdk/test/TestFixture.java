@@ -173,6 +173,7 @@ import static java.util.stream.Stream.empty;
  * </ul>
  * With local scheduling, consumer waiting follows accepted stored schedules, not rejected or ignored scheduling
  * attempts. Dispatch assertions still observe attempts; use active-schedule assertions to verify stored work.
+ * A running schedule batch remains pending until it finishes, even if its handler reschedules or cancels the schedule.
  * <p>
  * Outbound web requests always use the fixture's in-memory request route, even when their
  * {@link io.fluxzero.sdk.web.WebRequestSettings} select native HTTP execution. This keeps registered mock endpoints
@@ -2325,22 +2326,21 @@ public class TestFixture implements Given<TestFixture>, When {
             return true;
         }
         synchronized (consumers) {
-            //either all consumer messages have been processed (aka removed), or they're schedules firing in the future
-            if (consumers.values().stream().allMatch(c -> c.messages().allMatch(
-                    m -> {
-                        if (m instanceof Schedule s) {
-                            //ensure schedule isn't canceled or expired
-                            var currentSchedule = getSchedule(s.getScheduleId());
-                            return currentSchedule == null || Instant.ofEpochMilli(currentSchedule.getTimestamp())
-                                    .isAfter(getCurrentTime());
-                        }
-                        return false;
-                    }))) {
+            if (consumers.values().stream().noneMatch(c -> c.hasPendingWork(this::isPendingMessage))) {
                 consumers.notifyAll();
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean isPendingMessage(Message message) {
+        if (message instanceof Schedule schedule) {
+            var currentSchedule = getSchedule(schedule.getScheduleId());
+            return currentSchedule != null
+                   && !Instant.ofEpochMilli(currentSchedule.getTimestamp()).isAfter(getCurrentTime());
+        }
+        return true;
     }
 
     @AllArgsConstructor
@@ -2584,45 +2584,71 @@ public class TestFixture implements Given<TestFixture>, When {
                                                    || blueprint.mayHandle(original);
                                         }).toList()));
             }
-            return b -> {
-                Map<PendingConsumer, Set<Message>> completedDocuments = tracker.getMessageType() == DOCUMENT
-                        ? new IdentityHashMap<>() : Collections.emptyMap();
-                if (tracker.getMessageType() == DOCUMENT) {
-                    synchronized (testFixture.consumers) {
-                        testFixture.consumers.forEach((c, candidate) -> {
-                            if (c.getMessageType() == DOCUMENT && Objects.equals(c.getTopic(), tracker.getTopic())
-                                && Objects.equals(effectiveNamespace(c.getConfiguration()),
-                                                  effectiveNamespace(tracker.getConfiguration()))) {
-                                List<SerializedMessage> completed = candidate == pending ? b.getMessages()
-                                        : b.getMessages().stream().filter(m -> isOutsideBounds(
-                                                c.getConfiguration(), m.getIndex())).toList();
-                                completedDocuments.put(candidate, completedDocuments(candidate.messages().toList(), completed));
-                            }
-                        });
-                    }
+            return batch -> {
+                var completedDocuments = startBatch(tracker, pending, batch);
+                try {
+                    consumer.accept(batch);
+                    completeBatch(tracker, pending, batch, completedDocuments);
+                } finally {
+                    finishBatch(tracker, pending);
                 }
-                consumer.accept(b);
-                synchronized (testFixture.consumers) {
-                    if (tracker.getMessageType() == DOCUMENT) {
-                        completedDocuments.forEach((candidate, completed) -> {
-                            if (candidate == pending) {
-                                candidate.completeDocuments(b, completed);
-                            } else {
-                                candidate.removeIf(completed::contains);
-                            }
-                        });
-                        testFixture.checkConsumers();
-                        return;
+            };
+        }
+
+        private Map<PendingConsumer, Set<Message>> startBatch(Tracker tracker, PendingConsumer pending,
+                                                              MessageBatch batch) {
+            if (tracker.getMessageType() != SCHEDULE && tracker.getMessageType() != DOCUMENT) {
+                return Collections.emptyMap();
+            }
+            synchronized (testFixture.consumers) {
+                if (tracker.getMessageType() == SCHEDULE) {
+                    pending.startBatch();
+                    return Collections.emptyMap();
+                }
+                Map<PendingConsumer, Set<Message>> completedDocuments = new IdentityHashMap<>();
+                testFixture.consumers.forEach((c, candidate) -> {
+                    if (c.getMessageType() == DOCUMENT && Objects.equals(c.getTopic(), tracker.getTopic())
+                        && Objects.equals(effectiveNamespace(c.getConfiguration()),
+                                          effectiveNamespace(tracker.getConfiguration()))) {
+                        List<SerializedMessage> completed = candidate == pending ? batch.getMessages()
+                                : batch.getMessages().stream().filter(m -> isOutsideBounds(
+                                        c.getConfiguration(), m.getIndex())).toList();
+                        completedDocuments.put(candidate, completedDocuments(candidate.messages().toList(), completed));
                     }
-                    b.getMessages().forEach(m -> testFixture.consumers.entrySet().stream()
+                });
+                return completedDocuments;
+            }
+        }
+
+        private void completeBatch(Tracker tracker, PendingConsumer pending, MessageBatch batch,
+                                   Map<PendingConsumer, Set<Message>> completedDocuments) {
+            synchronized (testFixture.consumers) {
+                if (tracker.getMessageType() == DOCUMENT) {
+                    completedDocuments.forEach((candidate, completed) -> {
+                        if (candidate == pending) {
+                            candidate.completeDocuments(batch, completed);
+                        } else {
+                            candidate.removeIf(completed::contains);
+                        }
+                    });
+                } else {
+                    batch.getMessages().forEach(m -> testFixture.consumers.entrySet().stream()
                             .filter(e -> e.getKey().getMessageType() == tracker.getMessageType()
                                          && Objects.equals(e.getKey().getTopic(), tracker.getTopic())
                                          && isOutsideBounds(e.getKey().getConfiguration(), m.getIndex()))
                             .forEach(e -> e.getValue().removeMessage(m.getMessageId())));
-                    pending.complete(b);
-                    testFixture.checkConsumers();
+                    pending.complete(batch);
                 }
-            };
+            }
+        }
+
+        private void finishBatch(Tracker tracker, PendingConsumer pending) {
+            synchronized (testFixture.consumers) {
+                if (tracker.getMessageType() == SCHEDULE) {
+                    pending.finishBatch();
+                }
+                testFixture.checkConsumers();
+            }
         }
 
         private void recordStoredPosition(MessageType messageType, String topic, String namespace,
@@ -2924,13 +2950,26 @@ public class TestFixture implements Given<TestFixture>, When {
     protected static class PendingConsumer {
         private final List<PendingMessage> messages = new ArrayList<>();
         private Position completedPosition = Position.newPosition();
+        private int runningScheduleBatches;
 
         PendingConsumer(Collection<? extends Message> initialMessages) {
             initialMessages.forEach(message -> add(message, null, null));
         }
 
         boolean isEmpty() {
-            return messages.isEmpty();
+            return runningScheduleBatches == 0 && messages.isEmpty();
+        }
+
+        boolean hasPendingWork(Predicate<Message> isPendingMessage) {
+            return runningScheduleBatches > 0 || messages().anyMatch(isPendingMessage);
+        }
+
+        void startBatch() {
+            runningScheduleBatches++;
+        }
+
+        void finishBatch() {
+            runningScheduleBatches--;
         }
 
         Stream<Message> messages() {
