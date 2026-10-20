@@ -21,11 +21,16 @@ import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.scheduling.Deadline;
+import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import jakarta.annotation.Nullable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -71,6 +76,66 @@ class GraphRevisionHistoryTest {
                     inspect("recreated", Fluxzero.loadGraph("ordinary", Item.class), List.of(4L, 3L, 2L, 1L, 0L));
                     assertNull(Fluxzero.loadGraph("ordinary", Item.class).previous().get());
                 }).expectNoErrors();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void deadlineMetadataRevisionsRemainDistinctFromBusinessVersions(boolean async) {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        Instant due = now.plusSeconds(3600);
+        var fixture = async ? TestFixture.createAsync(DeadlineOwner.class, DeadlinePolicy.class)
+                : TestFixture.create(DeadlineOwner.class, DeadlinePolicy.class);
+        fixture.atFixedTime(now)
+                .givenCommands(new SetDeadlinePolicy("policy", due), new SetDeadlineOwner("owner", "policy", 1),
+                        new SetDeadlineOwner("owner", "policy", 2))
+                .whenCommand(new SetDeadlinePolicy("policy", null))
+                .expectNoErrors().expectOnlyActiveScheduledCommands()
+                .expectThat(fc -> {
+                    inspectDeadlineHistory(false, due);
+                    fc.cache().clear();
+                    inspectDeadlineHistory(false, due);
+                }).andThen()
+                .whenCommand(new SetDeadlinePolicy("policy", due))
+                .expectNoErrors().expectOnlyActiveScheduledCommands("expire")
+                .expectThat(fc -> {
+                    inspectDeadlineHistory(true, due);
+                    fc.cache().clear();
+                    inspectDeadlineHistory(true, due);
+                });
+    }
+
+    private void inspectDeadlineHistory(boolean restored, Instant due) {
+        Graph<DeadlineOwner> graph = Fluxzero.loadGraph("owner", DeadlineOwner.class);
+        var revisions = graph.revisions().toList();
+        assertEquals(restored ? List.of(3L, 2L, 1L, 0L) : List.of(2L, 1L, 0L),
+                revisions.stream().map(Graph::sequenceNumber).toList());
+        assertEquals(restored ? List.of(2, 2, 2, 1) : List.of(2, 2, 1),
+                revisions.stream().map(g -> g.get().version()).toList());
+        assertEquals(List.of(2, 1), graph.revisions().filter(g -> g.hasChanged(DeadlineOwner::version))
+                .map(g -> g.get().version()).toList());
+        assertEquals(revisions.size(), revisions.stream().map(Graph::revisionStateIndex).distinct().count());
+        Graph<DeadlineOwner> cancelled = restored ? graph.previous() : graph;
+        assertTrue(cancelled.deadlines().isEmpty());
+        assertEquals(due, cancelled.previous().deadlines().get("default").deadline());
+        assertFalse(cancelled.hasChanged(DeadlineOwner::version));
+        if (restored) {
+            assertEquals(due, graph.deadlines().get("default").deadline());
+            assertTrue(graph.atStateIndex(cancelled.revisionStateIndex()).deadlines().isEmpty());
+        }
+    }
+
+    @Model record DeadlinePolicy(@EntityId String policyId, Instant due) {}
+    @Model(snapshotPeriod = 1) record DeadlineOwner(
+            @EntityId String ownerId, @Parent(DeadlinePolicy.class) String policyId, int version) {
+        @Deadline Schedule expiration(DeadlinePolicy policy) {
+            return policy.due() == null ? null : new Schedule("expire", policy.due());
+        }
+    }
+    record SetDeadlinePolicy(String policyId, Instant due) {
+        @Apply DeadlinePolicy apply(@Nullable DeadlinePolicy previous) { return new DeadlinePolicy(policyId, due); }
+    }
+    record SetDeadlineOwner(String ownerId, String policyId, int version) {
+        @Apply DeadlineOwner apply(@Nullable DeadlineOwner previous) { return new DeadlineOwner(ownerId, policyId, version); }
     }
 
     @Test
