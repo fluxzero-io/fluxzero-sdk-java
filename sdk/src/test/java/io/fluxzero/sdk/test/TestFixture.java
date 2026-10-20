@@ -173,6 +173,7 @@ import static java.util.stream.Stream.empty;
  * </ul>
  * With local scheduling, consumer waiting follows accepted stored schedules, not rejected or ignored scheduling
  * attempts. Dispatch assertions still observe attempts; use active-schedule assertions to verify stored work.
+ * A running schedule batch remains pending until it finishes, even if its handler reschedules or cancels the schedule.
  * <p>
  * Outbound web requests always use the fixture's in-memory request route, even when their
  * {@link io.fluxzero.sdk.web.WebRequestSettings} select native HTTP execution. This keeps registered mock endpoints
@@ -2326,7 +2327,7 @@ public class TestFixture implements Given<TestFixture>, When {
         }
         synchronized (consumers) {
             //either all consumer messages have been processed (aka removed), or they're schedules firing in the future
-            if (consumers.values().stream().allMatch(c -> c.messages().allMatch(
+            if (consumers.values().stream().allMatch(c -> c.runningScheduleBatches == 0 && c.messages().allMatch(
                     m -> {
                         if (m instanceof Schedule s) {
                             //ensure schedule isn't canceled or expired
@@ -2584,7 +2585,7 @@ public class TestFixture implements Given<TestFixture>, When {
                                                    || blueprint.mayHandle(original);
                                         }).toList()));
             }
-            return b -> {
+            Consumer<MessageBatch> result = b -> {
                 Map<PendingConsumer, Set<Message>> completedDocuments = tracker.getMessageType() == DOCUMENT
                         ? new IdentityHashMap<>() : Collections.emptyMap();
                 if (tracker.getMessageType() == DOCUMENT) {
@@ -2621,6 +2622,22 @@ public class TestFixture implements Given<TestFixture>, When {
                             .forEach(e -> e.getValue().removeMessage(m.getMessageId())));
                     pending.complete(b);
                     testFixture.checkConsumers();
+                }
+            };
+            if (tracker.getMessageType() != SCHEDULE) {
+                return result;
+            }
+            return b -> {
+                synchronized (testFixture.consumers) {
+                    pending.runningScheduleBatches++;
+                }
+                try {
+                    result.accept(b);
+                } finally {
+                    synchronized (testFixture.consumers) {
+                        pending.runningScheduleBatches--;
+                        testFixture.checkConsumers();
+                    }
                 }
             };
         }
@@ -2924,13 +2941,14 @@ public class TestFixture implements Given<TestFixture>, When {
     protected static class PendingConsumer {
         private final List<PendingMessage> messages = new ArrayList<>();
         private Position completedPosition = Position.newPosition();
+        private int runningScheduleBatches;
 
         PendingConsumer(Collection<? extends Message> initialMessages) {
             initialMessages.forEach(message -> add(message, null, null));
         }
 
         boolean isEmpty() {
-            return messages.isEmpty();
+            return runningScheduleBatches == 0 && messages.isEmpty();
         }
 
         Stream<Message> messages() {
