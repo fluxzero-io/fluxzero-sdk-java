@@ -137,6 +137,11 @@ snapshot metadata. Live input and dispatch metadata cannot overwrite these entri
 retains them. No deadline tables or schema migrations are needed. Older Model revisions without deadline metadata
 remain readable; adding an annotation does not automatically schedule unchanged historical state.
 
+A context change can therefore add a stored owner revision with an unchanged Model value and different
+`deadlines()`. Its Graph revision identity differs even if an application-owned version does not.
+For a business-only history, select revisions with `hasChanged` on the relevant property; the full history
+retains the metadata transitions.
+
 ## Delivery, recovery and limits
 
 Reads, assertions, replay and historical migration do not schedule work. Live commits carry concrete scheduler

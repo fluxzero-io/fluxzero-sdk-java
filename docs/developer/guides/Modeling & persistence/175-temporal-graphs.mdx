@@ -210,12 +210,44 @@ val selected = task.atStateIndex(savedStateIndex)
 
 `previous()` returns `null` at the creation revision. `revisions()` walks through available history from the current revision back toward creation,
 newest first; it excludes the empty state before creation. A model that has never existed has an empty revision stream.
-For an event-sourced model with retained history, creating it and changing it twice yields three revisions,
-independently of caching or snapshots. Non-empty provisional views remain included before they are committed.
+For an event-sourced model with retained history, creation followed by two stored revisions yields three entries,
+independently of caching or snapshots. Stored revisions can also change SDK-owned metadata without changing the
+Model value: cancelling a child deadline after a parent change is one example. Use the Graph sequence number or
+revision state index to identify revisions, rather than an application-owned version property. Non-empty provisional views remain included before they are committed.
 
 Deletion is a real revision whose `get()` returns `null`, and remains in the history. Do not filter all null values
 when you need to show deletions. Loading a missing model still gives an empty Graph for identity and creation;
 that empty view does not imply an existing revision. The legacy `Entity.previous()` contract is unchanged.
+
+A business history can select the changes it cares about with `hasChanged`:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+var history = task.revisions()
+        .filter(revision -> revision.hasChanged(Task::version))
+        .limit(20)
+        .toList();
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val history = task.revisions()
+    .filter { revision -> revision.hasChanged { it.version } }
+    .limit(20)
+    .toList()
+```
+
+  </TabItem>
+</Tabs>
+
+Here `Task.version` must change for every business transition you want to show. The complete revision stream still
+retains deadline metadata, and selecting adjacent changes preserves later returns to an earlier value.
+Filtering before `limit` bounds returned rows, not the amount of history scanned; use an indexed projection for
+large interactive histories.
 
 Limit traversal for an interactive screen; a long history can require replay and I/O.
 

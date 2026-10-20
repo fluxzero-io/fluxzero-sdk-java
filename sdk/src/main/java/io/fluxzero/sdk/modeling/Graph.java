@@ -902,6 +902,11 @@ public interface Graph<T> {
      * An empty model that has never existed has no revisions; non-empty provisional views remain included.
      * A deletion is a real revision whose value is {@code null};
      * it remains in the stream. Traversal is lazy and may reconstruct history independently of cache depth.
+     * <p>Stored revisions include SDK-owned metadata changes, such as an ancestor-triggered deadline cancellation,
+     * even when {@link #get()} is unchanged. Use {@link #sequenceNumber()} or {@link #revisionStateIndex()} for revision
+     * identity, not an application-owned version property. To select a business history, filter with
+     * {@link #hasChanged(Function)} on the relevant property before limiting the result. Such filtering may traverse
+     * more stored revisions than the number of returned rows.</p>
      */
     default Stream<Graph<T>> revisions() {
         return Stream.iterate(this,

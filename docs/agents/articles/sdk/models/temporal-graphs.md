@@ -179,12 +179,41 @@ val selected = task.atStateIndex(savedStateIndex)
 
 `previous()` returns `null` at the creation revision. `revisions()` walks through available history from the current revision back toward creation,
 newest first; it excludes the empty state before creation. A model that has never existed has an empty revision stream.
-For an event-sourced model with retained history, creating it and changing it twice yields three revisions,
-independently of caching or snapshots. Non-empty provisional views remain included before they are committed.
+For an event-sourced model with retained history, creation followed by two stored revisions yields three entries,
+independently of caching or snapshots. A revision can change SDK-owned metadata without changing the Model value.
+For example, a parent change can cancel a child's `@Deadline`, storing a new child revision with different
+`deadlines()` but the same `get()` value. Use `sequenceNumber()` or `revisionStateIndex()` as revision identity;
+an application's `version` property need not change for every stored revision. Non-empty provisional views remain included before they are committed.
 
 Deletion is a real revision whose `get()` returns `null`, and remains in the history. Do not filter all null values
 when you need to show deletions. Loading a missing model still gives an empty Graph for identity and creation;
 that empty view does not imply an existing revision. The legacy `Entity.previous()` contract is unchanged.
+
+For a business history that only shows changes to an application-owned version, select those changes explicitly:
+
+Java:
+
+```java
+var history = task.revisions()
+        .filter(revision -> revision.hasChanged(Task::version))
+        .limit(20)
+        .toList();
+```
+
+Kotlin:
+
+```kotlin
+val history = task.revisions()
+    .filter { revision -> revision.hasChanged { it.version } }
+    .limit(20)
+    .toList()
+```
+
+This assumes `Task.version` changes for every business transition the view intends to show. It compares adjacent
+revisions, rather than globally removing equal values: a later return to an earlier value remains a transition.
+Creation and deletion are compared with absence; retain the Graph when the view must show deletions.
+Select the business change before applying the result limit. Filtering may scan more stored revisions than the
+number of returned rows, so use an indexed projection for large interactive histories.
 
 Limit traversal for an interactive screen; a long history can require replay and I/O.
 
