@@ -115,8 +115,12 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     private volatile CachedPlan lastPreparedPlan;
     private volatile RawPlanCache rawPlanCache;
 
-    private final Function<Class<?>, Optional<Handler<DeserializingMessage>>> selfHandlers
-            = memoize(payloadType -> getHandlerFactory().createHandler(payloadType, getSelfHandlerFilter(), List.of()));
+    private volatile Function<Class<?>, Optional<Handler<DeserializingMessage>>> selfHandlers
+            = selfHandlers(selfHandlerFilter);
+
+    private Function<Class<?>, Optional<Handler<DeserializingMessage>>> selfHandlers(HandlerFilter filter) {
+        return memoize(payloadType -> getHandlerFactory().createHandler(payloadType, filter, List.of()));
+    }
 
     @Override
     public boolean hasLocalHandlers() {
@@ -174,6 +178,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
      */
     public void setSelfHandlerFilter(@NonNull HandlerFilter selfHandlerFilter) {
         this.selfHandlerFilter = selfHandlerFilter;
+        selfHandlers = selfHandlers(selfHandlerFilter);
         invalidatePlans();
     }
 
@@ -192,9 +197,9 @@ public class LocalHandlerRegistry implements HandlerRegistry {
 
     @Override
     public LocalHandlerResult handleResult(DeserializingMessage message, boolean allowExternalPublication) {
-        return runInLocalHandlerNamespace(message,
-                                          () -> handleResultInConsumerNamespace(
-                                                  new MessageHandlerInput(message), allowExternalPublication));
+        return LocalDispatchFilter.inDispatch(message, allowExternalPublication,
+                () -> runInLocalHandlerNamespace(message, () -> handleResultInConsumerNamespace(
+                        new MessageHandlerInput(message), allowExternalPublication)));
     }
 
     @Override
@@ -372,8 +377,9 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     @Override
     public Optional<CompletableFuture<Object>> handle(DeserializingMessage message,
                                                       boolean allowExternalPublication) {
-        return runInLocalHandlerNamespace(
-                message, () -> handleInConsumerNamespace(message, allowExternalPublication));
+        return LocalDispatchFilter.inDispatch(message, allowExternalPublication,
+                () -> runInLocalHandlerNamespace(
+                        message, () -> handleInConsumerNamespace(message, allowExternalPublication)));
     }
 
     @SuppressWarnings("unchecked")

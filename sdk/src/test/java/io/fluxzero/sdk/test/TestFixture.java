@@ -80,6 +80,7 @@ import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
+import io.fluxzero.sdk.tracking.handling.LocalDispatchFilter;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
@@ -462,7 +463,7 @@ public class TestFixture implements Given<TestFixture>, When {
         this.fluxzero = new FixtureFluxzero(fluxzeroBuilder.build(client));
         Fluxzero.instance.set(this.fluxzero);
         if (synchronous) {
-            localHandlerRegistries(fluxzero).forEach(r -> r.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE));
+            localHandlerRegistries(fluxzero).forEach(r -> r.setSelfHandlerFilter(synchronousSelfHandlerFilter()));
         }
         withClock(fixtureClock);
         List<Object> handlers = new ArrayList<>();
@@ -513,7 +514,7 @@ public class TestFixture implements Given<TestFixture>, When {
         this.fluxzero = spying ? new SpyingFluxzero(handlerFluxzero) : handlerFluxzero;
         Fluxzero.instance.set(this.fluxzero);
         localHandlerRegistries(this.fluxzero).forEach(r -> r.setSelfHandlerFilter(
-                synchronous ? HandlerFilter.ALWAYS_HANDLE : (t, m) -> !ClientUtils.isSelfTracking(t, m)));
+                synchronous ? synchronousSelfHandlerFilter() : (t, m) -> !ClientUtils.isSelfTracking(t, m)));
         currentFixture.modifiers.forEach(this::modifyFixture);
     }
 
@@ -695,7 +696,10 @@ public class TestFixture implements Given<TestFixture>, When {
                 fixture.registerAsyncHandlers(handlers);
                 return;
             }
-            HandlerFilter handlerFilter = (c, e) -> true;
+            HandlerFilter handlerFilter = new LocalDispatchFilter(HandlerFilter.ALWAYS_HANDLE,
+                    (message, method, annotation, type) -> ClientUtils.getLocalHandlerAnnotation(type, method).isPresent()
+                            || type.isAssignableFrom(message.getPayloadClass())
+                               && !ClientUtils.isSelfTracking(message.getPayloadClass(), method));
             var registration = fc.apply(f -> {
                 Registration local = handlers.stream().map(h -> fixture.withSynchronousRegistrationTarget(h, () -> {
                     Object target = fixture.synchronousHandler(h);
@@ -757,6 +761,12 @@ public class TestFixture implements Given<TestFixture>, When {
         } finally {
             describingSynchronousConsumers.remove();
         }
+    }
+
+    private static HandlerFilter synchronousSelfHandlerFilter() {
+        return new LocalDispatchFilter(HandlerFilter.ALWAYS_HANDLE,
+                (message, method, annotation, type) -> !ClientUtils.isSelfTracking(type, method));
+
     }
 
     private void warnIfDuplicateHandlers(List<?> handlers) {
@@ -2431,8 +2441,13 @@ public class TestFixture implements Given<TestFixture>, When {
 
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                     boolean request) {
+            monitorDispatch(message, messageType, topic, namespace, request, false);
+        }
+
+        public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                    boolean request, boolean localOnly) {
             if (messageType == DOCUMENT) {
-                monitorDispatch(message, messageType, topic, namespace, request, null, null);
+                monitorDispatch(message, messageType, topic, namespace, request, null, null, localOnly);
                 return;
             }
             InterceptedMessage key = new InterceptedMessage(messageType, topic, message.getMessageId());
@@ -2444,7 +2459,7 @@ public class TestFixture implements Given<TestFixture>, When {
             if (previous == DispatchOrigin.SDK) {
                 return;
             }
-            monitorDispatch(message, messageType, topic, namespace, request, null, null);
+            monitorDispatch(message, messageType, topic, namespace, request, null, null, localOnly);
         }
 
         private void monitorStoredDispatch(DeserializingMessage message, MessageType messageType, String topic,
@@ -2456,14 +2471,21 @@ public class TestFixture implements Given<TestFixture>, When {
 
         private void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                      boolean request, Integer segment, Long index) {
+            monitorDispatch(message, messageType, topic, namespace, request, segment, index, false);
+        }
+
+        private void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                     boolean request, Integer segment, Long index, boolean localOnly) {
             testFixture.fixtureResult.getTrace().monitorDispatch(message, messageType, topic, namespace);
             testFixture.recordObservation(TestFixtureObservation.dispatch(message, messageType, topic, namespace));
-            testFixture.registerAutomaticHandler(message);
+            if (!localOnly) {
+                testFixture.registerAutomaticHandler(message);
+            }
             if (request) {
                 testFixture.requestDispatches.add(message.getMessageId());
             }
 
-            if (!tracksStoredSchedules(messageType, namespace)) {
+            if (!localOnly && !tracksStoredSchedules(messageType, namespace)) {
                 registerPendingMessage(message, messageType, topic, namespace, segment, index);
             }
 
@@ -2802,6 +2824,12 @@ public class TestFixture implements Given<TestFixture>, When {
                                     boolean request) {
             delegate.monitorDispatch(message, messageType, topic, namespace, request);
         }
+        @Override
+        public void monitorLocalOnlyDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                             boolean request) {
+            delegate.monitorDispatch(message, messageType, topic, namespace, request, true);
+        }
+
     }
 
     @Order(Order.HIGHEST_PRECEDENCE)

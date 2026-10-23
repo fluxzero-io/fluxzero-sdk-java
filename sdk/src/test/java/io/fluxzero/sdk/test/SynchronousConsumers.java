@@ -136,7 +136,8 @@ final class SynchronousConsumers {
 
     private synchronized boolean mayHandle(Object target, DeserializingMessage message, HandlerInvoker invoker) {
         if (ClientUtils.getLocalHandlerAnnotation(invoker).isPresent()
-            || ClientUtils.isLocalSelfHandler(invoker, message) && invoker.getMethodAnnotation() != null
+            || invoker.getTargetClass().isAssignableFrom(message.getPayloadClass())
+               && !ClientUtils.isSelfTracking(message.getPayloadClass(), invoker.getMethod()) && invoker.getMethodAnnotation() != null
                && invoker.getMethodAnnotation().annotationType().isAnnotationPresent(HandleMessage.class)) {
             return true;
         }

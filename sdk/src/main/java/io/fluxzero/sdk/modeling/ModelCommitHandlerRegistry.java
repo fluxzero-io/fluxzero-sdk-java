@@ -35,6 +35,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
+import io.fluxzero.sdk.tracking.handling.LocalDispatchFilter;
 
 import java.lang.reflect.Parameter;
 import java.time.Instant;
@@ -66,6 +67,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final HandlerDecorator handlerDecorator;
     private final DispatchInterceptor commandDispatchInterceptor;
     private volatile boolean localHandlingEnabled;
+    private volatile boolean restrictedLocalHandlingEnabled;
 
     /**
      * Creates the automatic model registration facade and its single execution pipeline.
@@ -172,7 +174,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     @Override
     public Optional<CompletableFuture<Object>> handle(DeserializingMessage message) {
-        if (!localHandlingEnabled) {
+        return handle(message, true);
+    }
+
+    @Override
+    public Optional<CompletableFuture<Object>> handle(DeserializingMessage message, boolean allowExternalPublication) {
+        if (!(allowExternalPublication ? localHandlingEnabled : restrictedLocalHandlingEnabled)) {
             return Optional.empty();
         }
         HandlerInvoker invoker = decoratedHandler.getInvokerOrNull(message);
@@ -289,7 +296,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     @Override
     public void setSelfHandlerFilter(HandlerFilter selfHandlerFilter) {
-        localHandlingEnabled = selfHandlerFilter == HandlerFilter.ALWAYS_HANDLE;
+        localHandlingEnabled = (selfHandlerFilter instanceof LocalDispatchFilter split
+                ? split.ordinary() : selfHandlerFilter) == HandlerFilter.ALWAYS_HANDLE;
+        restrictedLocalHandlingEnabled = !(selfHandlerFilter instanceof LocalDispatchFilter) && localHandlingEnabled;
     }
 
     private static boolean isFrameworkParameter(Class<?> type) {

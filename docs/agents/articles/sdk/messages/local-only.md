@@ -25,3 +25,31 @@ dispatch of this message; it is not a sandbox or an authorization check for ever
 
 Verify successful local handling, unmatched requests, unmatched non-requests, inherited package scope, explicit
 opt-out and interceptor replacement. Include a negative assertion that no external message or log copy was sent.
+
+## Actual local handlers, including Models
+
+`@LocalOnly` does not register a handler or turn a tracked handler into a local handler. A payload's ordinary
+`@HandleCommand`/`@HandleQuery` self-handler is local unless `@TrackSelf` selects tracking. An explicit
+`@LocalHandler` registration is another local route. Automatic Model `@Apply` handling is a tracked route;
+a local-only command with only `@Apply` methods fails immediately when no local handler accepts it.
+
+For a deliberate process-local Model mutation, put the execution boundary on the command itself:
+
+```java
+@LocalOnly
+public record SaveLocalSetting(String settingId, String value) {
+    @HandleCommand
+    void handle() { Fluxzero.assertAndApply(this); }
+
+    @Apply
+    Setting apply(@Nullable Setting current) { return new Setting(settingId, value); }
+}
+```
+
+This is an intentional local execution boundary, not a reason to add pass-through handlers to ordinary Model
+commands. Assertions, compatibility checks and atomic multi-Model commits still use the normal Model pipeline.
+The resulting Model writes/events keep their own persistence/publication policies; LocalOnly does not hide them.
+
+Both synchronous and asynchronous `TestFixture` modes preserve this boundary. Synchronous tracking simulation must
+not satisfy an absent local handler, including after interceptor replacement. Dispatch attempts remain observable,
+but unpublished local-only messages do not become pending external consumer work.
