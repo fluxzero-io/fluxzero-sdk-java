@@ -280,6 +280,16 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver",
     "kind" : "class"
   }, {
+    "file" : "LocalDispatchFilter.json",
+    "name" : "LocalDispatchFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter",
+    "kind" : "record"
+  }, {
+    "file" : "LocalDispatchFilter.DispatchIdentity.json",
+    "name" : "LocalDispatchFilter.DispatchIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter$DispatchIdentity",
+    "kind" : "class"
+  }, {
     "file" : "LocalExecution.json",
     "name" : "LocalExecution",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution",

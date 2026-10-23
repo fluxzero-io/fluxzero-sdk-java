@@ -1,0 +1,222 @@
+{
+  "name" : "LocalDispatchFilter",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Separates simulated tracking from actual local eligibility without creating a second handler or target instance.\n Synchronous fixtures use this filter; ordinary explicit registry filters keep their local-registration contract.\n\n @param ordinary structural filter for ordinary dispatch, including simulated tracking\n @param localOnly message filter when external publication is forbidden\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ "io.fluxzero.common.handling.HandlerFilter" ],
+  "fields" : [ {
+    "name" : "localOnly",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter.localOnly",
+    "type" : "io.fluxzero.common.handling.@lombok.NonNull MessageFilter<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ordinary",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter.ordinary",
+    "type" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "restricted",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter.restricted",
+    "type" : "java.lang.ThreadLocal<java.util.IdentityHashMap<io.fluxzero.sdk.tracking.handling.LocalDispatchFilter.DispatchIdentity,java.lang.Boolean>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LocalDispatchFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter#LocalDispatchFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "ordinary",
+      "type" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "localOnly",
+      "type" : "io.fluxzero.common.handling.@lombok.NonNull MessageFilter<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "inDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter#inDispatch",
+    "returnType" : "T",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "allowExternalPublication",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "action",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "localOnly",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter#localOnly",
+    "returnType" : "io.fluxzero.common.handling.@lombok.NonNull MessageFilter<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ordinary",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter#ordinary",
+    "returnType" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "restrict",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter#restrict",
+    "returnType" : "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "filter",
+      "type" : "io.fluxzero.common.handling.MessageFilter<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "test",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter#test",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "ownerType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "localOnly",
+    "type" : "io.fluxzero.common.handling.@lombok.NonNull MessageFilter<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "ordinary",
+    "type" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ {
+    "name" : "DispatchIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalDispatchFilter$DispatchIdentity",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}
