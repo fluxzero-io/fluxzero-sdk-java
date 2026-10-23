@@ -119,7 +119,7 @@
     "name" : "selfHandlers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.selfHandlers",
     "type" : "java.util.function.Function<java.lang.Class<?>,java.util.Optional<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>>",
-    "modifiers" : [ "final", "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -583,6 +583,22 @@
     "parameters" : [ {
       "name" : "source",
       "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selfHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#selfHandlers",
+    "returnType" : "java.util.function.Function<java.lang.Class<?>,java.util.Optional<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "filter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

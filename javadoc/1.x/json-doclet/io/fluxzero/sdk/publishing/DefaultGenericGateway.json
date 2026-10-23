@@ -398,6 +398,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "monitorDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#monitorDispatch",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "localOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "prepareExternalRequest",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#prepareExternalRequest",
     "returnType" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.PendingRequest",

@@ -209,6 +209,45 @@
     "varArgs" : false,
     "documentation" : " Optionally monitors a dispatched message using any registered ad hoc interceptor for the current thread.\n"
   }, {
+    "name" : "monitorLocalOnlyDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#monitorLocalOnlyDispatch",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "prepareLocalDispatch",
     "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#prepareLocalDispatch",
     "returnType" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
