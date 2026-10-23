@@ -157,3 +157,12 @@ interface UserUpdate {
 </Tabs>
 
 Implementations of this interface will then be handled asynchronously, using the configured consumer (or the default one if unspecified).
+
+## Local handler requirement in tests
+
+`@LocalOnly` prevents external fallback; it does not register or promote a handler. Use an actual
+`@LocalHandler` or an ordinary self-handling payload. A `@TrackSelf` method remains tracked unless it is explicitly
+registered locally. Synchronous fixture tracking simulation does not satisfy a missing local handler: both fixture
+modes reject such requests immediately without waiting for an external consumer. Explicit local registrations and
+ordinary tracked messages retain their existing behavior, including when a dispatch interceptor replaces a
+local-only payload with an unmarked type.

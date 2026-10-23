@@ -25,3 +25,12 @@ dispatch of this message; it is not a sandbox or an authorization check for ever
 
 Verify successful local handling, unmatched requests, unmatched non-requests, inherited package scope, explicit
 opt-out and interceptor replacement. Include a negative assertion that no external message or log copy was sent.
+
+## Local handler requirement in tests
+
+`@LocalOnly` prevents external fallback; it does not register or promote a handler. Use an actual
+`@LocalHandler` or an ordinary self-handling payload. A `@TrackSelf` method remains tracked unless it is explicitly
+registered locally. Synchronous fixture tracking simulation does not satisfy a missing local handler: both fixture
+modes reject such requests immediately without waiting for an external consumer. Explicit local registrations and
+ordinary tracked messages retain their existing behavior, including when a dispatch interceptor replaces a
+local-only payload with an unmarked type.

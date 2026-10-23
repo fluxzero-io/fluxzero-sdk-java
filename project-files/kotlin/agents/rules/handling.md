@@ -871,3 +871,12 @@ message. Automatic `SocketResponse.error` replies use `Request failed` for techn
 ID. The original technical socket cause is logged internally, without copying request/response bodies into
 failed-send or unmatched-response logs. Validation paths/map keys remain useful field identifiers. Explicit
 responses, custom mappers and application-written diagnostic messages remain application-controlled.
+
+## Local handler requirement in tests
+
+`@LocalOnly` prevents external fallback; it does not register or promote a handler. Use an actual
+`@LocalHandler` or an ordinary self-handling payload. A `@TrackSelf` method remains tracked unless it is explicitly
+registered locally. Synchronous fixture tracking simulation does not satisfy a missing local handler: both fixture
+modes reject such requests immediately without waiting for an external consumer. Explicit local registrations and
+ordinary tracked messages retain their existing behavior, including when a dispatch interceptor replaces a
+local-only payload with an unmarked type.

@@ -143,6 +143,32 @@ public class DispatchInterceptorTest {
         assertEquals("tenant", namespace.get());
     }
 
+    @Test
+    void restrictedMonitoringComposesAndPreservesLegacyObservers() {
+        List<String> calls = new ArrayList<>();
+        DispatchInterceptor restricted = new DispatchInterceptor() {
+            @Override public Message interceptDispatch(Message message, io.fluxzero.common.MessageType type,
+                                                       String topic) { return message; }
+            @Override public void monitorLocalOnlyDispatch(Message message, io.fluxzero.common.MessageType type,
+                                                           String topic, String namespace, boolean request) {
+                calls.add("restricted:" + namespace);
+            }
+        };
+        DispatchInterceptor legacy = new DispatchInterceptor() {
+            @Override public Message interceptDispatch(Message message, io.fluxzero.common.MessageType type,
+                                                       String topic) { return message; }
+            @Override public void monitorDispatch(Message message, io.fluxzero.common.MessageType type,
+                                                 String topic, String namespace, boolean request) {
+                calls.add("legacy:" + namespace);
+            }
+        };
+        var chain = restricted.andThen(legacy).withNamespace("tenant");
+        chain.monitorLocalOnlyDispatch(new Message("value"), COMMAND, null, "tenant", true);
+        AdhocDispatchInterceptor.runWithAdhocInterceptor(() -> new AdhocDispatchInterceptor()
+                .monitorLocalOnlyDispatch(new Message("value"), COMMAND, null, "adhoc", true), restricted, COMMAND);
+        assertEquals(List.of("restricted:tenant", "legacy:tenant", "restricted:adhoc"), calls);
+    }
+
     @Value
     static class Command {
         String content;

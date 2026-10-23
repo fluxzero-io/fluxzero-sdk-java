@@ -123,6 +123,14 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
     }
 
     @Override
+    public void monitorLocalOnlyDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                         boolean request) {
+        for (DispatchInterceptor interceptor : interceptors) {
+            interceptor.monitorLocalOnlyDispatch(message, messageType, topic, namespace, request);
+        }
+    }
+
+    @Override
     public SerializedMessage modifySerializedMessage(SerializedMessage serialized, Message message,
                                                      MessageType messageType, String topic) {
         for (DispatchInterceptor interceptor : interceptors) {

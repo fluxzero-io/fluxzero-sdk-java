@@ -159,7 +159,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         .reduce(HandlerDecorator::andThen).orElseThrow();
         return Optional.of(handlerAnnotation)
                 .map(a -> HandlerConfiguration.<DeserializingMessage>builder().methodAnnotation(a)
-                        .handlerFilter(handlerFilter).messageFilter(messageFilter)
+                        .handlerFilter(handlerFilter).messageFilter(handlerFilter instanceof LocalDispatchFilter split
+                                ? split.restrict(messageFilter) : messageFilter)
                         .methodInvocationValidator(methodInvocationValidator).build())
                 .filter(config -> isHandler(targetClass, config))
                 .map(config -> buildHandler(target, config))

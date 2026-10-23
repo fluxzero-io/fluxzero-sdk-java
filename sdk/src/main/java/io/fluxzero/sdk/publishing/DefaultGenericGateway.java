@@ -143,7 +143,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             }
             try {
                 boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-                dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
+                monitorDispatch(message, false, localOnly);
                 Optional<CompletableFuture<Object>> localResult = localHandlerRegistry.handle(
                         localMessage(message), !localOnly);
                 if (localResult.isEmpty()) {
@@ -270,7 +270,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         PendingRequest request;
         try {
             boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+            monitorDispatch(message, true, localOnly);
             LocalHandlerResult localResult = handleLocally(message, localOnly);
             if (localResult.isCompletedSuccessfully()) {
                 return (R) responseMapper.mapPayload(localResult.getValue());
@@ -330,7 +330,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         }
         try {
             boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+            monitorDispatch(message, true, localOnly);
             LocalHandlerResult localResult = handleLocally(message, localOnly);
             if (localResult.isHandled()) {
                 return prepareLocalRequest(message, localResult.asFuture(), timeout);
@@ -368,6 +368,14 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                     .map(annotation -> getAnnotationAs(annotation, LocalOnly.class, LocalOnly.class))
                     .flatMap(Optional::stream)
                     .findFirst().map(LocalOnly::value).orElse(false));
+        }
+    }
+
+    private void monitorDispatch(Message message, boolean request, boolean localOnly) {
+        if (localOnly) {
+            dispatchInterceptor.monitorLocalOnlyDispatch(message, messageType, topic, namespace, request);
+        } else {
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, request);
         }
     }
 
