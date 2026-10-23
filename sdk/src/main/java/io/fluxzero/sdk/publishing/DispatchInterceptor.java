@@ -207,6 +207,12 @@ public interface DispatchInterceptor {
             }
 
             @Override
+            public void monitorLocalOnlyDispatch(Message message, MessageType type, String topic, String namespace,
+                                                 boolean request) {
+                delegate.monitorLocalOnlyDispatch(message, type, topic, namespace, request);
+            }
+
+            @Override
             public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
                 return delegate.prepareLocalDispatch(descriptor);
             }
@@ -304,6 +310,22 @@ public interface DispatchInterceptor {
     default void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                  boolean request) {
         // No-op by default
+    }
+
+    /**
+     * Observes a dispatch attempt for which external publication is forbidden. The restriction includes the original
+     * payload even when interception replaces it with an unmarked type. This does not imply a local handler exists.
+     * The default preserves existing monitors by delegating to {@link #monitorDispatch}.
+     *
+     * @param message the final intercepted message
+     * @param messageType the message type
+     * @param topic the optional topic
+     * @param namespace the optional namespace
+     * @param request whether the sender expects a response
+     */
+    default void monitorLocalOnlyDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                         boolean request) {
+        monitorDispatch(message, messageType, topic, namespace, request);
     }
 
     /**

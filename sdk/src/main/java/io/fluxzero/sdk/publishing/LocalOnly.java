@@ -35,6 +35,10 @@ import java.lang.annotation.Target;
  * handler completes exceptionally with {@link LocalOnlyDispatchException}; a non-request message without a matching
  * handler simply completes. Handler code can still perform its own side effects.</p>
  *
+ * <p>This annotation does not register a handler. Automatic Model apply handling remains tracked; an intentional
+ * local Model mutation needs a real local handler, such as a payload {@code @HandleCommand} method invoking
+ * {@code Fluxzero.assertAndApply(this)}. Synchronous test fixtures preserve this boundary.</p>
+ *
  * @see LocalHandler
  * @see LocalOnlyDispatchException
  */

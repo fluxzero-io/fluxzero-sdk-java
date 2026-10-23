@@ -131,3 +131,17 @@ When component-scanned (e.g., via Spring), `@TrackSelf` classes will be automati
 
 Use a shared `@TrackSelf` interface when several payload types should have the same tracked behavior.
 Register the tracked payloads with the application that owns them; ordinary self-handling payloads remain local.
+
+### Local-only Model commands and tests
+
+`@LocalOnly` prevents external fallback; it does not register or promote a handler. A command with only Model
+`@Apply` methods therefore still needs a real local handler. For an intentional process-local execution boundary,
+a `@HandleCommand` method on the payload can call `Fluxzero.assertAndApply(this)` (Java or Kotlin). This retains
+assertions and atomic Model commits. Ordinary Model commands should keep their automatic handling without a
+pass-through handler. The Models' persistence and event publication remain separate policies.
+
+Synchronous `TestFixture` tracking simulation does not satisfy a missing local handler. Both fixture modes reject
+unhandled local-only requests immediately, without waiting for external consumers. Commands actually handled
+locally, explicitly registered local handlers, and ordinary tracked messages retain their existing behavior.
+A restricted dispatch stays restricted when an interceptor replaces its payload with an unmarked type.
+

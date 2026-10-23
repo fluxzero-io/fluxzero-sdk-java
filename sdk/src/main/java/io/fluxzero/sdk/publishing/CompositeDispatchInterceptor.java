@@ -87,7 +87,9 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
             return interceptor.getClass().getMethod(
                             "monitorDispatch", Message.class, MessageType.class, String.class, String.class,
                             boolean.class)
-                    .getDeclaringClass() != DispatchInterceptor.class;
+                    .getDeclaringClass() != DispatchInterceptor.class
+                   || interceptor.getClass().getMethod("monitorLocalOnlyDispatch", Message.class, MessageType.class,
+                            String.class, String.class, boolean.class).getDeclaringClass() != DispatchInterceptor.class;
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException("DispatchInterceptor contract is missing monitorDispatch", e);
         }
@@ -170,6 +172,14 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
             monitoringInterceptors[index].monitorDispatch(
                     message, messageType, topic,
                     namespace, request);
+        }
+    }
+
+    @Override
+    public void monitorLocalOnlyDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                         boolean request) {
+        for (DispatchInterceptor interceptor : monitoringInterceptors) {
+            interceptor.monitorLocalOnlyDispatch(message, messageType, topic, namespace, request);
         }
     }
 

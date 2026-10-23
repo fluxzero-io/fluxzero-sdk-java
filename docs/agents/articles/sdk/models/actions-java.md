@@ -60,6 +60,11 @@ also apply to Models. Accepted historical events retain their replay logic.
 Fluxzero automatically handles commands with applicable model applies. Do not add a pass-through `@HandleCommand`.
 Use an explicit handler only for real orchestration:
 
+A deliberate `@LocalOnly` boundary requires a real local handler, for example a self-handling `@HandleCommand`
+that invokes `Fluxzero.assertAndApply(this)`. LocalOnly prevents external fallback; it does not make automatic
+Model handling local. The same rule holds in both fixture modes. See `/docs/sdk/messages/local-only` for the recipe.
+
+
 ```java
 @HandleCommand
 CompletableFuture<Void> handle(ImportProject command) {

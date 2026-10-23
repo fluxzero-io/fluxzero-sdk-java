@@ -52,6 +52,11 @@ also apply to Models. Accepted historical events retain their replay logic.
 Fluxzero automatically handles commands with applicable model applies. Do not add a pass-through `@HandleCommand`.
 Use an explicit handler only for real orchestration and call `Fluxzero.assertAndApply(command)` once.
 
+A deliberate `@LocalOnly` boundary requires a real local handler, for example a self-handling `@HandleCommand`
+that invokes `Fluxzero.assertAndApply(this)`. LocalOnly prevents external fallback; it does not make automatic
+Model handling local. The same rule holds in both fixture modes. See `/docs/sdk/messages/local-only` for the recipe.
+
+
 When the handler itself should remain asynchronous, return `Fluxzero.assertAndApplyAsync(command)` and let the handler
 future represent the durable model commit.
 
