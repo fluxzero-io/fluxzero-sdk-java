@@ -35,6 +35,9 @@ import java.lang.annotation.Target;
  * handler completes exceptionally with {@link LocalOnlyDispatchException}; a non-request message without a matching
  * handler simply completes. Handler code can still perform its own side effects.</p>
  *
+ * <p>This annotation does not register a handler. A local-only command needs an actual local handler, such as
+ * a payload {@code @HandleCommand} method. Synchronous fixture tracking simulation does not satisfy this boundary.</p>
+ *
  * @see LocalHandler
  * @see LocalOnlyDispatchException
  */

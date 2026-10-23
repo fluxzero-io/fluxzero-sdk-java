@@ -75,6 +75,7 @@ import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
+import io.fluxzero.sdk.tracking.handling.LocalDispatchFilter;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
@@ -444,7 +445,7 @@ public class TestFixture implements Given<TestFixture>, When {
         this.fluxzero = new FixtureFluxzero(fluxzeroBuilder.build(client));
         Fluxzero.instance.set(this.fluxzero);
         if (synchronous) {
-            localHandlerRegistries(fluxzero).forEach(r -> r.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE));
+            localHandlerRegistries(fluxzero).forEach(r -> r.setSelfHandlerFilter(synchronousSelfHandlerFilter()));
         }
         withClock(fixtureClock);
         List<Object> handlers = new ArrayList<>();
@@ -495,7 +496,7 @@ public class TestFixture implements Given<TestFixture>, When {
         this.fluxzero = spying ? new SpyingFluxzero(handlerFluxzero) : handlerFluxzero;
         Fluxzero.instance.set(this.fluxzero);
         localHandlerRegistries(this.fluxzero).forEach(r -> r.setSelfHandlerFilter(
-                synchronous ? HandlerFilter.ALWAYS_HANDLE : (t, m) -> !ClientUtils.isSelfTracking(t, m)));
+                synchronous ? synchronousSelfHandlerFilter() : (t, m) -> !ClientUtils.isSelfTracking(t, m)));
         currentFixture.modifiers.forEach(this::modifyFixture);
     }
 
@@ -642,7 +643,10 @@ public class TestFixture implements Given<TestFixture>, When {
                 fixture.registerAsyncHandlers(handlers);
                 return;
             }
-            HandlerFilter handlerFilter = (c, e) -> true;
+            HandlerFilter handlerFilter = new LocalDispatchFilter(HandlerFilter.ALWAYS_HANDLE,
+                    (message, method, annotation, type) -> ClientUtils.getLocalHandlerAnnotation(type, method).isPresent()
+                            || type.isAssignableFrom(message.getPayloadClass())
+                               && !ClientUtils.isSelfTracking(message.getPayloadClass(), method));
             var registration = fc.apply(f -> {
                 Registration local = handlers.stream().flatMap(
                                 h -> Stream.concat(nonScheduleLocalHandlerRegistries(f)
@@ -664,6 +668,12 @@ public class TestFixture implements Given<TestFixture>, When {
             });
             fixture.registration = fixture.registration.merge(registration);
         });
+    }
+
+    private static HandlerFilter synchronousSelfHandlerFilter() {
+        return new LocalDispatchFilter(HandlerFilter.ALWAYS_HANDLE,
+                (message, method, annotation, type) -> !ClientUtils.isSelfTracking(type, method));
+
     }
 
     private void warnIfDuplicateHandlers(List<?> handlers) {
@@ -2171,9 +2181,16 @@ public class TestFixture implements Given<TestFixture>, When {
 
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                     boolean request) {
+            monitorDispatch(message, messageType, topic, namespace, request, false);
+        }
+
+        public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                    boolean request, boolean localOnly) {
             testFixture.fixtureResult.getTrace().monitorDispatch(message, messageType, topic, namespace);
             testFixture.recordObservation(TestFixtureObservation.dispatch(message, messageType, topic, namespace));
-            testFixture.registerAutomaticTrackSelfHandler(message);
+            if (!localOnly) {
+                testFixture.registerAutomaticTrackSelfHandler(message);
+            }
             if (request) {
                 testFixture.requestDispatches.add(message.getMessageId());
             }
@@ -2186,28 +2203,30 @@ public class TestFixture implements Given<TestFixture>, When {
                 addMessage(publishedSchedules, (Schedule) message);
             }
 
-            synchronized (testFixture.consumers) {
-                testFixture.consumers.entrySet().stream()
-                        .filter(t -> {
-                            var consumer = t.getKey();
-                            String consumerNamespace = effectiveNamespace(consumer.getConfiguration());
-                            return (
+            if (!localOnly) {
+                synchronized (testFixture.consumers) {
+                    testFixture.consumers.entrySet().stream()
+                            .filter(t -> {
+                                var consumer = t.getKey();
+                                String consumerNamespace = effectiveNamespace(consumer.getConfiguration());
+                                return (
 
-                                    //message type and topic match
-                                    ((consumer.getMessageType() == messageType
-                                      && Objects.equals(consumer.getTopic(), topic))
-                                     || (consumer.getMessageType() == NOTIFICATION && messageType == EVENT))
+                                        //message type and topic match
+                                        ((consumer.getMessageType() == messageType
+                                          && Objects.equals(consumer.getTopic(), topic))
+                                         || (consumer.getMessageType() == NOTIFICATION && messageType == EVENT))
 
-                                    //type filter matches
-                                    && ofNullable(consumer.getConfiguration().getTypeFilter())
-                                            .map(f -> message.getPayload().getClass().getName().matches(f))
-                                            .orElse(true)
+                                        //type filter matches
+                                        && ofNullable(consumer.getConfiguration().getTypeFilter())
+                                                .map(f -> message.getPayload().getClass().getName().matches(f))
+                                                .orElse(true)
 
-                                    //namespace matches
-                                    && Objects.equals(consumerNamespace, namespace)
+                                        //namespace matches
+                                        && Objects.equals(consumerNamespace, namespace)
 
-                            );
-                        }).forEach(e -> addMessage(e.getValue(), message));
+                                );
+                            }).forEach(e -> addMessage(e.getValue(), message));
+                }
             }
 
             if (captureMessage(message)) {
@@ -2464,6 +2483,12 @@ public class TestFixture implements Given<TestFixture>, When {
                                     boolean request) {
             delegate.monitorDispatch(message, messageType, topic, namespace, request);
         }
+        @Override
+        public void monitorLocalOnlyDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                             boolean request) {
+            delegate.monitorDispatch(message, messageType, topic, namespace, request, true);
+        }
+
     }
 
     @Order(Order.HIGHEST_PRECEDENCE)

@@ -218,4 +218,14 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
         getAdhocInterceptor(messageType)
                 .ifPresent(i -> i.monitorDispatch(message, messageType, topic, namespace, request));
     }
+    @Override
+    public void monitorLocalOnlyDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                         boolean request) {
+        Map<MessageType, DispatchInterceptor> current = delegates.get();
+        DispatchInterceptor interceptor = current == null ? null : current.get(messageType);
+        if (interceptor != null) {
+            interceptor.monitorLocalOnlyDispatch(message, messageType, topic, namespace, request);
+        }
+    }
+
 }
