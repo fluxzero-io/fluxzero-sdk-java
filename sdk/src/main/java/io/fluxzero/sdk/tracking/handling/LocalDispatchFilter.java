@@ -20,6 +20,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import lombok.NonNull;
 
 import java.lang.reflect.Executable;
+import java.util.IdentityHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -31,7 +32,9 @@ import java.util.function.Supplier;
  */
 public record LocalDispatchFilter(@NonNull HandlerFilter ordinary,
                                   @NonNull MessageFilter<DeserializingMessage> localOnly) implements HandlerFilter {
-    private enum Restricted { INSTANCE }
+    // Derived envelopes retain this identity, but active selection scopes are confined to their calling thread.
+    private static final class DispatchIdentity {}
+    private static final ThreadLocal<IdentityHashMap<DispatchIdentity, Boolean>> restricted = new ThreadLocal<>();
 
     @Override
     public boolean test(Class<?> ownerType, Executable executable) {
@@ -40,19 +43,31 @@ public record LocalDispatchFilter(@NonNull HandlerFilter ordinary,
 
     MessageFilter<DeserializingMessage> restrict(MessageFilter<? super DeserializingMessage> filter) {
         MessageFilter<DeserializingMessage> restriction = (message, method, annotation, target) ->
-                message.getContext(Restricted.class).isEmpty() || localOnly.test(message, method, annotation, target);
+                (restricted.get() == null || message.getContext(DispatchIdentity.class)
+                        .map(identity -> !restricted.get().containsKey(identity)).orElse(true)) || localOnly.test(message, method, annotation, target);
         return restriction.and(filter);
     }
 
     static <T> T inDispatch(DeserializingMessage message, boolean allowExternalPublication, Supplier<T> action) {
-        if (allowExternalPublication || message.getContext(Restricted.class).isPresent()) {
+        if (allowExternalPublication) {
             return action.get();
         }
-        message.putContext(Restricted.class, Restricted.INSTANCE);
+        var identity = message.computeContextIfAbsent(DispatchIdentity.class, ignored -> new DispatchIdentity());
+        var active = restricted.get();
+        if (active != null && active.containsKey(identity)) {
+            return action.get();
+        }
+        if (active == null) {
+            restricted.set(active = new IdentityHashMap<>());
+        }
+        active.put(identity, Boolean.TRUE);
         try {
             return action.get();
         } finally {
-            message.withoutContext(Restricted.class);
+            active.remove(identity);
+            if (active.isEmpty()) {
+                restricted.remove();
+            }
         }
     }
 }

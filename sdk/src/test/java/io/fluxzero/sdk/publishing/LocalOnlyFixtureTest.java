@@ -136,6 +136,19 @@ class LocalOnlyFixtureTest {
         fixture(async, BaseSelfCommand.class).whenCommand(new DerivedSelfCommand()).expectResult("self");
     }
 
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void registeredInheritedSelfHandlerDoesNotUseRemoteConsumerFilter(boolean async) {
+        var serializer = org.mockito.Mockito.spy(new io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer());
+        org.mockito.Mockito.doReturn(io.fluxzero.common.api.tracking.ConsumerFilter.select(
+                null, 0, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION,
+                io.fluxzero.common.api.Data.JSON_FORMAT, java.util.List.of(), null, java.util.List.of()))
+                .when(serializer).describeConsumerFilter(org.mockito.ArgumentMatchers.any());
+        var builder = DefaultFluxzero.builder().replaceSerializer(serializer);
+        (async ? TestFixture.createAsync(builder, BaseSelfCommand.class)
+                : TestFixture.create(builder, BaseSelfCommand.class))
+                .whenCommand(new DerivedSelfCommand()).expectResult("self");
+    }
+
     static class BaseSelfCommand {
         @HandleCommand String handle() { return "self"; }
     }
