@@ -9,11 +9,9 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-An application changes because somebody tries to do something: rename a Product, place an Order or complete a Task.
-Express that intent as a small action. The action returns the new Model state; it does not contain persistence code.
-
-Fluxzero finds the target, loads its current state, runs the `@Apply` method and stores the accepted result. The same
-pipeline can check business rules and change several Models atomically when the action requires it.
+Fluxzero handles an action with target Model identities by loading the current state, running its `@AssertLegal` and
+`@Apply` methods, and committing the returned state. One action can update several Models atomically. The action does
+not contain persistence code.
 
 For a complete business-rule example, see [Validate and update Models atomically](/docs/guides/modeling-and-persistence/preventing-double-bookings).
 

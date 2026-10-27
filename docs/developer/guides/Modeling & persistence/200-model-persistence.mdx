@@ -10,11 +10,10 @@ import Jdoclink from '~/components/jdoclink.astro';
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-Use Model persistence to remember accepted domain changes. The default, event sourcing, keeps the sequence of changes so a Model can be reconstructed and its history inspected. Document persistence is useful when only current
-state is needed.
+Fluxzero event-sources Models by default. The stored update sequence reconstructs current state and supports historical
+reads. `DOCUMENT` persistence stores current Model state without retaining historical document revisions.
 
-Choose [the Model's domain boundary](../model-state) first. Storage options refine that choice; they do not determine
-which business concepts belong together.
+Persistence configuration does not determine the [Model boundary](../model-state).
 
 ## Event-sourced models
 

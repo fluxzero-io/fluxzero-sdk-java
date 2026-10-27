@@ -1,7 +1,7 @@
 ---
 title: Loading models
 slug: docs/guides/modeling-and-persistence/entity-loading
-description: Load independent models and explore complete model graphs
+description: Load Models by identity and read related state through Graphs
 sidebar:
    order: 170
 ---
@@ -9,15 +9,12 @@ sidebar:
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 import Jdoclink from '~/components/jdoclink.astro';
 
-Most reads begin with a simple question: do you need one known thing, or do you need to understand it in relation to
-other things? Load a Model for the first case and a Graph for the second.
-
-Both reads start from an identity. Neither requires loading an entire object tree.
+`Fluxzero.loadModel(...)` loads one Model by identity. `Fluxzero.loadGraph(...)` provides a lazy Graph for reads that
+also depend on related Models or history.
 
 ## Load one Model
 
-Load a Model when you know its identity and need its current state. A task, order or booking can be loaded independently
-of its parents and children.
+Loading a Model does not load its parents or children.
 
 With an `OrderId extends Id<Order>`, the ID supplies the Model type:
 
@@ -43,8 +40,8 @@ the event's boundary; see [temporal Graphs](../temporal-graphs) when you need th
 
 <span id="loading-without-a-typed-id"></span>
 
-<Aside type="tip" title="Have a String instead of a typed ID?">
-Supply the Model class when the ID does not carry its type:
+<Aside type="tip" title="Loading with a String ID">
+A String ID requires the Model class because the ID does not carry its type:
 
 ```java
 Order order = Fluxzero.loadModel("order-123", Order.class).get();
@@ -54,7 +51,7 @@ Order order = Fluxzero.loadModel("order-123", Order.class).get();
 val order: Order? = Fluxzero.loadModel("order-123", Order::class.java).get()
 ```
 
-Prefer a typed `Id<Order>` in domain code: it prevents mixing identifiers and lets Fluxzero infer the Model type.
+A typed `Id<Order>` lets Fluxzero infer the Model type.
 </Aside>
 
 ## Follow relationships with a Graph
@@ -95,8 +92,7 @@ The [temporal Graph guide](../temporal-graphs) explains history and navigation;
 
 ## Identity options
 
-The ordinary path is a typed, functional ID. The following options are useful when an integration supplies another
-form of identity.
+A typed, functional ID is the default identity form. Fluxzero also supports integrations that supply another form.
 
 ### Use an existing repository key
 

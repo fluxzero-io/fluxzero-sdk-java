@@ -8,27 +8,25 @@ sidebar:
 
 import {Tabs, TabItem} from '@astrojs/starlight/components';
 
-Suppose a Task-completed event is handled hours later. Loading today's Task and today's Project may explain the current
-situation, but not the decision that produced that event. A `Graph<T>` lets you keep the related reads at the moment
-you are trying to understand.
+A `Graph<T>` keeps root and related Model reads at one boundary. During delayed event handling, it can read state at
+the event boundary instead of the current boundary. Historical reads require retained Model history and do not roll
+back state or external effects.
 
-Use this for activity feeds, audit explanations, before/after notifications, and investigating business decisions.
-A historical graph is a read of retained history; it does not roll the application back or undo external effects.
-
-Try [React to Model transitions with Graph history](/docs/guides/modeling-and-persistence/reacting-to-a-change) for a small example comparing two observations.
+See [React to Model transitions with Graph history](/docs/guides/modeling-and-persistence/reacting-to-a-change) for
+an example comparing two Graph boundaries.
 
 ## One connected view at one boundary
 
-A Graph combines a Model with its relationships at one read boundary. It answers “what did this Task and its Project
-look like when the change happened?” without mixing today's Project with yesterday's Task.
+A Graph combines a Model with its relationships at one read boundary, preventing Model revisions from different
+boundaries from being combined.
 
 Graph navigation is lazy. Constructing a typed Graph does not load the whole tree. State is read when you ask for a
 value or relationship, and the selected boundary then stays fixed.
 
 ## Navigate the Graph
 
-Suppose `Task` has a typed `TaskId` and a `@Parent(pathInParent = "tasks") ProjectId projectId`.
-Both Task and Project use event-sourced `@Model` persistence.
+The example uses a typed `TaskId` and a `@Parent(pathInParent = "tasks") ProjectId projectId`. Both Models use
+event-sourced persistence.
 
 <Tabs>
   <TabItem label="Java">

@@ -10,13 +10,13 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 <span id="design-the-state-before-choosing-storage"></span>
 
-A Model represents something your users recognize and change: a project, order or booking. Choose its lifecycle
-first. Then group the values that belong to it. You do not need to choose documents, snapshots or Graph projections
-to make these domain decisions.
+A `@Model` declares independently addressable state. Use an `@EntityId` field for identity and plain immutable value
+objects for cohesive state such as details or settings. Persistence, snapshots and Graph projections are configured
+separately.
 
 ## One Project, from creation to rename
 
-A Project has an identity and editable details. Start with only the name the product needs:
+This Project stores a typed identity and a `ProjectDetails` value object:
 
 <Tabs>
   <TabItem label="Java">
