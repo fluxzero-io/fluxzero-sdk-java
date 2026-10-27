@@ -46,9 +46,33 @@ Deleting the non-owning Product removes the active Graph edge but does not rewri
 `productId` field. A current Graph no longer exposes that parent. Record a replacement or cleared reference with an
 explicit domain action when required. Deleting Order removes LineItem, never Product through that child relation.
 
-`deleteOnParentDeletion = false` does **not** prevent the referenced Model from being deleted. Enforce a domain
-rule separately when deletion must be refused while references exist. `@Parent` is not an unrestricted foreign-key
+`deleteOnParentDeletion = false` does **not** prevent the referenced Model from being deleted. Use
+`preventParentDeletion = true` when a surviving child must reject logical deletion. `@Parent` is not an unrestricted foreign-key
 annotation: concrete cycles between Model IDs are rejected, including cycles containing non-owning edges.
+
+### Parent validation shorthands
+
+```java
+@Model
+record LineItem(
+        @EntityId LineItemId lineItemId,
+        @Parent(required = true, maxChildren = 100, preventParentDeletion = true)
+        OrderId orderId) {}
+```
+
+- `required = true` requires a non-empty reference and every referenced parent to exist in the final commit state.
+  Parent and child may be created together. For a collection-valued reference, empty means missing.
+- `maxChildren = n` limits distinct children per parent ID, logical child Model type and composition path. `-1` is
+  unlimited, zero forbids growth and values below `-1` are invalid. Existing overcapacity may stay unchanged or shrink.
+- `preventParentDeletion = true` blocks logical parent deletion while the relation survives and disables cascade on
+  that edge. Moving or deleting the child in the same commit releases the parent; detaching does too when the final
+  reference still satisfies `required`. Physical erasure is outside this domain check.
+
+These options are SDK shorthands, not persisted Runtime constraints. The SDK records their Model and relationship
+reads in the ordinary commit readset, so concurrent attach, move or deletion conflicts and RETRY reevaluates the
+check. All enforcing writers must use a supporting SDK and include the child contract in the generated Model index.
+Use an explicit Graph assertion for custom errors or richer state-dependent rules. For exact TestFixture failures,
+use `ModelErrors.parentRequired`, `parentNotFound`, `maxChildrenExceeded`, or `parentDeletionBlocked`.
 
 Use `@Parent` on the child:
 

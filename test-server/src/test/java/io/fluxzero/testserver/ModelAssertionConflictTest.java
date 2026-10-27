@@ -221,6 +221,53 @@ class ModelAssertionConflictTest {
         @Apply Reservation apply() { return new Reservation(reservationId, productId); }
     }
 
+    @Test
+    void parentCardinalityShorthandRetriesThroughOrdinaryRelationshipConflicts() {
+        String namespace = "parent-cardinality-" + UUID.randomUUID();
+        GateClient client = new GateClient(config(namespace, "reader"));
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(ModelConflictPolicy.RETRY,
+                                                ModelConflictResolver.retryIfAllowed(), 3)
+                .build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                     .build(WebSocketClient.newInstance(config(namespace, "writer")))) {
+            execute(writer, new CreateCapacityRoot("root"), false);
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadRelationships().stream().anyMatch(read ->
+                        read.modelId().equals("root")
+                        && read.direction()
+                        == io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction.CHILDREN)
+                    && once.compareAndSet(false, true)) {
+                    execute(writer, new CreateCapacityChild("winner", "root"), false);
+                }
+            };
+
+            RuntimeException failure = assertThrows(RuntimeException.class,
+                    () -> execute(app, new CreateCapacityChild("contender", "root"), false));
+            assertTrue(once.get());
+            Throwable cause = failure;
+            while (cause.getCause() != null) { cause = cause.getCause(); }
+            assertInstanceOf(IllegalCommandException.class, cause);
+            assertNull(writer.apply(fc -> Fluxzero.loadModel("contender", CapacityChild.class).get()));
+            assertNotNull(writer.apply(fc -> Fluxzero.loadModel("winner", CapacityChild.class).get()));
+        }
+    }
+
+    @Model(searchable = false, name = "ModelAssertionConflictTest.CapacityRoot")
+    record CapacityRoot(@EntityId String id) {}
+    @Model(searchable = false, name = "ModelAssertionConflictTest.CapacityChild")
+    record CapacityChild(
+            @EntityId String id,
+            @Parent(value = CapacityRoot.class, maxChildren = 1) String rootId) {}
+    record CreateCapacityRoot(String id) {
+        @Apply CapacityRoot apply() { return new CapacityRoot(id); }
+    }
+    record CreateCapacityChild(String id, String rootId) {
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
+        CapacityChild apply() { return new CapacityChild(id, rootId); }
+    }
+
     private static class GateClient extends WebSocketClient {
         volatile Consumer<CommitModels> beforeCommit = ignored -> {};
         GateClient(ClientConfig config) { super(config, null); }

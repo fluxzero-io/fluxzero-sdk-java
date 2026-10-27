@@ -404,7 +404,9 @@ the Project. The `status` Graph path is still a collection, with at most one mem
 Removing the companion leaves its parent intact; default parent-owned deletion removes it with the Project.
 For example, an automation application can request that a lamp turn on, while a device integration reports whether the physical lamp is actually on. The reported state belongs to that integration and changes on its own schedule. It can be a companion Model in another application, even when the application owning the lamp does not know the companion's Java class. The shared relationship still connects them; typed value reads require the local state contract, while metadata navigation can inspect unknown children.
 
-The one-per-Project limit here follows from using the same Project ID plus a fixed `status-` prefix. `@Parent` has no `maxChildren` setting; a different identity scheme needs an explicit business rule to enforce a cardinality limit.
+The one-per-Project limit here follows from using the same Project ID plus a fixed `status-` prefix, so the identity
+itself prevents a second companion. For a relationship whose child IDs do not provide that guarantee,
+`@Parent(maxChildren = 1)` offers the equivalent membership check while keeping each child independently identified.
 
 ### More than one hierarchy
 
@@ -463,6 +465,14 @@ Read the arrows from Task to each parent. Both relationships are navigable; only
 | Delete Project | Deleted | Deleted by the ownership cascade | Remains, without this Task |
 
 Deleting Sprint removes its active relationship to Task. It does not rewrite Task's stored `sprintId` to `null`; a current Graph no longer exposes that parent. If Task must record a new planning assignment, make that an explicit change. With the default `deleteOnParentDeletion = true` on both edges instead, deleting either parent would delete Task, but would still leave the other parent alive.
+
+The same declaration can express three common relationship checks. `required = true` requires a non-empty reference
+to a parent that exists in the final commit state. `maxChildren = 5` limits distinct Tasks in one parent/type/path
+scope. `preventParentDeletion = true` blocks logical deletion while that relation survives and disables cascade on the
+edge. These are SDK shorthands over the same parent and membership reads used by a Graph assertion, so concurrent
+changes follow normal conflict and retry handling; they are not stored Runtime policies. Use the
+[Model persistence guide](/docs/guides/modeling-and-persistence/model-persistence#use-parent-shorthands-for-common-relationship-rules)
+for final-state, deletion and multi-writer boundaries.
 
 Relationship discovery, cascade ownership and output placement are separate settings:
 
@@ -545,6 +555,11 @@ data class AddTask(
 </Tabs>
 
 Five is this example's business limit. `ProjectErrors.capacityReached` is an application-defined functional exception; the examples omit the error declarations. Use the same domain-error convention for the other refusals below.
+
+For this simple count-only rule, the Task's parent declaration could instead use
+`@Parent(pathInParent = "tasks", required = true, maxChildren = 5)`. The SDK shorthand performs the same parent and
+membership reads and joins them to the ordinary conflict boundary. Keep the explicit assertion when the decision needs
+the custom `ProjectErrors` message or depends on other Project or Task state.
 
 ### Follow one operation from read to commit
 
@@ -1767,7 +1782,7 @@ val projectId: ProjectId
 </TabItem>
 </Tabs>
 
-Deleting Project now removes the active relationship but leaves Task alive. The Task's stored `projectId` field is not rewritten to `null`: it can still contain the deleted Project's ID, while current Graph navigation no longer exposes that parent. A parent ID in the value is therefore not proof of a currently live parent relation. If the domain wants to clear or replace that field, model that as an explicit state change. The option does not block Project deletion; a business rule can do that.
+Deleting Project now removes the active relationship but leaves Task alive. The Task's stored `projectId` field is not rewritten to `null`: it can still contain the deleted Project's ID, while current Graph navigation no longer exposes that parent. A parent ID in the value is therefore not proof of a currently live parent relation. If the domain wants to clear or replace that field, model that as an explicit state change. The option does not block Project deletion; add `preventParentDeletion = true` for that common check or use an explicit assertion for a richer rule.
 
 #### Delete one part without deleting the whole
 
@@ -3047,7 +3062,7 @@ Choose the following boundaries independently, then configure the places where t
 | Annotation | Role in the 2.0 model |
 | --- | --- |
 | `@Model` | An independent state, persistence and lifecycle boundary. |
-| `@Parent` | A directed relationship to another Model. `pathInParent` opts the edge into composition, `propagateSearch` gates inherited search, `validateAncestors` gates inherited assertions, and `deleteOnParentDeletion` controls lifecycle ownership. It also declares ownership for scheduled payloads. |
+| `@Parent` | A directed relationship to another Model. `pathInParent` opts the edge into composition, `propagateSearch` gates inherited search, `validateAncestors` gates inherited assertions, and `deleteOnParentDeletion` controls lifecycle ownership. `required`, `maxChildren`, and `preventParentDeletion` are SDK validation shorthands. It also declares ownership for scheduled payloads. |
 | `@GraphProperty` | A serialized value derived from the current node or its typed ancestor Graphs. Its optional `value` sets the JSON property name. |
 | `@SearchSettings` | Per-node search collection, temporal paths and descendant scope, nested in `@Model(searchSettings = ...)`. |
 | `@GraphProjection` | Settings for the complete materialized view, nested in `@Model(graphProjection = ...)`. |
@@ -3104,12 +3119,20 @@ snapshot or projection does not redefine which object owns a domain lifecycle.
 | `types` | Empty | Allowed Model types for a polymorphic `Id<?>`; mutually exclusive with `value`. |
 | `pathInParent` | Empty | Optional slash-separated composition path, e.g. `"tasks"`. Its final segment is a collection, even for a one-to-one companion. |
 | `deleteOnParentDeletion` | `true` | Owning cascade. `false` keeps a normal non-owning Graph relation; it does not block parent deletion. |
+| `required` | `false` | Require at least one referenced parent and require every referenced parent to exist in the final Model commit. |
+| `maxChildren` | `-1` | Maximum distinct children of this logical Model type and path per parent. A nonnegative value enables the SDK shorthand. |
+| `preventParentDeletion` | `false` | Reject logical deletion while this child relation survives; this edge no longer cascades. |
 | `validateAncestors` | `true` | Allow cascading `@AssertLegal` rules to follow this route. `false` stops only inherited validation on this edge and subtree. |
 | `apiDoc` | `@ApiDoc` | Describe the composed relationship in Graph-aware OpenAPI; not a runtime content filter. |
 
 A plain typed ID is only a reference until `@Parent` declares a Graph edge. A null parent reference detaches
 that edge. A Model may have multiple parents, including parents of its own type for recursive structures;
 concrete cycles are rejected. Each edge has its own ownership policy.
+
+`required`, `maxChildren`, and `preventParentDeletion` are SDK shorthands built on ordinary Model and relationship
+reads. Concurrent changes therefore use the same conflict and retry behavior as an equivalent Graph assertion; no
+constraint policy is installed in the Runtime. Keep every enforcing writer on the supporting SDK and package its
+generated Model index. Use an explicit domain assertion for richer decisions or custom failures.
 
 `@EntityId` has `prefix = ""`, `postfix = ""` and `parentScoped = false`. Affixes affect repository identity,
 not the stored functional value. Parent-scoped IDs combine the functional ID with one non-null parent: moving

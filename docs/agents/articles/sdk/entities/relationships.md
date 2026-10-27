@@ -30,6 +30,9 @@ default cascade ownership. Being displayed below or deleted with the parent does
   typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
 - A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set
   `deleteOnParentDeletion = false` for deliberately detached or independently retained children.
+- Use `required`, `maxChildren`, and `preventParentDeletion` for the common existing-parent, cardinality, and
+  deletion-protection checks. They are SDK shorthands over ordinary conflict-checked Model and Graph reads, not
+  Runtime-stored constraints. See the language-specific Graph article for final-state and multi-writer behavior.
 - Relationships are temporal; graph reconstruction can pin a `stateIndex`.
 - Same-type recursion is supported. A `Folder` may hold
   `@Parent(pathInParent = "folders") FolderId parentFolderId`; Fluxzero accepts an arbitrarily deep tree and atomically rejects
@@ -48,6 +51,8 @@ void assertOpen(
 ```
 
 Use `@Association` when the relation/path or same-type target would otherwise be ambiguous.
+
+Detailed contracts and examples: `/docs/sdk/models/graphs-java` and `/docs/sdk/models/graphs-kotlin`.
 
 Every root and descendant in a materialized Graph retains its own serialized type and `@Revision`. The ordinary
 serializer upcasts nodes independently and lazily; do not create a Graph-wide upcaster. Use

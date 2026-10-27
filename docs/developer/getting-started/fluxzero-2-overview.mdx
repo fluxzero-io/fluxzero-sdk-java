@@ -751,6 +751,12 @@ data class DeleteTask(val taskId: TaskId) {
 
 By default, deletion cascades through parent relationships: deleting a Project deletes its Tasks and their Notes. A child can opt out with `@Parent(deleteOnParentDeletion = false)`. Logical deletion removes current state while retaining event-sourced history.
 
+Common relationship rules can stay with that same declaration. `required = true` requires a live parent,
+`maxChildren` bounds one parent/type/path scope, and `preventParentDeletion = true` keeps the parent while a matching
+child survives. These are SDK shorthands for ordinary conflict-checked Graph reads, not Runtime-stored constraints.
+
+[Deep dive: parent ownership, relationship constraints and conflicts](/docs/fluxzero-2-deep-dive#more-than-one-hierarchy)
+
 Physical erasure is separate. For example, to erase a completed Approval Model without erasing its Task or Project, select only that Model:
 
 <Tabs syncKey="language">

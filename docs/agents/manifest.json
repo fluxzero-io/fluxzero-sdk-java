@@ -7582,7 +7582,7 @@
     {
       "path": "/docs/sdk/models/graphs-java",
       "title": "Model relationships and lazy Graphs (Java)",
-      "summary": "Choose plain references, owning or non-owning Graph relations and per-edge deletion policy; load lazy Graphs and observe changes in Java.",
+      "summary": "Choose plain references, owning or non-owning Graph relations, SDK parent validation shorthands and per-edge deletion policy; load lazy Graphs and observe changes in Java.",
       "source": "articles/sdk/models/graphs-java.md",
       "symbols": [
         "@Parent",
@@ -7603,6 +7603,10 @@
         "dynamic write targets",
         "cascade deletion",
         "deleteOnParentDeletion",
+        "Parent.required",
+        "Parent.maxChildren",
+        "Parent.preventParentDeletion",
+        "ModelErrors",
         "non-owning relationships",
         "multiple parents",
         "Graph cycles",
@@ -7838,7 +7842,7 @@
     {
       "path": "/docs/sdk/models/graphs-kotlin",
       "title": "Model relationships and lazy Graphs (Kotlin)",
-      "summary": "Choose plain references, owning or non-owning Graph relations and per-edge deletion policy; load lazy Graphs and observe changes in Kotlin.",
+      "summary": "Choose plain references, owning or non-owning Graph relations, SDK parent validation shorthands and per-edge deletion policy; load lazy Graphs and observe changes in Kotlin.",
       "source": "articles/sdk/models/graphs-kotlin.md",
       "symbols": [
         "@Parent",
@@ -7859,6 +7863,10 @@
         "dynamic write targets",
         "cascade deletion",
         "deleteOnParentDeletion",
+        "Parent.required",
+        "Parent.maxChildren",
+        "Parent.preventParentDeletion",
+        "ModelErrors",
         "non-owning relationships",
         "multiple parents",
         "Graph cycles",
@@ -7915,6 +7923,9 @@
         "Parent",
         "Parent.propagateSearch",
         "propagateSearch",
+        "Parent.required",
+        "Parent.maxChildren",
+        "Parent.preventParentDeletion",
         "Member",
         "io.fluxzero.sdk.modeling.Parent"
       ],

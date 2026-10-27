@@ -39,6 +39,8 @@ import java.lang.annotation.Target;
  * cascaded deletion and hard erasure all invalidate ownership. Null references and
  * {@code deleteOnParentDeletion = false} do not own the schedule. The schedule is not a Model or Graph node;
  * {@code pathInParent} and {@code apiDoc} do not compose it. Already delivered work cannot be recalled.
+ * The Model-only {@link #maxChildren()}, {@link #required()} and {@link #preventParentDeletion()} shorthands do not
+ * apply to schedule or command payload declarations.
  * Explicit {@link io.fluxzero.sdk.scheduling.Schedule#withParents(Object...)} selections override these declarations.
  * <p>
  * Both sides remain independent model and persistence boundaries. Use a parent relationship when the child has its own
@@ -80,7 +82,8 @@ import java.lang.annotation.Target;
  * By default the relationship also owns the child's lifecycle: deleting the referenced parent deletes this model and
  * its likewise owned descendants in the same atomic model commit. Set {@link #deleteOnParentDeletion()} to
  * {@code false} for a non-owning relation, including shared or independently retained children.
- * Disabling cascade does not block deletion of the referenced parent; enforce such restrictions with domain rules.
+ * Disabling cascade alone does not block deletion of the referenced parent; use
+ * {@link #preventParentDeletion()} for the equivalent SDK-provided domain check.
  * It also does not permit concrete Graph cycles. This lifecycle rule does not require a graph path and
  * moving a child by changing its parent ID does not count as parent deletion.
  * Sole-Graph event/notification handlers for a cascaded child observe its empty current value and historical
@@ -176,4 +179,34 @@ public @interface Parent {
      * deletion or relax Graph cycle checks.
      */
     boolean deleteOnParentDeletion() default true;
+
+    /**
+     * On a Model relationship, maximum distinct children of this logical Model type and composition path for one
+     * parent.
+     * Pathless relationships of the same child Model type share a limit. Different child types or paths do not.
+     * {@code -1} means unlimited; zero disallows increasing the child count. Values below {@code -1} are invalid.
+     * <p>
+     * This is an SDK shorthand for a Graph-based domain check. The consumed relationship collection participates in
+     * normal Model conflict detection, so concurrent additions or moves trigger the configured conflict/retry flow.
+     * Existing overcapacity may remain while the final count does not grow.
+     */
+    int maxChildren() default -1;
+
+    /**
+     * On a Model relationship, requires at least one referenced parent and requires every referenced parent to exist
+     * in the final mutation state. A parent and child may be created together. For collection-valued parent
+     * properties, an empty collection is treated like an absent reference.
+     * <p>
+     * This is an SDK shorthand for reading and checking the referenced Models in the same mutation. Those reads use
+     * the existing Model conflict contract; no separate Runtime constraint is installed.
+     */
+    boolean required() default false;
+
+    /**
+     * On a Model relationship, rejects logical deletion of a referenced parent while this relationship survives the
+     * final mutation state. This takes precedence over {@link #deleteOnParentDeletion()}: the SDK does not cascade this
+     * edge. Explicitly deleting the child in the same mutation permits parent deletion; detaching does too when the
+     * final reference still satisfies {@link #required()}. Administrative hard erasure is outside this domain check.
+     */
+    boolean preventParentDeletion() default false;
 }

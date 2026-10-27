@@ -71,6 +71,7 @@ final class ModelPipeline {
     private final DefaultModelRepository repository;
     private final EventStoreClient eventStoreClient;
     private final DeadlinePlan deadlines;
+    private final ParentConstraintPlan parentConstraints;
     private final Commit repositoryCommit;
     private final ModelConflictPolicy conflictPolicy;
     private final ModelConflictResolver conflictResolver;
@@ -97,9 +98,13 @@ final class ModelPipeline {
             GraphProjectionCompletion graphProjectionCompletion,
             MutationPlan.Compiler compiler,
             BiFunction<Class<?>, Class<?>, MutationPlan> definitions,
-            java.util.function.BooleanSupplier localHandlingEnabled, Supplier<List<Class<?>>> knownModelTypes) {
+            java.util.function.BooleanSupplier localHandlingEnabled,
+            Supplier<List<Class<?>>> contextualDeadlineTypes,
+            Supplier<List<Class<?>>> knownModelTypes,
+            java.util.function.IntSupplier knownModelTypeCount) {
         this.repository = Objects.requireNonNull(repository, "repository");
-        this.deadlines = new DeadlinePlan(repository, serializer, knownModelTypes);
+        this.deadlines = new DeadlinePlan(repository, serializer, contextualDeadlineTypes);
+        this.parentConstraints = new ParentConstraintPlan(repository, knownModelTypes, knownModelTypeCount);
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
@@ -955,7 +960,7 @@ final class ModelPipeline {
     private CommitAttempt expandCascadeDeletes(
             CommitAttempt evaluation, DeserializingMessage message) {
         try {
-            return deadlines.evaluate(expandCascadeDeletes(evaluation), message);
+            return parentConstraints.evaluate(deadlines.evaluate(expandCascadeDeletes(evaluation), message));
         } catch (Exception failure) {
             throw repository.preparationFailure(message.getMessageId(), evaluation.readStateIndex(), failure);
         }
