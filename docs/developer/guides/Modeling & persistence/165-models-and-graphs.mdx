@@ -1,0 +1,194 @@
+---
+title: Models and Graphs
+slug: docs/guides/modeling-and-persistence/models-and-graphs
+description: Understand how independent Models and connected Graphs shape a Fluxzero application
+sidebar:
+   order: 165
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+People do not experience an application as one large object. They work with projects, tasks, orders and line items:
+things that have an identity, change over time and relate to one another. Fluxzero represents those things as
+**Models**. When you need to see related Models together, Fluxzero connects them in a **Graph**.
+
+That distinction lets you choose a natural lifecycle for each part of the domain without giving up a connected view
+of the whole.
+
+## Why Models are independent
+
+Imagine a Task that belongs to a Project. The Task can be completed, moved or deleted independently. It may have a
+busy history while its Project hardly changes. Storing the Task inside one large Project object would couple those
+lifecycles: loading or changing one Task would involve the Project and potentially its other Tasks too.
+
+A Model gives the Task its own identity, state and history. The Project is another Model. A relationship connects the
+two, but does not merge their storage or lifecycles.
+
+This also keeps future changes open. A Task can move to another Project without receiving a new identity, and one
+business action can still update several Models atomically when the rule genuinely crosses their boundaries.
+
+## What a Graph adds
+
+A Graph is a connected view of Models at one read boundary. Starting from a Project, you can follow its Tasks. Starting
+from a Task, you can find its Project. The Graph keeps those reads consistent with one another, including when you
+inspect an earlier state.
+
+```mermaid
+flowchart LR
+    T[Task Model] -. "@Parent relation" .-> P[Project Model]
+    G["Graph&lt;Project&gt;"] --> P
+    G --> T
+```
+
+The Models remain independently addressable. The Graph answers a different question: “what belonged together at this
+moment?” It is especially useful for screens, decisions that span related state, and explaining how a change happened.
+
+<Aside type="note" title="A Graph is a view, not another domain object">
+You do not save a Graph as the authoritative state of your application. Change Models; use a Graph to navigate and
+observe their relationships. Fluxzero loads Graph branches lazily, so asking for a Graph does not fetch every related
+Model up front.
+</Aside>
+
+## How Models become a Graph
+
+Give each Model a typed identity. On the child, `@Parent` declares the relationship and `pathInParent` gives that
+relationship a name when navigating from the parent:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Model
+record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
+
+@Model
+record Task(
+        @EntityId TaskId taskId,
+        @Parent(pathInParent = "tasks") ProjectId projectId,
+        TaskDetails details,
+        boolean completed) {}
+
+final class ProjectId extends Id<Project> {
+    ProjectId(String value) { super(value); }
+}
+
+final class TaskId extends Id<Task> {
+    TaskId(String value) { super(value); }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
+
+@Model
+data class Task(
+    @EntityId val taskId: TaskId,
+    @Parent(pathInParent = "tasks") val projectId: ProjectId,
+    val details: TaskDetails,
+    val completed: Boolean
+)
+
+class ProjectId(value: String) : Id<Project>(value)
+class TaskId(value: String) : Id<Task>(value)
+```
+
+  </TabItem>
+</Tabs>
+
+`ProjectDetails` and `TaskDetails` are ordinary immutable value objects. Their role is to keep descriptive fields,
+such as a name or title, together according to their domain meaning. Their declarations are omitted here because they
+have no independent lifecycle and add nothing to the Model–Graph relationship shown in this example.
+
+`@Parent` records a Graph relation. The `Task` is still stored and loaded as its own Model; the Project does not need a
+`List<Task>` field.
+
+Create each Model through a small action:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+record CreateProject(ProjectId projectId, ProjectDetails details) {
+    @Apply Project apply() {
+        return new Project(projectId, details);
+    }
+}
+
+record AddTask(TaskId taskId, ProjectId projectId, TaskDetails details) {
+    @Apply Task apply(Project project) {
+        return new Task(taskId, project.projectId(), details, false);
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+data class CreateProject(val projectId: ProjectId, val details: ProjectDetails) {
+    @Apply fun apply() = Project(projectId, details)
+}
+
+data class AddTask(val taskId: TaskId, val projectId: ProjectId, val details: TaskDetails) {
+    @Apply fun apply(project: Project) = Task(taskId, project.projectId, details, false)
+}
+```
+
+  </TabItem>
+</Tabs>
+
+The `Project` parameter makes adding a Task depend on an existing Project. After sending both actions, load the Project
+Graph and follow the named relation:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+ProjectId projectId = new ProjectId("website");
+TaskId taskId = new TaskId("write-homepage");
+
+Fluxzero.sendCommandAndWait(new CreateProject(projectId, new ProjectDetails("Website")));
+Fluxzero.sendCommandAndWait(new AddTask(taskId, projectId, new TaskDetails("Write the homepage")));
+
+Graph<Project> project = Fluxzero.loadGraph(projectId);
+List<Task> tasks = project.childModels("tasks", Task.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val projectId = ProjectId("website")
+val taskId = TaskId("write-homepage")
+
+Fluxzero.sendCommandAndWait<Any?>(CreateProject(projectId, ProjectDetails("Website")))
+Fluxzero.sendCommandAndWait<Any?>(AddTask(taskId, projectId, TaskDetails("Write the homepage")))
+
+val project: Graph<Project> = Fluxzero.loadGraph(projectId)
+val tasks: List<Task> = project.childModels("tasks", Task::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+`tasks` now contains the Task, while `Fluxzero.loadModel(taskId)` can still load that same Task directly.
+
+## Choose the boundary by lifecycle
+
+Make something a separate Model when it has its own creation, changes, history, retention or deletion. Use an ordinary
+value object when it changes only as part of its owner. Use `@Member` when the complete lifecycle deliberately belongs
+to one containing root.
+
+Object shape is not the deciding factor. A small status can deserve its own Model; a large details object can remain a
+value. Ask who owns its lifecycle before choosing how convenient it is to embed.
+
+Continue with:
+
+- [Loading Models](/docs/guides/modeling-and-persistence/entity-loading) to choose a direct Model or connected Graph read.
+- [Updating Models](/docs/guides/modeling-and-persistence/updating-entities) to create, change and delete state.
+- [Model relations and embedded members](/docs/guides/modeling-and-persistence/nested-entities) to design ownership and movement.
+- [Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) to inspect related state at an earlier boundary.

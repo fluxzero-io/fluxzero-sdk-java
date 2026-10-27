@@ -9,12 +9,15 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-A Model update returns the new state for an action. Fluxzero loads the target, runs your `@Apply` method and stores
-the accepted change. This keeps domain behavior separate from persistence code.
+An application changes because somebody tries to do something: rename a Product, place an Order or complete a Task.
+Express that intent as a small action. The action returns the new Model state; it does not contain persistence code.
+
+Fluxzero finds the target, loads its current state, runs the `@Apply` method and stores the accepted result. The same
+pipeline can check business rules and change several Models atomically when the action requires it.
 
 For a complete business-rule example, see [Validate and update Models atomically](/docs/guides/modeling-and-persistence/preventing-double-bookings).
 
-## Automatic command handling
+## Change one Model
 
 An update that has enough information to identify its target models can be handled without a custom command handler:
 
@@ -43,10 +46,11 @@ Here `ProductId extends Id<Product>`, and `Product` has a `ProductDetails` value
 come from Lombok `@With`; Kotlin uses `copy`. See [Model state](../model-state) for complete declarations.
 `@NotBlank` validates the new input; the copy preserves the rest of the Product's state.
 
-Publishing `RenameProduct` as a command automatically executes the model commit. Fluxzero determines the target from
+Publishing `RenameProduct` as a command is enough. Fluxzero determines the target from
 `ProductId`, loads only that product, runs the assertions and applies, and commits the returned model.
 
-No forwarding command handler or marker interface is required.
+No forwarding command handler or marker interface is required. This is the ordinary update path; the sections below
+add creation, deletion, cross-Model rules and explicit control only when the action needs them.
 
 Expected business refusals must be `FunctionalException` subclasses, not `IllegalStateException`,
 `IllegalArgumentException` or Kotlin `require`/`check`. Use `IllegalCommandException` for an invalid domain action,

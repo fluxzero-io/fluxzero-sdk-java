@@ -8,15 +8,24 @@ sidebar:
 
 import {Tabs, TabItem} from '@astrojs/starlight/components';
 
-A `Graph<T>` combines a Model with relationships at one read boundary. It lets you answer “what did this task and
-its project look like when the change happened?” without mixing today's Project with yesterday's Task.
+Suppose a Task-completed event is handled hours later. Loading today's Task and today's Project may explain the current
+situation, but not the decision that produced that event. A `Graph<T>` lets you keep the related reads at the moment
+you are trying to understand.
 
 Use this for activity feeds, audit explanations, before/after notifications, and investigating business decisions.
 A historical graph is a read of retained history; it does not roll the application back or undo external effects.
 
 Try [React to Model transitions with Graph history](/docs/guides/modeling-and-persistence/reacting-to-a-change) for a small example comparing two observations.
 
-## Navigate through related Models
+## One connected view at one boundary
+
+A Graph combines a Model with its relationships at one read boundary. It answers “what did this Task and its Project
+look like when the change happened?” without mixing today's Project with yesterday's Task.
+
+Graph navigation is lazy. Constructing a typed Graph does not load the whole tree. State is read when you ask for a
+value or relationship, and the selected boundary then stays fixed.
+
+## Navigate the Graph
 
 Suppose `Task` has a typed `TaskId` and a `@Parent(pathInParent = "tasks") ProjectId projectId`.
 Both Task and Project use event-sourced `@Model` persistence.
@@ -53,8 +62,7 @@ children, `descendants(...)` for deeper traversal, and `parent()` or typed ances
 Use `childModels(...)` when only the values are needed. Explicit paths select a particular relationship when several
 branches contain the same type.
 
-Navigation is lazy. Constructing a typed Graph doesn't load the whole tree. State is read when you request values or
-relationships, and the selected boundary stays fixed. Reading more children later does not silently include commits
+Reading more children later does not silently include commits
 that happened after that boundary. Relationship placement is independent of storing a child list in the parent.
 
 ### Several parents in one relation
