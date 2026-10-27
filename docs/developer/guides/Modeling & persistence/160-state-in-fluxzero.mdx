@@ -6,16 +6,9 @@ sidebar:
    order: 160
 ---
 
-import { Aside } from '@astrojs/starlight/components';
 import Jdoclink from '~/components/jdoclink.astro';
 
-Every useful application remembers something. An order records what a customer bought. A payment workflow remembers
-which confirmation it is waiting for. A dashboard keeps a current summary assembled from several sources.
-
-Fluxzero supports all three without requiring every kind of state to look like a database table or a domain object.
-The important first question is not *where can I put this value?*, but *what role does this state play?*
-
-There are three native ways to persist application state:
+Fluxzero provides three native ways to persist application state:
 
 | State mechanism | Use it for | Fluxzero owns |
 | --- | --- | --- |
@@ -23,61 +16,32 @@ There are three native ways to persist application state:
 | **Stateful handlers** | Progress across messages and current views assembled by handlers | Matching messages to stored handler instances and persisting their returned state |
 | **Custom documents or key-value state** | Application-owned read models, mappings, caches and supporting state | Durable document or key-value storage; your handler owns the lifecycle |
 
-These mechanisms complement one another. A payment can be a Model, the conversation with its provider can be a
-Stateful handler, and an operational dashboard can be a custom document. Choose one authoritative owner for each fact
-instead of keeping the same truth independently in several stores.
+The mechanisms can be combined. Keep one authoritative owner for each fact.
 
-## Models and Graphs for domain state
+## Models and Graphs
 
-Use a Model for something the business recognizes and changes independently: an account, order, booking or task.
-Each Model has its own identity and lifecycle. `@Parent` relationships connect Models, and a Graph lets you navigate
-that connected state at one consistent read boundary.
+Models are the standard choice for domain objects. Each Model has its own identity and lifecycle. `@Parent`
+relationships connect Models, and a Graph provides a consistent view of connected Models. Model operations can read,
+validate and update several Models atomically without merging their lifecycles.
 
-Models are the standard choice for domain objects. They are also the right place for rules that decide whether a
-business change is allowed. One action can read and update several Models atomically without merging their lifecycles.
+[Models and Graphs](/docs/guides/modeling-and-persistence/models-and-graphs)
 
-[Learn how Models and Graphs represent domain state](/docs/guides/modeling-and-persistence/models-and-graphs).
+## Stateful handlers
 
-## Stateful handlers for process memory and combined views
+A Stateful handler is a message handler with persisted state. Fluxzero matches messages to stored handler instances
+through associations and persists the state returned by the handler. Use it for processes that continue across
+messages or for searchable current views assembled from events, documents or Model changes.
 
-Sometimes state exists because handling one message is not enough. A process may send a request now, receive the
-answer later and need to remember which request that answer belongs to. A Stateful handler is both a message handler
-and a persisted state object: Fluxzero finds the right instance through its associations and stores the new instance
-returned by the handler.
+- [Stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers)
+- [Current searchable projections](/docs/guides/modeling-and-persistence/current-projections)
 
-That same mechanism is useful for current views assembled from several inputs. A Stateful handler can react to events
-or document and Model changes, combine the latest information it needs, and expose the resulting state as a searchable
-view. The view remains a projection; domain decisions should still use their authoritative Models.
+## Custom documents and key-value state
 
-- [Use Stateful handlers for long-running processes](/docs/guides/modeling-and-persistence/stateful-handlers).
-- [Build current searchable projections from several sources](/docs/guides/modeling-and-persistence/current-projections).
-
-## Custom documents or key-value state for explicit storage
-
-A message handler can also own state directly. Use the <Jdoclink className="DocumentStore" /> for structured current
-documents that need direct lookup, indexing or search. This is a natural fit for an application-owned read model,
-an imported catalogue or a denormalized integration view whose lifecycle is deliberately controlled by one writer.
+A message handler can store state directly. Use the <Jdoclink className="DocumentStore" /> for structured documents
+that need direct lookup, indexing or search and whose lifecycle is owned by the application.
 
 The <Jdoclink className="KeyValueStore" /> remains available for simple values addressed by one key. It is a legacy
 Runtime API; prefer the document store for new structured state because it supports querying, indexing, updates and
-document lifecycle features. With either API, your handler owns when the state is written, replaced and removed.
+document lifecycle features. With either API, the handler owns when state is written, replaced and removed.
 
-[Store and query custom documents](/docs/guides/modeling-and-persistence/document-index-and-search).
-
-<Aside type="tip" title="Start with the state owner">
-If users act on it as a business fact, start with a Model. If it remembers unfinished work between messages, start
-with a Stateful handler. If it is a derived or supporting value with an application-owned lifecycle, start with a
-custom document. Reach for key-value storage only when a simple key lookup is genuinely the whole requirement.
-</Aside>
-
-## Let each form do one job
-
-The three forms often appear in one feature, but they should not become competing sources of truth:
-
-- A Model records that a payment was accepted.
-- A Stateful handler remembers a pending provider request and its retry progress.
-- A custom document combines payments, customers and risk signals for an operational screen.
-
-The command that accepts a payment reads the Model, not the dashboard row. The workflow updates the Model through a
-command when an external result becomes a business fact. The dashboard can be rebuilt from its sources when needed.
-Keeping those roles separate makes the behavior easier to explain, test and recover.
+[Document indexing and search](/docs/guides/modeling-and-persistence/document-index-and-search)
