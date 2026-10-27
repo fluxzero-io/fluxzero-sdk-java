@@ -9,8 +9,8 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-Related things can have their own lifecycles. An order line can change independently while still belonging to its
-order. Make each a Model and connect them with `@Parent` to navigate or return them together as a Graph.
+Use separate Models for related state with independent Model lifecycles. `@Parent` registers relations for Graph
+navigation, composition and parent-deletion policies.
 
 For example, an order line belongs to an order and has a non-owning relation to a product:
 
@@ -78,7 +78,7 @@ containing non-owning edges. [Read the complete Parent shorthand contract](../mo
 `LineItem` has its own lifecycle and history. Updating it does not load or rewrite the order.
 The named parent path lets Fluxzero include it in the order’s composed Graph.
 
-The relation may point to the same Model type, which makes recursive domains such as folders natural:
+The relation may point to the same Model type, enabling recursive Graphs such as folders:
 
 <Tabs>
 <TabItem label="Java">

@@ -97,7 +97,7 @@ sample, not proof that the entire retained stream is compatible.
 ## Qualify actual replay separately
 
 Use `TestFixture` in both synchronous and asynchronous modes to exercise real reconstruction and failing handlers.
-`givenModelEvents` is useful for synthetic reconstruction, but creates commits using the current SDK and can prepare
+`givenModelEvents` creates synthetic reconstruction commits using the current SDK and can prepare
 state while seeding. It is not a byte-preserving import of old storage or proof of a cold reader.
 
 For retained-history qualification, start with an old writer, close it, then use a fresh candidate reader against the

@@ -1,14 +1,13 @@
 ---
 title: Validate and update Models atomically
-description: Let only one customer reserve a seat, even when requests arrive together.
+description: Validate a reservation and commit it with conflict-checked Model updates
 slug: docs/guides/modeling-and-persistence/preventing-double-bookings
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-Let only one customer reserve a seat, even when requests arrive together.
-
-Store whether the seat is reserved, and put the availability rule on the command that reserves it.
+This example uses `@AssertLegal` and `@Apply` in one conflict-checked Model update. The assertion rejects a reservation
+when the stored seat is already reserved.
 
 ## Define the seat and its commands
 

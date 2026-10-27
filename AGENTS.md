@@ -216,6 +216,10 @@ cadence: use the existing development preview and hot reload to inspect changes,
   implementations and speculative fields in introductory examples. Introduce the ordinary workflow before
   options, guarantees, compatibility notes, edge cases, or internals. Apply this order recursively within sections:
   refinements belong below the concept they refine, with deeper details in subordinate sections only when useful.
+- Keep Model and Graph chapters under `docs/developer/guides/Modeling & persistence/` factual and concise. State
+  problems in Fluxzero-specific terms and describe Fluxzero capabilities, behavior and decisions. Omit generic
+  software or domain observations, motivational scene-setting and marketing claims. Use examples only to demonstrate
+  Fluxzero behavior or a decision required when using it.
 - A how-to guide answers one developer task with one minimal working path. Move task walkthroughs out of reference
   chapters into focused guides and link both ways. Do not add optional variants or a troubleshooting catalogue to
   every guide; keep essential prerequisites next to the example and let other topics have their own page.

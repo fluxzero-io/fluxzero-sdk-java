@@ -1,0 +1,45 @@
+---
+title: State in Fluxzero
+slug: docs/guides/modeling-and-persistence/state-in-fluxzero
+description: Choose between Models, Stateful handlers, and application-owned documents or key-value state
+sidebar:
+   order: 160
+---
+
+import Jdoclink from '~/components/jdoclink.astro';
+
+Fluxzero provides three native ways to persist application state:
+
+| State mechanism | Use it for | Fluxzero owns |
+| --- | --- | --- |
+| **Models and Graphs** | Domain objects and business facts | Identity, changes, relationships, history and atomic Model operations |
+| **Stateful handlers** | Progress across messages and current views assembled by handlers | Matching messages to stored handler instances and persisting their returned state |
+| **Custom documents or key-value state** | Application-owned read models, mappings, caches and supporting state | Durable document or key-value storage; your handler owns the lifecycle |
+
+## Models and Graphs
+
+Models are the standard choice for domain objects. Each Model has its own identity and lifecycle. `@Parent`
+relationships connect Models, and a Graph provides a consistent view of connected Models. Model operations can read,
+validate and update several Models atomically without merging their lifecycles.
+
+[Models and Graphs](/docs/guides/modeling-and-persistence/models-and-graphs)
+
+## Stateful handlers
+
+A Stateful handler is a message handler with persisted state. Fluxzero matches messages to stored handler instances
+through associations and persists the state returned by the handler. Use it for processes that continue across
+messages or for searchable current views assembled from events, documents or Model changes.
+
+- [Stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers)
+- [Current searchable projections](/docs/guides/modeling-and-persistence/current-projections)
+
+## Custom documents and key-value state
+
+A message handler can store state directly. Use the <Jdoclink className="DocumentStore" /> for structured documents
+that need direct lookup, indexing or search and whose lifecycle is owned by the application.
+
+The <Jdoclink className="KeyValueStore" /> remains available for simple values addressed by one key. It is a legacy
+Runtime API; prefer the document store for new structured state because it supports querying, indexing, updates and
+document lifecycle features. With either API, the handler owns when state is written, replaced and removed.
+
+[Document indexing and search](/docs/guides/modeling-and-persistence/document-index-and-search)

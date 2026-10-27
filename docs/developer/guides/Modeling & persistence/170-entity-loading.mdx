@@ -1,17 +1,20 @@
 ---
 title: Loading models
 slug: docs/guides/modeling-and-persistence/entity-loading
-description: Load independent models and explore complete model graphs
+description: Load Models by identity and read related state through Graphs
 sidebar:
    order: 170
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
-import { Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 import Jdoclink from '~/components/jdoclink.astro';
 
-Load a Model when you know its identity and need its state. A task, order or booking can be loaded independently of
-its parents and children.
+`Fluxzero.loadModel(...)` loads one Model by identity. `Fluxzero.loadGraph(...)` provides a lazy Graph for reads that
+also depend on related Models or history.
+
+## Load one Model
+
+Loading a Model does not load its parents or children.
 
 With an `OrderId extends Id<Order>`, the ID supplies the Model type:
 
@@ -35,9 +38,25 @@ val order: Order? = Fluxzero.loadModel(OrderId("order-123")).get()
 `get()` returns the current value, or `null` when absent. Inside historical Model-event handling, loads can follow
 the event's boundary; see [temporal Graphs](../temporal-graphs) when you need the state of that event or explicitly now.
 
-## Load related state with a Graph
+<span id="loading-without-a-typed-id"></span>
 
-Load a lazy `Graph<T>` when code also needs relationship context, history or transition operations:
+<Aside type="tip" title="Loading with a String ID">
+A String ID requires the Model class because the ID does not carry its type:
+
+```java
+Order order = Fluxzero.loadModel("order-123", Order.class).get();
+```
+
+```kotlin
+val order: Order? = Fluxzero.loadModel("order-123", Order::class.java).get()
+```
+
+A typed `Id<Order>` lets Fluxzero infer the Model type.
+</Aside>
+
+## Follow relationships with a Graph
+
+Load a `Graph<T>` when the answer also depends on related state, history or a transition:
 
 <Tabs>
 <TabItem label="Java">
@@ -71,28 +90,11 @@ later navigation stays at that boundary. To open a new current view, use `curren
 The [temporal Graph guide](../temporal-graphs) explains history and navigation;
 <Jdoclink className="Graph" /> lists identity, revision, traversal and update methods.
 
-## Loading without a typed ID
+## Identity options
 
-An untyped ID can be loaded by supplying the model class explicitly:
+A typed, functional ID is the default identity form. Fluxzero also supports integrations that supply another form.
 
-<Tabs>
-<TabItem label="Java">
-
-```java
-Order order = Fluxzero.loadModel("order-123", Order.class).get();
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-val order: Order? = Fluxzero.loadModel("order-123", Order::class.java).get()
-```
-
-</TabItem>
-</Tabs>
-
-### Loading an existing repository key
+### Use an existing repository key
 
 A typed load normally converts a functional ID and applies the Model's ID prefixes and postfixes. When you already
 have the complete repository key, pass `false` to use it unchanged. This also works for a full parent-scoped key.
