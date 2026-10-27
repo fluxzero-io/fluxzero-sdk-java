@@ -8,6 +8,10 @@ sidebar:
 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
+Models and Graphs are Fluxzero's standard way to store domain objects. If you are still deciding whether state belongs
+in a Model, a Stateful handler or an application-owned document, start with
+[State in Fluxzero](/docs/guides/modeling-and-persistence/state-in-fluxzero).
+
 People do not experience an application as one large object. They work with projects, tasks, orders and line items:
 things that have an identity, change over time and relate to one another. Fluxzero represents those things as
 **Models**. When you need to see related Models together, Fluxzero connects them in a **Graph**.
