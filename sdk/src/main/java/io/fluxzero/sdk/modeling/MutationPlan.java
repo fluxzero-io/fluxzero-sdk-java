@@ -797,6 +797,11 @@ public final class MutationPlan {
             return List.copyOf(knownModelTypes);
         }
 
+        int knownModelTypeCount() {
+            discoverIndexedModelTypes();
+            return knownModelTypes.size();
+        }
+
         private volatile DeadlineTypes deadlineTypes = new DeadlineTypes(-1, List.of());
 
         /** Application registration snapshot; structural declarations remain owned by EntityMetadata. */

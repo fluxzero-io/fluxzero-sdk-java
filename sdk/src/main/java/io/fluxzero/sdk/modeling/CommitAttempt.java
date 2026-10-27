@@ -755,8 +755,24 @@ public final class CommitAttempt {
         return result;
     }
 
+    /** Creates an SDK validation context that records ordinary Graph reads against this commit attempt. */
+    CommitAttempt validationContext() {
+        CommitAttempt result = new CommitAttempt();
+        result.readStateIndex = readStateIndex();
+        result.graphReadOwner = this;
+        result.readCollector = new LinkedHashSet<>();
+        return result;
+    }
+
     void finishDeadlineReads() {
         evaluated(readStateIndex(), readModelIds, applyReadModelIds, readModelTypes, steps);
+    }
+
+    /** Merges SDK-provided validation reads into the ordinary commit read sets. */
+    void finishValidationReads(Collection<String> applyReads) {
+        LinkedHashSet<String> combined = new LinkedHashSet<>(applyReadModelIds);
+        combined.addAll(applyReads);
+        evaluated(readStateIndex(), readModelIds, combined, readModelTypes, steps);
     }
 
 

@@ -603,6 +603,60 @@ Logical parent deletion recursively deletes children whose relevant `@Parent` ke
 `deleteOnParentDeletion = true`, including pathless and shared-DAG descendants. Moving a child away or recreating the
 parent in the same atomic commit prevents that lifecycle cascade.
 
+### Use Parent shorthands for common relationship rules
+
+When a relationship must have an existing parent, a bounded number of children, or a parent that cannot disappear
+while children remain, declare that directly on the child's `@Parent`:
+
+<Tabs>
+<TabItem label="Java">
+
+```java
+@Model
+record LineItem(
+        @EntityId LineItemId lineItemId,
+        @Parent(required = true, maxChildren = 100, preventParentDeletion = true)
+        OrderId orderId,
+        ProductId productId) {}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class LineItem(
+    @EntityId val lineItemId: LineItemId,
+    @Parent(required = true, maxChildren = 100, preventParentDeletion = true)
+    val orderId: OrderId,
+    val productId: ProductId
+)
+```
+
+</TabItem>
+</Tabs>
+
+`required` rejects an empty reference or a parent that does not exist in the final commit state; parent and child may
+still be created together. `maxChildren` counts distinct children of the same logical Model type and composition path
+for one parent. The default `-1` is unlimited, `0` rejects growth, and values below `-1` are invalid. A scope that was
+already over its new limit may stay unchanged or shrink, but may not grow further.
+
+`preventParentDeletion` rejects logical parent deletion while a matching child survives. It disables cascade on that
+edge even when `deleteOnParentDeletion` remains `true`; explicitly moving or deleting the child in the same commit can
+release the parent. Detaching does too when the final reference still satisfies `required`. A surviving `required` child also blocks
+parent deletion when cascade is disabled.
+Physical erasure remains a separate administrative operation.
+
+These settings are SDK shorthands for ordinary Model and Graph checks. Their parent and membership reads use the same
+commit readset as application-written assertions: concurrent relationship changes conflict, and RETRY evaluates the
+rule again at a fresh boundary. They add no Runtime-specific constraint policy or stored relationship fields. Every
+writer that must uphold the rule must therefore use an SDK version containing the declaration and include that Model
+contract in its generated Model index. Use an explicit assertion instead when the rule needs a custom error, combines
+other state, or has semantics beyond these three checks.
+
+Failures are `IllegalCommandException`s. `ModelErrors.parentRequired`, `parentNotFound`, `maxChildrenExceeded`, and
+`parentDeletionBlocked` expose the SDK's exact messages for focused `TestFixture` assertions.
+
 Explicit hard deletion removes the selected model stream, heads, snapshots, cache and direct document. This is a
 separate destructive operation: a physical descendant cascade must first be planned and confirmed. Detached
 descendants remain discoverable through former-parent lineage

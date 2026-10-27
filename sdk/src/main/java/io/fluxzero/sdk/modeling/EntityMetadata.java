@@ -83,6 +83,7 @@ public final class EntityMetadata {
     private final boolean parentScopedEntityId;
     private final List<AliasProperty> aliasProperties;
     private final List<ParentReference> parentReferences;
+    private final List<ParentReference> constrainedParentReferences;
     private final List<HandlerMethod> handlerMethods;
     private final List<DeadlinePlan.Declaration> deadlines;
     private final List<Property> assertionFields;
@@ -200,6 +201,7 @@ public final class EntityMetadata {
                 .toList();
 
         this.parentReferences = inspectParentReferences(typeMetadata);
+        this.constrainedParentReferences = parentReferences.stream().filter(ParentReference::constrained).toList();
         if (aggregate != null && !parentReferences.isEmpty()) {
             throw invalid("@Parent is not supported on @Aggregate types: %s".formatted(type.getName()));
         }
@@ -492,6 +494,11 @@ public final class EntityMetadata {
         return parentReferences;
     }
 
+    /** Returns parent declarations that enable one or more SDK validation shorthands. */
+    List<ParentReference> constrainedParentReferences() {
+        return constrainedParentReferences;
+    }
+
     /**
      * Resolves and deduplicates the outgoing parent relationships of one model value.
      *
@@ -506,6 +513,7 @@ public final class EntityMetadata {
         }
         LinkedHashMap<RelationshipKey, ParentRelationship> result =
                 new LinkedHashMap<>();
+        Set<RelationshipKey> deletionProtected = new LinkedHashSet<>();
         for (ParentReference reference : parentReferences) {
             for (Object parentId : reference.readIds(value)) {
                 String repositoryId = Objects.requireNonNull(
@@ -519,9 +527,13 @@ public final class EntityMetadata {
                 ParentRelationship relationship = new ParentRelationship(
                         repositoryId, parentType,
                         reference.pathInParent().isEmpty() ? null : reference.pathInParent(),
-                        reference.deleteOnParentDeletion(), !reference.propagateSearch());
+                        reference.deleteOnParentDeletion(),
+                        !reference.propagateSearch());
                 RelationshipKey key = new RelationshipKey(
                         repositoryId, parentType, relationship.pathInParent());
+                if (reference.preventParentDeletion()) {
+                    deletionProtected.add(key);
+                }
                 result.merge(
                         key, relationship,
                         (existing, duplicate) -> new ParentRelationship(
@@ -530,6 +542,10 @@ public final class EntityMetadata {
                                 existing.searchExcluded() || duplicate.searchExcluded()));
             }
         }
+        deletionProtected.forEach(key -> result.computeIfPresent(key, (ignored, relationship) ->
+                new ParentRelationship(
+                        relationship.parentId(), relationship.parentType(), relationship.pathInParent(),
+                        false, relationship.searchExcluded())));
         return List.copyOf(result.values());
     }
 
@@ -903,9 +919,19 @@ public final class EntityMetadata {
                 throw invalid("@Parent.pathInParent '%s' on %s.%s requires a typed Id<T> or an explicit parent model type"
                                       .formatted(pathInParent, type.getName(), parentProperty.property().name()));
             }
+            if (annotation.maxChildren() < -1) {
+                throw invalid("@Parent.maxChildren must be at least -1 on %s.%s"
+                                      .formatted(type.getName(), parentProperty.property().name()));
+            }
+            if ((annotation.maxChildren() >= 0 || annotation.required() || annotation.preventParentDeletion())
+                && parentTypes.isEmpty()) {
+                throw invalid("@Parent constraints on %s.%s require a typed Id<T> or an explicit parent model type"
+                                      .formatted(type.getName(), parentProperty.property().name()));
+            }
             result.add(new ParentReference(
                     parentProperty.property(), idClass, pathInParent, List.copyOf(parentTypes), annotation.apiDoc(),
-                    annotation.deleteOnParentDeletion(), annotation.propagateSearch(), annotation.validateAncestors()));
+                    annotation.deleteOnParentDeletion(), annotation.propagateSearch(), annotation.validateAncestors(),
+                    annotation.maxChildren(), annotation.required(), annotation.preventParentDeletion()));
         }
         return List.copyOf(result);
     }
@@ -1435,6 +1461,9 @@ public final class EntityMetadata {
      * @param propagateSearch whether ancestor search composition may traverse this edge
      * @param validateAncestors whether cascading assertions may traverse this parent route
      * @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle
+     * @param maxChildren maximum children of this Model type and path, or -1 for unlimited
+     * @param required whether at least one existing parent is required
+     * @param preventParentDeletion whether surviving children block logical parent deletion
      */
     public record ParentReference(
             Property property,
@@ -1443,7 +1472,8 @@ public final class EntityMetadata {
             List<Class<?>> parentModelTypes,
             ApiDoc apiDoc,
             boolean deleteOnParentDeletion,
-            boolean propagateSearch, boolean validateAncestors) {
+            boolean propagateSearch, boolean validateAncestors,
+            int maxChildren, boolean required, boolean preventParentDeletion) {
         public ParentReference {
             parentModelTypes = List.copyOf(parentModelTypes);
         }
@@ -1536,6 +1566,11 @@ public final class EntityMetadata {
         /** Whether this edge participates in search composition and inherited search activation. */
         public boolean propagatesSearch() {
             return propagateSearch && automaticallyComposed();
+        }
+
+        /** Whether this reference declares any SDK-provided relationship check. */
+        public boolean constrained() {
+            return maxChildren >= 0 || required || preventParentDeletion;
         }
     }
 

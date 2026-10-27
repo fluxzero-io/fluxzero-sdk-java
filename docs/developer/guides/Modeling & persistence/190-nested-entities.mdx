@@ -69,9 +69,11 @@ to the line; deleting the product does not. Both relations support typed Graph n
 A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relation available to Graph navigation;
 `pathInParent` separately chooses whether to include it at a named document/serialization path.
 
-`deleteOnParentDeletion = false` does **not** prevent the referenced Model from being deleted. Enforce a domain
-rule separately when deletion must be refused while references exist. `@Parent` is not an unrestricted foreign-key
-annotation: concrete cycles between Model IDs are rejected, including cycles containing non-owning edges.
+`deleteOnParentDeletion = false` does **not** prevent the referenced Model from being deleted. Add
+`preventParentDeletion = true` when a surviving child must reject logical deletion. The SDK evaluates that shorthand
+through ordinary conflict-checked Graph reads; use an explicit assertion for a richer domain decision. `@Parent` is
+not an unrestricted foreign-key annotation: concrete cycles between Model IDs are rejected, including cycles
+containing non-owning edges. [Read the complete Parent shorthand contract](../model-persistence#use-parent-shorthands-for-common-relationship-rules).
 
 `LineItem` has its own lifecycle and history. Updating it does not load or rewrite the order.
 The named parent path lets Fluxzero include it in the order’s composed Graph.
@@ -582,9 +584,10 @@ val orderId: OrderId
 </TabItem>
 </Tabs>
 
-`false` leaves the child alive; it does not block deletion of the order or product. A deletion-blocking invariant
-belongs in the application's domain rules. With multiple parents, each edge has its own policy: a non-owning
-product relation does not stop the owning order relation from cascading deletion to the line.
+`false` leaves the child alive; it does not block deletion of the order or product. Add
+`preventParentDeletion = true` for the SDK-provided relationship check, or write an assertion for a richer invariant.
+With multiple parents, each edge has its own policy: a non-owning product relation does not stop the owning order
+relation from cascading deletion to the line.
 
 A child moved to another parent in the same atomic commit survives. An intermediate delete followed by recreation in
 that commit does not activate the cascade.
