@@ -14,9 +14,79 @@ import DeepDiveFigure from '~/components/docs/DeepDiveFigure.astro';
 
 The [overview](/docs/fluxzero-2) explains why Fluxzero 2.0 separates relationships, atomic changes, persistence and loading. This chapter follows those choices into the implementation: which state an operation reads, what its commit protects, how related Models retain their identity, and which history a Graph can reconstruct.
 
-Start with the [Project/Task declarations](#model-the-lifecycle-then-choose-storage) and follow the worked examples. Later sections cover [Graph responses](#serialize-the-graph-as-a-composed-response), [materialized search views](#automatically-materialize-the-complete-graph), operational settings and [migration](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation).
+Start with the short comparison below, or go straight to the [Project/Task declarations](#model-the-lifecycle-then-choose-storage) and follow the worked examples. Later sections cover [Graph responses](#serialize-the-graph-as-a-composed-response), [materialized search views](#automatically-materialize-the-complete-graph), operational settings and [migration](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation).
 
 The Java and Kotlin examples form a Project/Task domain. Configuration variants replace earlier declarations; they are not extra classes to register alongside them.
+
+## Coming from Fluxzero 1.x
+
+`loadEntity(taskId)` already let a Member handle its own behavior. The important distinction is what happened after that lookup: the SDK still loaded and updated its containing Aggregate. An addressable entity was not an independent persistence boundary.
+
+This historical comparison uses an embedded Task, before the independent Model declarations used in the rest of the chapter:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@Aggregate
+record Project(@EntityId String projectId, @Member List<Task> tasks) {}
+
+@With
+record Task(@EntityId String taskId, boolean completed) {
+    @Apply
+    Task apply(CompleteTask command) {
+        return withCompleted(true);
+    }
+}
+
+record CompleteTask(String taskId) {}
+
+@HandleCommand
+void complete(CompleteTask command) {
+    Fluxzero.loadEntity(command.taskId(), Task.class).assertAndApply(command);
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Aggregate
+data class Project(@EntityId val projectId: String, @field:Member val tasks: List<Task>)
+
+data class Task(@EntityId val taskId: String, val completed: Boolean) {
+    @Apply
+    fun apply(command: CompleteTask) = copy(completed = true)
+}
+
+data class CompleteTask(val taskId: String)
+
+@HandleCommand
+fun complete(command: CompleteTask) {
+    Fluxzero.loadEntity(command.taskId, Task::class.java).assertAndApply(command)
+}
+```
+
+</TabItem>
+</Tabs>
+
+Task now owns the behavior for completing a Task. It still does not own its persistence: the lookup finds Project, reconstructs it, selects Task, and applies the replacement back through Project. Task's events still live under that root, as do its snapshot representation, cached state and searchable document when those are enabled.
+
+The API distinction behind the overview’s stream comparison is:
+
+| Handle or declaration | State boundary | Relationship context |
+| --- | --- | --- |
+| `Entity<T>` for an embedded `@Member` | Its containing Aggregate or Model | The member’s position inside that stored value |
+| `Entity<T>` for an independent `@Model` | That Model’s own persisted state | Parent references do not embed parent state |
+| `Graph<T>` | A view over independently stored Models | Navigation and the selected read boundary |
+
+The distinction in 2.0 is between an `Entity<T>` inside an Aggregate boundary and an independently persisted `@Model`, with `Graph<T>` supplying its relationship and read context. Existing `@Apply`, `@AssertLegal`, `@InterceptApply` and fixture patterns remain applicable. `@Member` remains available for state deliberately embedded in one root; it is no longer necessary merely because a Task appears inside a Project view. For independent Models, an embedded member ID alone does not discover its owning root: address that Model explicitly.
+
+Adopting the new boundary is a data migration, not an annotation rename. The [migration section](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation) defines replay/adoption, read cutover and write ownership. The [overview](/docs/fluxzero-2) shows the programming model in action; the rest of this chapter defines its contracts.
+
+<span id="why-move-beyond-one-growing-aggregate"></span>
+
+The examples below build on the overview. They start with the Model declarations, then follow relationships, reads and changes through the SDK.
 
 ## Model the lifecycle, then choose storage
 
@@ -404,6 +474,13 @@ Relationship discovery, cascade ownership and output placement are separate sett
 | `@Parent(pathInParent = "tasks")` | Yes | Yes | `tasks` |
 | `@Parent(pathInParent = "tasks", deleteOnParentDeletion = false)` | Yes | No | `tasks` |
 
+One relationship can also contain several parents of the same kind. A typed `Collection`, `List` or `Set` registers
+one edge per distinct parent ID, using the annotation's policies for every edge. Adding or removing IDs changes those
+edges atomically. A null or empty collection has no parents; null elements, raw or nested collections, arrays and maps
+are rejected. Collection order does not define child ordering. Deleting any owning parent deletes the child, so shared,
+independently retained state should use `deleteOnParentDeletion = false`. Parent-scoped identity still requires one
+unambiguous parent scope.
+
 To omit a branch only from ancestor **search** Graphs, declare
 `@Parent(pathInParent = "tasks", propagateSearch = false)` (the same syntax works in Kotlin). This excludes the Task and
 its subtree in NONE, ASYNC and AWAIT and stops ancestor Graph-document notifications for that branch. Its own
@@ -583,6 +660,71 @@ Routing and conflict protection solve different problems:
 | Track reads and validate the Model commit | Concurrent changes to consumed state invalidate the decision | Parallel execution; configure consumer threads and routing separately |
 
 With the default retry policy, the SDK reruns assertions when the evidence used by a decision changes. The [two competing additions](#concurrent-decisions-and-the-commit-boundary) above show when the retry rejects a command and how `ACCEPT` differs.
+
+#### Cascading rules across descendants
+
+A rule that belongs to a Model can protect changes throughout its known descendant Graph. Opt in on the owning rule;
+ordinary assertions do not propagate automatically:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@Model
+record Project(@EntityId ProjectId projectId, boolean closed) {
+    @AssertLegal(cascade = true)
+    void assertOpen() {
+        if (closed) {
+            throw ProjectErrors.closed;
+        }
+    }
+}
+
+@Model
+record Task(@EntityId TaskId taskId, @Parent ProjectId projectId,
+            TaskDetails details, boolean completed) {}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Project(@EntityId val projectId: ProjectId, val closed: Boolean) {
+    @AssertLegal(cascade = true)
+    fun assertOpen() {
+        if (closed) throw ProjectErrors.closed
+    }
+}
+
+@Model
+data class Task(
+    @EntityId val taskId: TaskId,
+    @Parent val projectId: ProjectId,
+    val details: TaskDetails,
+    val completed: Boolean
+)
+```
+
+</TabItem>
+</Tabs>
+
+Changing Task now checks its Project first. The same rule reaches deeper descendants and the Project's own mutations.
+Every locally known enabled parent route participates; a move checks both the old and the new route, and shared
+ancestors run once per update phase. An immediate rule sees the logical state before that update.
+`afterHandler = true` instead sees the complete final state of the atomic Model operation.
+
+The ancestor values and relationships inspected by the rule join the operation's read dependencies. `RETRY` reloads
+and reevaluates them after a concurrent change. A guarded attempt configured with `ACCEPT` uses `FAIL` instead, because
+rebasing without rerunning the rule could retain stale permission.
+
+There are two deliberate escape hatches. `@Parent(validateAncestors = false)` stops inherited rules on that relation
+and its subtree while retaining ordinary Graph navigation, search and deletion policies. For one mutation,
+`@Apply(ancestorValidation = AncestorValidation.DISABLED)` skips inherited rules without skipping the target Model's
+own assertions. Cascading rules execute in the writing application, so every writer of the protected scope must deploy
+the rule and know the relevant Model types.
+
+[Cascading assertion reference](/docs/guides/modeling-and-persistence/model-persistence#guard-a-model-and-its-descendants)
 
 ### 2. Changing several Models atomically
 
@@ -1447,6 +1589,56 @@ moving a deadline still needs your scheduling policy.
 For explicit ownership on a Schedule message, `schedule.withParents(taskId)` supplies the same lifecycle link
 and overrides payload declarations. With multiple owning parents, deletion of any one cancels the schedule.
 Schedules do not become Graph nodes, and `pathInParent` is not needed for this use of `@Parent`.
+
+#### Derive one-shot deadlines from Model state
+
+Use `@Deadline` when the desired work is derived from the Model itself rather than scheduled by an external flow.
+The pure method returns a `Schedule`, a payload when the annotation supplies cron or delay, or `null` to cancel:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@Model
+record BookingHold(@EntityId HoldId holdId, Instant expiresAt, boolean confirmed) {
+    @Deadline
+    Schedule expiry() {
+        return confirmed ? null : new Schedule(new ExpireBookingHold(holdId), expiresAt);
+    }
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class BookingHold(
+    @EntityId val holdId: HoldId,
+    val expiresAt: Instant,
+    val confirmed: Boolean
+) {
+    @Deadline
+    fun expiry(): Schedule? =
+        if (confirmed) null else Schedule(ExpireBookingHold(holdId), expiresAt)
+}
+```
+
+</TabItem>
+</Tabs>
+
+The Model commit carries the corresponding create, replacement or cancellation together with the state and records
+the original intent in protected Model metadata. Unrelated writes retain it. Once its original time has arrived, a
+changed payload or later timestamp does not recreate the deadline; return `null` and later a payload to begin a new
+cycle. Cron chooses one next occurrence rather than making the declaration periodic. Logical deletion cancels by
+default, including deletion through a parent cascade.
+
+A deadline method can inject a typed ancestor or `Graph<T>`. Changes to that context reevaluate affected owners in
+the same Model operation, which can materially widen commit work for a large connected component. Prefer the narrowest
+typed ancestor that supplies the required state. `Graph.deadlines()` exposes the recorded deadline categories and
+times for the selected historical or current revision; it describes planned work, not proof of successful delivery.
+
+[Complete Model deadline contract](/docs/guides/messaging/model-deadlines)
 
 ### 8. Small, explicit atomic state transformations
 
@@ -2567,76 +2759,6 @@ default. Consumer boundaries determine ordering and failure isolation, so review
 The improvements already delivered on the 1.x line remain part of 2.0 as well. The defining change here is
 the Model/Graph programming model, not a claim that every surrounding SDK feature is newly introduced.
 
-## Coming from Fluxzero 1.x
-
-`loadEntity(taskId)` already let a Member handle its own behavior. The important distinction is what happened after that lookup: the SDK still loaded and updated its containing Aggregate. An addressable entity was not an independent persistence boundary.
-
-This historical comparison uses an embedded Task, before the independent Model declarations used in the rest of the chapter:
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@Aggregate
-record Project(@EntityId String projectId, @Member List<Task> tasks) {}
-
-@With
-record Task(@EntityId String taskId, boolean completed) {
-    @Apply
-    Task apply(CompleteTask command) {
-        return withCompleted(true);
-    }
-}
-
-record CompleteTask(String taskId) {}
-
-@HandleCommand
-void complete(CompleteTask command) {
-    Fluxzero.loadEntity(command.taskId(), Task.class).assertAndApply(command);
-}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Aggregate
-data class Project(@EntityId val projectId: String, @field:Member val tasks: List<Task>)
-
-data class Task(@EntityId val taskId: String, val completed: Boolean) {
-    @Apply
-    fun apply(command: CompleteTask) = copy(completed = true)
-}
-
-data class CompleteTask(val taskId: String)
-
-@HandleCommand
-fun complete(command: CompleteTask) {
-    Fluxzero.loadEntity(command.taskId, Task::class.java).assertAndApply(command)
-}
-```
-
-</TabItem>
-</Tabs>
-
-Task now owns the behavior for completing a Task. It still does not own its persistence: the lookup finds Project, reconstructs it, selects Task, and applies the replacement back through Project. Task's events still live under that root, as do its snapshot representation, cached state and searchable document when those are enabled.
-
-The API distinction behind the overview’s stream comparison is:
-
-| Handle or declaration | State boundary | Relationship context |
-| --- | --- | --- |
-| `Entity<T>` for an embedded `@Member` | Its containing Aggregate or Model | The member’s position inside that stored value |
-| `Entity<T>` for an independent `@Model` | That Model’s own persisted state | Parent references do not embed parent state |
-| `Graph<T>` | A view over independently stored Models | Navigation and the selected read boundary |
-
-The distinction in 2.0 is between an `Entity<T>` inside an Aggregate boundary and an independently persisted `@Model`, with `Graph<T>` supplying its relationship and read context. Existing `@Apply`, `@AssertLegal`, `@InterceptApply` and fixture patterns remain applicable. `@Member` remains available for state deliberately embedded in one root; it is no longer necessary merely because a Task appears inside a Project view. For independent Models, an embedded member ID alone does not discover its owning root: address that Model explicitly.
-
-Adopting the new boundary is a data migration, not an annotation rename. The [migration section](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation) defines replay/adoption, read cutover and write ownership. The [overview](/docs/fluxzero-2) shows the programming model in action; the rest of this chapter defines its contracts.
-
-<span id="why-move-beyond-one-growing-aggregate"></span>
-
-The examples below build on the overview. They start with the Model declarations, then follow relationships, reads and changes through the SDK.
-
 ## Upgrading from 1.x
 
 ### Upgrade the SDK; migrate your domain at your own pace
@@ -2925,7 +3047,7 @@ Choose the following boundaries independently, then configure the places where t
 | Annotation | Role in the 2.0 model |
 | --- | --- |
 | `@Model` | An independent state, persistence and lifecycle boundary. |
-| `@Parent` | A directed relationship to another Model. `pathInParent` opts the edge into composition, `propagateSearch` gates inherited search on that edge, and `deleteOnParentDeletion` controls lifecycle ownership. It also declares ownership for scheduled payloads. |
+| `@Parent` | A directed relationship to another Model. `pathInParent` opts the edge into composition, `propagateSearch` gates inherited search, `validateAncestors` gates inherited assertions, and `deleteOnParentDeletion` controls lifecycle ownership. It also declares ownership for scheduled payloads. |
 | `@GraphProperty` | A serialized value derived from the current node or its typed ancestor Graphs. Its optional `value` sets the JSON property name. |
 | `@SearchSettings` | Per-node search collection, temporal paths and descendant scope, nested in `@Model(searchSettings = ...)`. |
 | `@GraphProjection` | Settings for the complete materialized view, nested in `@Model(graphProjection = ...)`. |
@@ -2933,6 +3055,7 @@ Choose the following boundaries independently, then configure the places where t
 | `@EntityId`, `@Alias` | Primary and alternative identity, including prefixes and scoped identity. |
 | `@Apply`, `@InterceptApply`, `@AssertLegal` | Apply, compose and validate domain operations using Models and Graphs. |
 | `@Association` | Disambiguate an injected reference when ordinary property/typed-ID binding is insufficient. |
+| `@Deadline` | Derive one-shot scheduled work from committed Model state and context. |
 | `@HandleEvent`, `@HandleNotification`, `@HandleDocument` | Observe event-bound Graph changes or maintained document views. |
 | `@FilterContent`, `@ApiDocResponse` | Control audience-facing content and describe composed API responses. |
 | `@Member` | Retain intentionally embedded state that shares its owner's lifecycle; it is not another independent Model. |
@@ -2981,6 +3104,7 @@ snapshot or projection does not redefine which object owns a domain lifecycle.
 | `types` | Empty | Allowed Model types for a polymorphic `Id<?>`; mutually exclusive with `value`. |
 | `pathInParent` | Empty | Optional slash-separated composition path, e.g. `"tasks"`. Its final segment is a collection, even for a one-to-one companion. |
 | `deleteOnParentDeletion` | `true` | Owning cascade. `false` keeps a normal non-owning Graph relation; it does not block parent deletion. |
+| `validateAncestors` | `true` | Allow cascading `@AssertLegal` rules to follow this route. `false` stops only inherited validation on this edge and subtree. |
 | `apiDoc` | `@ApiDoc` | Describe the composed relationship in Graph-aware OpenAPI; not a runtime content filter. |
 
 A plain typed ID is only a reference until `@Parent` declares a Graph edge. A null parent reference detaches
@@ -3082,3 +3206,4 @@ explicit instead of treating “a Model” as one fixed bundle of storage, consi
 - [Test Model migrations](/docs/guides/modeling-and-persistence/model-migration-tests):
   value-preserving upcasts, reconstruction and retained storage.
 - [Bind schedules to their owners](/docs/guides/messaging/parent-owned-schedules).
+- [Derive one-shot work from Model state](/docs/guides/messaging/model-deadlines).
