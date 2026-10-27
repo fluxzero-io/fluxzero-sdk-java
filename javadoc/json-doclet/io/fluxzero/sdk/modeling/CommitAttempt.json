@@ -1097,6 +1097,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "finishValidationReads",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#finishValidationReads",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "applyReads",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Merges SDK-provided validation reads into the ordinary commit read sets. "
+  }, {
     "name" : "fromChanges",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#fromChanges",
     "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
@@ -2277,6 +2293,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "validationContext",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#validationContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates an SDK validation context that records ordinary Graph reads against this commit attempt. "
   }, {
     "name" : "withAliasResolutions",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#withAliasResolutions",

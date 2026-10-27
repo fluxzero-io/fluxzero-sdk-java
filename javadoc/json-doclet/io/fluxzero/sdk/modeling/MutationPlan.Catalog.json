@@ -311,6 +311,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "knownModelTypeCount",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#knownModelTypeCount",
+    "returnType" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "knownModelTypes",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#knownModelTypes",
     "returnType" : "java.util.List<java.lang.Class<?>>",

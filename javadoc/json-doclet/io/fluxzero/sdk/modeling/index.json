@@ -650,6 +650,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelConflictResolver$Resolution",
     "kind" : "enum"
   }, {
+    "file" : "ModelErrors.json",
+    "name" : "ModelErrors",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors",
+    "kind" : "class"
+  }, {
     "file" : "ModelNames.json",
     "name" : "ModelNames",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelNames",

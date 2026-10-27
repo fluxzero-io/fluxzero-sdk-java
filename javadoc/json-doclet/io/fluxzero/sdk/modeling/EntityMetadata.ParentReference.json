@@ -5,7 +5,7 @@
   "kind" : "record",
   "modifiers" : [ "final", "public", "static" ],
   "annotations" : [ ],
-  "documentation" : " One outgoing parent relationship declared by a child model.\n\n @param idType          scalar ID type, or the resolved collection element type\n @param pathInParent    optional parent-relative automatic composition path\n @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID\n @param apiDoc          optional documentation for the list-valued automatic composition path\n @param propagateSearch whether ancestor search composition may traverse this edge\n @param validateAncestors whether cascading assertions may traverse this parent route\n @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle\n",
+  "documentation" : " One outgoing parent relationship declared by a child model.\n\n @param idType          scalar ID type, or the resolved collection element type\n @param pathInParent    optional parent-relative automatic composition path\n @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID\n @param apiDoc          optional documentation for the list-valued automatic composition path\n @param propagateSearch whether ancestor search composition may traverse this edge\n @param validateAncestors whether cascading assertions may traverse this parent route\n @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle\n @param maxChildren maximum children of this Model type and path, or -1 for unlimited\n @param required whether at least one existing parent is required\n @param preventParentDeletion whether surviving children block logical parent deletion\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
@@ -34,6 +34,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "maxChildren",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.maxChildren",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "parentModelTypes",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.parentModelTypes",
     "type" : "java.util.List<java.lang.Class<?>>",
@@ -50,6 +58,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "preventParentDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.preventParentDeletion",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "propagateSearch",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.propagateSearch",
     "type" : "boolean",
@@ -61,6 +77,14 @@
     "name" : "property",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.property",
     "type" : "io.fluxzero.sdk.modeling.EntityMetadata.Property",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "required",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.required",
+    "type" : "boolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -120,6 +144,21 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "maxChildren",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "required",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "preventParentDeletion",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -147,6 +186,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns whether a non-empty path in the parent enables automatic Graph composition for this reference.\n"
+  }, {
+    "name" : "constrained",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#constrained",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this reference declares any SDK-provided relationship check. "
   }, {
     "name" : "deleteOnParentDeletion",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#deleteOnParentDeletion",
@@ -213,6 +263,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "maxChildren",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#maxChildren",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "parentModelType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#parentModelType",
     "returnType" : "java.lang.Class<?>",
@@ -254,6 +315,17 @@
     "name" : "pathInParent",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#pathInParent",
     "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "preventParentDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#preventParentDeletion",
+    "returnType" : "boolean",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -343,6 +415,17 @@
     "varArgs" : false,
     "documentation" : "Returns the parent's exact persisted identity for a functional parent ID value. "
   }, {
+    "name" : "required",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#required",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "supports",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#supports",
     "returnType" : "boolean",
@@ -398,6 +481,11 @@
     "annotations" : [ ],
     "documentation" : null
   }, {
+    "name" : "maxChildren",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "parentModelTypes",
     "type" : "java.util.List<java.lang.Class<?>>",
     "annotations" : [ ],
@@ -408,6 +496,11 @@
     "annotations" : [ ],
     "documentation" : null
   }, {
+    "name" : "preventParentDeletion",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "propagateSearch",
     "type" : "boolean",
     "annotations" : [ ],
@@ -415,6 +508,11 @@
   }, {
     "name" : "property",
     "type" : "io.fluxzero.sdk.modeling.EntityMetadata.Property",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "required",
+    "type" : "boolean",
     "annotations" : [ ],
     "documentation" : null
   }, {

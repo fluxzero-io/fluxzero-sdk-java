@@ -1,0 +1,150 @@
+{
+  "name" : "ModelErrors",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Customer-facing errors for SDK-provided Model checks. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "ALREADY_EXISTS_EXCEPTION",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors.ALREADY_EXISTS_EXCEPTION",
+    "type" : "io.fluxzero.sdk.tracking.handling.IllegalCommandException",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Existing Entity creation rejection, retained as the same instance. ",
+    "constantValue" : null
+  }, {
+    "name" : "NOT_FOUND_EXCEPTION",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors.NOT_FOUND_EXCEPTION",
+    "type" : "io.fluxzero.sdk.tracking.handling.IllegalCommandException",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Existing Entity lookup rejection, retained as the same instance. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelErrors",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors#ModelErrors",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "article",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors#article",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "label",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors#label",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maxChildrenExceeded",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors#maxChildrenExceeded",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.IllegalCommandException",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "childType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Mutation would grow a child scope beyond its capacity. "
+  }, {
+    "name" : "parentDeletionBlocked",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors#parentDeletionBlocked",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.IllegalCommandException",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "childType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "A deletion-protected child survives parent deletion. "
+  }, {
+    "name" : "parentNotFound",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors#parentNotFound",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.IllegalCommandException",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Required referenced parent does not exist in the final mutation state. "
+  }, {
+    "name" : "parentRequired",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelErrors#parentRequired",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.IllegalCommandException",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Required reference is absent. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

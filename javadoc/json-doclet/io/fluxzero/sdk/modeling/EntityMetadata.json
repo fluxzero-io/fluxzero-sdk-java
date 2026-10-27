@@ -34,6 +34,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "constrainedParentReferences",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata.constrainedParentReferences",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.ParentReference>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "deadlines",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata.deadlines",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.DeadlinePlan.Declaration>",
@@ -337,6 +345,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Returns the canonical Model source collection, shared with node search when enabled. "
+  }, {
+    "name" : "constrainedParentReferences",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#constrainedParentReferences",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.ParentReference>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns parent declarations that enable one or more SDK validation shorthands. "
   }, {
     "name" : "deadlines",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#deadlines",
