@@ -15,7 +15,6 @@
 
 package io.fluxzero.common;
 
-import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.NonNull;
 import lombok.Value;
@@ -45,7 +44,7 @@ import java.util.function.Predicate;
  * @see RetryStatus
  */
 @Value
-@Builder(builderClassName = "Builder", toBuilder = true)
+@lombok.Builder(builderClassName = "Builder", toBuilder = true)
 @Slf4j
 public class RetryConfiguration {
     /**
