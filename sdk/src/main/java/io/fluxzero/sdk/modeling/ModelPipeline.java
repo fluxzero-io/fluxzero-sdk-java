@@ -1001,6 +1001,12 @@ final class ModelPipeline {
             addCascadeGraph(nodes, edges, graph);
         }
 
+        if (!hasCascadeChildren(explicitlyDeleted, latestTransitions, edges)) {
+            // Keep the roots so the Runtime still detects children attached after this read boundary.
+            evaluation.cascadeRoots(explicitlyDeleted);
+            return evaluation;
+        }
+
         for (Change transition : latestTransitions.values()) {
             if (transition.before() != null && transition.after() != null
                 && !nodes.containsKey(transition.modelId())) {
@@ -1088,6 +1094,19 @@ final class ModelPipeline {
                 readModelTypes, steps);
         evaluation.cascadeRoots(explicitlyDeleted);
         return evaluation;
+    }
+
+    private static boolean hasCascadeChildren(
+            Set<String> deletedRoots, Map<String, Change> latestTransitions, Set<ModelGraphEdge> edges) {
+        // Final values replace incoming edges even when the last substep was a no-op after an earlier move.
+        if (edges.stream().anyMatch(edge -> edge.isDeleteOnParentDeletion()
+                && deletedRoots.contains(edge.getParentId()) && !latestTransitions.containsKey(edge.getChildId()))) {
+            return true;
+        }
+        return latestTransitions.values().stream().filter(change -> change.after() != null)
+                .anyMatch(change -> EntityMetadata.validate(change.modelType())
+                        .parentRelationships(change.modelId(), change.after()).stream()
+                        .anyMatch(parent -> parent.deleteOnParentDeletion() && deletedRoots.contains(parent.parentId())));
     }
 
     private static void addCascadeGraph(
