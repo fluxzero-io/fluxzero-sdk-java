@@ -1270,7 +1270,8 @@ final class ModelPipeline {
             if (boundary == null && !applyOnly && !requiresStorageBoundary) {
                 for (MutationPlan.ResolvedModel target : resolution.models()) {
                     if ((assertionsOnly || target.access().writes())
-                        && definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                        && (parentConstraints.requiresStorageBoundary(target.modelType())
+                            || definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly))) {
                         // A child cache cursor does not prove that a later-read ancestor is still current.
                         // Standalone assertions have no commit conflict check to repair a stale successful result.
                         requiresStorageBoundary = true;
@@ -1280,7 +1281,8 @@ final class ModelPipeline {
             }
             if (boundary == null && !applyOnly && !requiresStorageBoundary) {
                 for (MutationPlan.DeferredWriteTarget target : resolution.deferredWrites()) {
-                    if (definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                    if (parentConstraints.requiresStorageBoundary(target.modelType())
+                        || definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
                         // Result-bound writes can have only read-only inputs until Apply selects the actual target.
                         requiresStorageBoundary = true;
                         break;
@@ -1712,7 +1714,8 @@ final class ModelPipeline {
         }
         MutationPlan.ResolvedModel target = targets.resolveSingle(message);
         if (target.access().writes()
-            && definition.reducer().requiresCascadeStorageBoundary(message, target.modelType(), false)) { return null; }
+            && (parentConstraints.requiresStorageBoundary(target.modelType())
+                || definition.reducer().requiresCascadeStorageBoundary(message, target.modelType(), false))) { return null; }
         // A cached document alone cannot establish the initial namespace boundary for later manual Graph reads.
         return EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()
                 ? new PrefetchSlot(target) : null;
