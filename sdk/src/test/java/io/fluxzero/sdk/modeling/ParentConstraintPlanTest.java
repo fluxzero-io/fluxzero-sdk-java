@@ -16,16 +16,21 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -34,6 +39,9 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 class ParentConstraintPlanTest {
     private TestFixture fixture;
@@ -79,6 +87,38 @@ class ParentConstraintPlanTest {
                 });
         fixture.whenCommand(new DeleteChild("c")).expectSuccessfulResult();
         fixture.whenCommand(new DeleteRoot("p")).expectSuccessfulResult();
+    }
+
+    @Test
+    void deletionProtectionUsesFreshRelationshipsWhenTheParentValueIsUnchanged() {
+        try (var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(LocalClient.newInstance(null))) {
+            app.apply(fc -> {
+                fc.executeModelCommit(new Message(new CreateRoot("p"))).join();
+                fc.executeModelCommit(new Message(new CreateChild("c", "p"))).join();
+                var repository = (DefaultModelRepository) fc.modelRepository();
+                var cached = repository.load("p", Root.class);
+                long beforeDeletion = repository.loadGraph("p", Root.class, Graph.Options.DEFAULT).stateIndex();
+                fc.executeModelCommit(new Message(new DeleteChild("c"))).join();
+
+                // Force the valid unchanged value with a tracker proof from before the child deletion.
+                var readRepository = spy(repository);
+                doAnswer(invocation -> {
+                    DefaultModelRepository.CurrentModelSink sink = invocation.getArgument(2);
+                    sink.accept(cached, beforeDeletion, beforeDeletion);
+                    return true;
+                }).when(readRepository).supplyCurrentModel(eq("p"), eq(Root.class), any());
+                var executor = ReflectionUtils.<AtomicReference<ModelCommitHandlerRegistry>>getFieldValue(
+                        "modelCommitExecutor", fc).orElseThrow().get();
+                var pipeline = ReflectionUtils.<ModelPipeline>getFieldValue("pipeline", executor).orElseThrow();
+                ReflectionUtils.setField("repository", pipeline, readRepository);
+
+                fc.executeModelCommit(new Message(new DeleteRoot("p"))).join();
+                fc.cache().clear();
+                assertTrue(repository.load("p", Root.class).isEmpty());
+                assertTrue(repository.load("c", Child.class).isEmpty());
+                return null;
+            });
+        }
     }
 
     @ParameterizedTest @ValueSource(booleans = {false, true})

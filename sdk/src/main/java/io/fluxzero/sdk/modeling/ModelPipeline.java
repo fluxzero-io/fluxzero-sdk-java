@@ -1001,6 +1001,12 @@ final class ModelPipeline {
             addCascadeGraph(nodes, edges, graph);
         }
 
+        if (!hasCascadeChildren(explicitlyDeleted, latestTransitions, edges)) {
+            // Keep the roots so the Runtime still detects children attached after this read boundary.
+            evaluation.cascadeRoots(explicitlyDeleted);
+            return evaluation;
+        }
+
         for (Change transition : latestTransitions.values()) {
             if (transition.before() != null && transition.after() != null
                 && !nodes.containsKey(transition.modelId())) {
@@ -1088,6 +1094,19 @@ final class ModelPipeline {
                 readModelTypes, steps);
         evaluation.cascadeRoots(explicitlyDeleted);
         return evaluation;
+    }
+
+    private static boolean hasCascadeChildren(
+            Set<String> deletedRoots, Map<String, Change> latestTransitions, Set<ModelGraphEdge> edges) {
+        // Final values replace incoming edges even when the last substep was a no-op after an earlier move.
+        if (edges.stream().anyMatch(edge -> edge.isDeleteOnParentDeletion()
+                && deletedRoots.contains(edge.getParentId()) && !latestTransitions.containsKey(edge.getChildId()))) {
+            return true;
+        }
+        return latestTransitions.values().stream().filter(change -> change.after() != null)
+                .anyMatch(change -> EntityMetadata.validate(change.modelType())
+                        .parentRelationships(change.modelId(), change.after()).stream()
+                        .anyMatch(parent -> parent.deleteOnParentDeletion() && deletedRoots.contains(parent.parentId())));
     }
 
     private static void addCascadeGraph(
@@ -1270,7 +1289,8 @@ final class ModelPipeline {
             if (boundary == null && !applyOnly && !requiresStorageBoundary) {
                 for (MutationPlan.ResolvedModel target : resolution.models()) {
                     if ((assertionsOnly || target.access().writes())
-                        && definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                        && (parentConstraints.requiresStorageBoundary(target.modelType())
+                            || definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly))) {
                         // A child cache cursor does not prove that a later-read ancestor is still current.
                         // Standalone assertions have no commit conflict check to repair a stale successful result.
                         requiresStorageBoundary = true;
@@ -1280,7 +1300,8 @@ final class ModelPipeline {
             }
             if (boundary == null && !applyOnly && !requiresStorageBoundary) {
                 for (MutationPlan.DeferredWriteTarget target : resolution.deferredWrites()) {
-                    if (definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                    if (parentConstraints.requiresStorageBoundary(target.modelType())
+                        || definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
                         // Result-bound writes can have only read-only inputs until Apply selects the actual target.
                         requiresStorageBoundary = true;
                         break;
@@ -1712,7 +1733,8 @@ final class ModelPipeline {
         }
         MutationPlan.ResolvedModel target = targets.resolveSingle(message);
         if (target.access().writes()
-            && definition.reducer().requiresCascadeStorageBoundary(message, target.modelType(), false)) { return null; }
+            && (parentConstraints.requiresStorageBoundary(target.modelType())
+                || definition.reducer().requiresCascadeStorageBoundary(message, target.modelType(), false))) { return null; }
         // A cached document alone cannot establish the initial namespace boundary for later manual Graph reads.
         return EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()
                 ? new PrefetchSlot(target) : null;
