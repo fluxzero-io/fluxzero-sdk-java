@@ -16,7 +16,11 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.common.Message;
@@ -28,22 +32,30 @@ import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 
 class ParentConstraintPlanTest {
+    private static final ThreadLocal<List<Integer>> parentEvaluations = new ThreadLocal<>();
     private TestFixture fixture;
 
     private TestFixture fixture(boolean async) {
@@ -100,25 +112,138 @@ class ParentConstraintPlanTest {
                 long beforeDeletion = repository.loadGraph("p", Root.class, Graph.Options.DEFAULT).stateIndex();
                 fc.executeModelCommit(new Message(new DeleteChild("c"))).join();
 
-                // Force the valid unchanged value with a tracker proof from before the child deletion.
-                var readRepository = spy(repository);
-                doAnswer(invocation -> {
-                    DefaultModelRepository.CurrentModelSink sink = invocation.getArgument(2);
-                    sink.accept(cached, beforeDeletion, beforeDeletion);
-                    return true;
-                }).when(readRepository).supplyCurrentModel(eq("p"), eq(Root.class), any());
-                var executor = ReflectionUtils.<AtomicReference<ModelCommitHandlerRegistry>>getFieldValue(
-                        "modelCommitExecutor", fc).orElseThrow().get();
-                var pipeline = ReflectionUtils.<ModelPipeline>getFieldValue("pipeline", executor).orElseThrow();
-                ReflectionUtils.setField("repository", pipeline, readRepository);
-
-                fc.executeModelCommit(new Message(new DeleteRoot("p"))).join();
+                forceCachedModel(fc, cached, beforeDeletion);
+                var evaluations = new ArrayList<Integer>();
+                parentEvaluations.set(evaluations);
+                try {
+                    fc.executeModelCommit(new Message(new DeleteRoot("p"))).join();
+                } finally {
+                    parentEvaluations.remove();
+                }
+                assertEquals(List.of(0), evaluations, "An unchanged parent needs no second Apply evaluation");
                 fc.cache().clear();
                 assertTrue(repository.load("p", Root.class).isEmpty());
                 assertTrue(repository.load("c", Child.class).isEmpty());
                 return null;
             });
         }
+    }
+
+    @Test
+    void warmProtectedParentUpdateDoesNotReadStorage() {
+        var client = new LocalClient(null) {
+            @Override protected EventStoreClient createEventStoreClient() {
+                return spy(super.createEventStoreClient());
+            }
+        };
+        try (var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            app.registerHandlers(WarmChild.class);
+            app.apply(fc -> {
+                fc.executeModelCommit(new Message(new CreateWarmParent("parent"))).join();
+                var repository = (DefaultModelRepository) fc.modelRepository();
+                var cached = repository.load("parent", WarmParent.class);
+                long boundary = repository.loadGraph("parent", WarmParent.class, Graph.Options.DEFAULT).stateIndex();
+                forceCachedModel(fc, cached, boundary);
+                clearInvocations(client.getEventStoreClient());
+
+                fc.executeModelCommit(new Message(new UpdateWarmParent("parent"))).join();
+
+                var calls = mockingDetails(client.getEventStoreClient()).getInvocations().stream()
+                        .map(invocation -> invocation.getMethod().getName()).toList();
+                assertEquals(1, calls.stream().filter("commitModels"::equals).count());
+                assertEquals(0, calls.stream().filter(name -> name.startsWith("getModel")).count(), calls::toString);
+                assertEquals(new WarmParent("parent", 1), repository.load("parent", WarmParent.class).get());
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void protectedParentGraphReadUsesCurrentState(boolean changedParent, boolean allowRetry) {
+        var client = new LocalClient(null) {
+            @Override protected EventStoreClient createEventStoreClient() {
+                return spy(super.createEventStoreClient());
+            }
+        };
+        try (var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(ModelConflictPolicy.RETRY, DefaultModelConflictResolver.INSTANCE,
+                                                allowRetry ? 3 : 0).build(client)) {
+            app.registerHandlers(WarmChild.class);
+            app.apply(fc -> {
+                fc.executeModelCommit(new Message(new CreateWarmParent("parent"))).join();
+                var repository = (DefaultModelRepository) fc.modelRepository();
+                var cached = repository.load("parent", WarmParent.class);
+                long boundary = repository.loadGraph("parent", WarmParent.class, Graph.Options.DEFAULT).stateIndex();
+                fc.executeModelCommit(new Message(new CreateWarmChild("child", "parent"))).join();
+                if (changedParent) { fc.executeModelCommit(new Message(new UpdateWarmParent("parent"))).join(); }
+                forceCachedModel(fc, cached, boundary);
+                clearInvocations(client.getEventStoreClient());
+                var evaluations = new ArrayList<Integer>();
+                parentEvaluations.set(evaluations);
+                try {
+                    fc.executeModelCommit(new Message(new CountWarmChildren("parent"))).join();
+                } finally {
+                    parentEvaluations.remove();
+                }
+                assertEquals(changedParent ? allowRetry ? List.of(0, 1) : List.of(1) : List.of(0), evaluations);
+                verify(client.getEventStoreClient(), times(1)).commitModels(any());
+                fc.cache().clear();
+                assertEquals(new WarmParent("parent", changedParent ? 2 : 1),
+                             repository.load("parent", WarmParent.class).get());
+                return null;
+            });
+        }
+    }
+
+    private void forceCachedModel(Fluxzero app, Entity<?> cached, long validThrough) {
+        var repository = spy((DefaultModelRepository) app.modelRepository());
+        doAnswer(invocation -> {
+            DefaultModelRepository.CurrentModelSink sink = invocation.getArgument(2);
+            sink.accept(cached, validThrough, ((ModelRoot<?>) cached).stateIndex());
+            return true;
+        }).when(repository).supplyCurrentModel(eq(cached.id().toString()), eq(cached.type()), any());
+        var executor = ReflectionUtils.<AtomicReference<ModelCommitHandlerRegistry>>getFieldValue(
+                "modelCommitExecutor", app).orElseThrow().get();
+        ReflectionUtils.setField("repository", ReflectionUtils.getFieldValue("pipeline", executor).orElseThrow(),
+                                 repository);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false,false", "false,false,true", "false,true,false", "false,true,true",
+                "true,false,false", "true,false,true", "true,true,false", "true,true,true"})
+    void selectedWriteUsesCurrentParentAndCapacityWhileCandidateCacheLags(
+            boolean async, boolean capacity, boolean initiallyAllowed) throws Exception {
+        fixture = fixture(async).spy();
+        CountDownLatch polling = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            TrackModelUpdates request = invocation.getArgument(0);
+            if (request.getMaxWaitMillis() == 0) { return invocation.callRealMethod(); }
+            polling.countDown();
+            return new CompletableFuture<TrackModelUpdatesResult>();
+        }).when(fixture.getFluxzero().client().getEventStoreClient()).trackModelUpdates(any());
+        fixture.givenCommands(new CreateRoot("source-a"), new CreateRoot("source-b"),
+                              new CreateChild("a", "source-a"), new CreateChild("b", "source-b"));
+        if (capacity || initiallyAllowed) { fixture.givenCommands(new CreateRoot("destination")); }
+        if (capacity && !initiallyAllowed) { fixture.givenCommands(new CreateChild("blocker", "destination")); }
+        assertTrue(polling.await(5, TimeUnit.SECONDS));
+        SelectChild command = new SelectChild("a", "b", "destination");
+        fixture.whenExecuting(fc -> Fluxzero.assertLegal(command)).expectSuccessfulResult();
+        Object change = capacity
+                ? initiallyAllowed ? new CreateChild("blocker", "destination") : new DeleteChild("blocker")
+                : initiallyAllowed ? new DeleteRoot("destination") : new CreateRoot("destination");
+        fixture.whenCommand(change).expectSuccessfulResult();
+
+        if (initiallyAllowed) {
+            fixture.whenCommand(command).expectExceptionalResult(capacity
+                    ? ModelErrors.maxChildrenExceeded(Root.class, Child.class) : ModelErrors.parentNotFound(Root.class));
+        } else {
+            fixture.whenCommand(command).expectSuccessfulResult().expectEvents(command);
+        }
+        fixture.getFluxzero().cache().clear();
+        assertEquals(initiallyAllowed ? "source-a" : "destination",
+                     fixture.getFluxzero().modelRepository().load("a", Child.class).get().rootId());
+        assertEquals("source-b", fixture.getFluxzero().modelRepository().load("b", Child.class).get().rootId());
     }
 
     @ParameterizedTest @ValueSource(booleans = {false, true})
@@ -260,6 +385,32 @@ class ParentConstraintPlanTest {
         }
     }
 
+    @Model private record WarmParent(@EntityId String id, int revision) {}
+    @Model private record WarmChild(@EntityId String id,
+                                   @Parent(value = WarmParent.class, required = true,
+                                           preventParentDeletion = true) String parentId) {}
+    private record CreateWarmParent(String id) {
+        @Apply WarmParent apply() { return new WarmParent(id, 0); }
+    }
+    private record UpdateWarmParent(String id) {
+        @Apply WarmParent apply(WarmParent parent) { return new WarmParent(id, parent.revision() + 1); }
+    }
+    private record CreateWarmChild(String id, String parentId) {
+        @Apply WarmChild apply() { return new WarmChild(id, parentId); }
+    }
+    private record CountWarmChildren(String id) {
+        @Apply WarmParent apply(WarmParent parent) {
+            if (parentEvaluations.get() != null) { parentEvaluations.get().add(parent.revision()); }
+            return new WarmParent(id, parent.revision() + Fluxzero.loadGraph(id, WarmParent.class)
+                    .children(WarmChild.class).size());
+        }
+    }
+    private record SelectChild(String first, String second, String destination) {
+        @Apply Child apply(@io.fluxzero.sdk.tracking.handling.Association("first") Child first,
+                           @io.fluxzero.sdk.tracking.handling.Association("second") Child second) {
+            return new Child(first.id(), destination);
+        }
+    }
     @Model private record Root(@EntityId String id) {}
     @Model private record Child(
             @EntityId String id,
@@ -292,7 +443,12 @@ class ParentConstraintPlanTest {
             @EntityId String id, @Parent(required = true) String rootId) {}
 
     private record CreateRoot(String id) { @Apply Root apply() { return new Root(id); } }
-    private record DeleteRoot(String id) { @Apply Root apply(Root current) { return null; } }
+    private record DeleteRoot(String id) {
+        @Apply Root apply(Root current) {
+            if (parentEvaluations.get() != null) { parentEvaluations.get().add(0); }
+            return null;
+        }
+    }
     private record CreateChild(String id, String rootId) { @Apply Child apply() { return new Child(id, rootId); } }
     private record MoveChild(String id, String rootId) {
         @Apply Child apply(Child current) { return new Child(id, rootId); }

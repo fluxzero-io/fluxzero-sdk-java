@@ -440,18 +440,18 @@ final class ModelPipeline {
             repository.invalidateModels(List.of(conflict.conflict().getModelId()));
             if (original == null) { request.message().withoutContext(CommitAttempt.class); }
             else { original.attachTo(request.message()); }
-            request.message().putContext(EagerDocumentBoundary.class, EagerDocumentBoundary.INSTANCE);
+            request.message().putContext(EagerReadBoundary.class, EagerReadBoundary.INSTANCE);
             try {
                 CommitAttempt result = evaluate(request, attempt, true, batched);
                 result.preparationRetries(1);
                 return result;
             } finally {
-                request.message().withoutContext(EagerDocumentBoundary.class);
+                request.message().withoutContext(EagerReadBoundary.class);
             }
         }
     }
 
-    private enum EagerDocumentBoundary { INSTANCE }
+    private enum EagerReadBoundary { INSTANCE }
 
     private CommitAttempt evaluate(
             ExecutionRequest request,
@@ -1262,7 +1262,7 @@ final class ModelPipeline {
             MutationPlan definition = definitionFor(substep);
             requiresStorageBoundary |= definition.reducer().requiresStorageBoundary();
             permitsDeferredBoundary = substep == directMessage && definition.reducer().permitsDeferredBoundary()
-                    && substep.getContext(EagerDocumentBoundary.class).isEmpty();
+                    && substep.getContext(EagerReadBoundary.class).isEmpty();
             if (substep == directMessage
                 && prefetched != null
                 && prefetched.entity != null
@@ -1274,6 +1274,11 @@ final class ModelPipeline {
                         target.sourceProperties(), prefetched.entity);
                 if (DeserializingMessage.getMessageBatchIndex() >= 0) {
                     context = repository.overlayPendingContext(context);
+                }
+                if (prefetched.deferBoundary) {
+                    context.withDeferredBoundary(() -> repository.verifyCurrentModelBoundary(
+                            target.modelId(), prefetched.modelStateIndex));
+                    deferredContext = context;
                 }
                 commitEntities.put(target.modelId(), context.entity(target.modelId()));
                 return new ModelReducer.ResolvedSubstep(context, definition.reducer());
@@ -1733,21 +1738,34 @@ final class ModelPipeline {
         }
         MutationPlan.ResolvedModel target = targets.resolveSingle(message);
         if (target.access().writes()
-            && (parentConstraints.requiresStorageBoundary(target.modelType())
-                || definition.reducer().requiresCascadeStorageBoundary(message, target.modelType(), false))) { return null; }
+            && definition.reducer().requiresCascadeStorageBoundary(message, target.modelType(), false)) { return null; }
+        EntityMetadata metadata = EntityMetadata.validate(target.modelType());
+        var configuration = metadata.rootConfiguration().orElseThrow();
+        boolean deferBoundary = target.access().writes() && parentConstraints.requiresStorageBoundary(target.modelType());
+        if (deferBoundary && (!metadata.constrainedParentReferences().isEmpty()
+                             || !Modifier.isFinal(target.modelType().getModifiers()) || metadata.hasAliases()
+                             || !definition.reducer().permitsDeferredBoundary()
+                             || DeserializingMessage.getMessageBatchIndex() >= 0
+                             || message.getContext(EagerReadBoundary.class).isPresent()
+                             || conflictPolicy != ModelConflictPolicy.RETRY || maxConflictRetries == 0
+                             || conflictResolver != DefaultModelConflictResolver.INSTANCE
+                             || configuration.conflictPolicy() != ModelConflictPolicy.DEFAULT
+                                && configuration.conflictPolicy() != ModelConflictPolicy.RETRY)) { return null; }
         // A cached document alone cannot establish the initial namespace boundary for later manual Graph reads.
-        return EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()
-                ? new PrefetchSlot(target) : null;
+        return configuration.eventSourced() ? new PrefetchSlot(target, deferBoundary) : null;
     }
 
     private static final class PrefetchSlot
             implements DefaultModelRepository.CurrentModelSink {
         private final MutationPlan.ResolvedModel target;
+        private final boolean deferBoundary;
         private Entity<?> entity;
         private long stateIndex;
+        private long modelStateIndex;
 
-        private PrefetchSlot(MutationPlan.ResolvedModel target) {
+        private PrefetchSlot(MutationPlan.ResolvedModel target, boolean deferBoundary) {
             this.target = target;
+            this.deferBoundary = deferBoundary;
         }
 
         @Override
@@ -1757,6 +1775,7 @@ final class ModelPipeline {
                 long modelStateIndex) {
             this.entity = entity;
             this.stateIndex = validThrough;
+            this.modelStateIndex = modelStateIndex;
         }
     }
 

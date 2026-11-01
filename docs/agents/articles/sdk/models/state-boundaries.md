@@ -55,6 +55,11 @@ boundary observation asynchronously and maintains one tracking loop per cache tr
 not create additional loops or reset its cursor. A transient initial failure leaves current loads on the ordinary
 store-validation path and allows a later load to retry initialization.
 
+An unchanged cached parent does not prove that its child relationships are current. Eligible single-target writes
+with built-in RETRY can reuse a cached event-sourced parent without an extra store read. If deletion or another
+transactional dependency later needs a fresh boundary, the SDK first verifies the parent's exact revision; a changed
+revision triggers eager reevaluation within the normal retry budget. Constrained child writes retain eager validation.
+
 Update pages use an exclusive cursor and strictly increasing state indices. Empty heartbeats retain that cursor;
 fixed or backwards-moving fixture clocks do not permit repeated indices. If tracking fails, current loads validate
 against the store until a valid recovery page has been fully processed. Applications should not suppress ordering

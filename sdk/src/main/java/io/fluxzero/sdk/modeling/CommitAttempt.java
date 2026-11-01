@@ -83,7 +83,7 @@ public final class CommitAttempt {
         return failedPreparationReads == null ? readModelIds : failedPreparationReads;
     }
 
-    /** Internal single-document loading provenance; copies share the same one-time verification. */
+    /** Internal single-Model loading provenance; copies share the same one-time verification. */
     public CommitAttempt withDeferredBoundary(LongSupplier verification) {
         deferredBoundary = new DeferredBoundary(readStateIndex, verification);
         return this;
@@ -116,7 +116,7 @@ public final class CommitAttempt {
     int preparationRetries() { return preparationRetries; }
     void preparationRetries(int count) { preparationRetries = count; }
 
-    /** Internal signal: no commit was submitted, but a document used during evaluation has changed. */
+    /** Internal signal: no commit was submitted, but a Model used during evaluation has changed. */
     public static final class ReadBoundaryConflict extends RuntimeException {
         private final ModelCommitConflict conflict;
 

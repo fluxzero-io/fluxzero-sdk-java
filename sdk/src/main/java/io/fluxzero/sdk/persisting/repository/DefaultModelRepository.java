@@ -1653,6 +1653,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                        modelId, modelType, sink);
     }
 
+    /** Internal single-Model snapshot promotion before reading additional transactional dependencies. */
+    public long verifyCurrentModelBoundary(String modelId, long expectedStateIndex) {
+        var current = replayCursor.loadHeads(List.of(modelId), ModelReadBoundary.current());
+        ModelHeadState head = current.heads().get(modelId);
+        if (head == null || head.getStateIndex() != expectedStateIndex) {
+            throw new CommitAttempt.ReadBoundaryConflict(modelId, current.stateIndex());
+        }
+        return current.stateIndex();
+    }
+
     private CommitAttempt loadContext(
             MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
