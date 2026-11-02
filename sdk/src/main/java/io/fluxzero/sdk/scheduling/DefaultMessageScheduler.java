@@ -68,11 +68,14 @@ import static io.fluxzero.sdk.tracking.IndexUtils.indexFromTimestamp;
 public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler>
         implements MessageScheduler, HasLocalHandlers {
 
-    public DefaultMessageScheduler(Client client, Serializer serializer, DispatchInterceptor dispatchInterceptor, DispatchInterceptor commandDispatchInterceptor, UnaryOperator<DeserializingMessage> parentDataRestoration, TaskScheduler taskScheduler, HandlerRegistry localHandlerRegistry) {
+    public DefaultMessageScheduler(Client client, Serializer serializer, DispatchInterceptor dispatchInterceptor,
+                                   DispatchInterceptor deferredCommandDispatchInterceptor,
+                                   UnaryOperator<DeserializingMessage> parentDataRestoration,
+                                   TaskScheduler taskScheduler, HandlerRegistry localHandlerRegistry) {
         this.client = client;
         this.serializer = serializer;
         this.dispatchInterceptor = dispatchInterceptor;
-        this.commandDispatchInterceptor = commandDispatchInterceptor;
+        this.deferredCommandDispatchInterceptor = deferredCommandDispatchInterceptor;
         this.parentDataRestoration = parentDataRestoration;
         this.taskScheduler = taskScheduler;
         this.localHandlerRegistry = localHandlerRegistry;
@@ -83,7 +86,7 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
     private Guarantee defaultGuarantee = Guarantee.STORED;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
-    private final DispatchInterceptor commandDispatchInterceptor;
+    private final DispatchInterceptor deferredCommandDispatchInterceptor;
     /** Restores selected protected parent fields for an ownership-only read view; never for dispatch. */
     private final UnaryOperator<DeserializingMessage> parentDataRestoration;
     private final TaskScheduler taskScheduler;
@@ -271,9 +274,10 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
     public SerializedSchedule prepareDeadline(Schedule schedule, boolean command) {
         Schedule prepared = schedule;
         if (command) {
-            Message intercepted = commandDispatchInterceptor.interceptDispatch(schedule, COMMAND, null, client.namespace());
+            Message intercepted = deferredCommandDispatchInterceptor.interceptDispatch(
+                    schedule, COMMAND, null, client.namespace());
             if (intercepted == null) { throw new IllegalStateException("Deadline command was suppressed by dispatch"); }
-            SerializedMessage serialized = commandDispatchInterceptor.modifySerializedMessage(
+            SerializedMessage serialized = deferredCommandDispatchInterceptor.modifySerializedMessage(
                     intercepted.serialize(serializer), intercepted, COMMAND, null);
             if (serialized == null) { throw new IllegalStateException("Deadline command was suppressed by serialization"); }
             prepared = schedule.withPayload(new ScheduledCommand(serialized))
@@ -294,7 +298,7 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
             return CompletableFuture.completedFuture(null);
         }
         var commandMessage = schedule.withMessageId(Fluxzero.currentIdentityProvider().nextTechnicalId());
-        var intercepted = commandDispatchInterceptor.interceptDispatch(
+        var intercepted = deferredCommandDispatchInterceptor.interceptDispatch(
                 commandMessage, COMMAND, null, client.namespace());
         if (intercepted == null) {
             return CompletableFuture.completedFuture(null);
@@ -302,7 +306,7 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
         commandMessage = commandMessage.withPayload(intercepted.getPayload()).withMetadata(intercepted.getMetadata());
         SerializedMessage initialCommand = commandMessage.serialize(serializer);
         var initialCommandData = initialCommand.getData();
-        SerializedMessage serializedCommand = commandDispatchInterceptor.modifySerializedMessage(
+        SerializedMessage serializedCommand = deferredCommandDispatchInterceptor.modifySerializedMessage(
                 initialCommand, commandMessage, COMMAND, null);
         if (serializedCommand == null) {
             return CompletableFuture.completedFuture(null);
