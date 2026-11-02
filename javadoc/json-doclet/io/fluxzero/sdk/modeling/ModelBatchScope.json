@@ -386,7 +386,7 @@
       "annotations" : [ ]
     }, {
       "name" : "before",
-      "type" : "java.lang.Object",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -869,7 +869,12 @@
       "annotations" : [ ]
     }, {
       "name" : "before",
-      "type" : "java.lang.Object",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previousAliases",
+      "type" : "java.util.List<java.lang.String>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {

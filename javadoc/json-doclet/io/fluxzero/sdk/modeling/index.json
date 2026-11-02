@@ -85,6 +85,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change",
     "kind" : "record"
   }, {
+    "file" : "Change.LazyBefore.json",
+    "name" : "Change.LazyBefore",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change$LazyBefore",
+    "kind" : "record"
+  }, {
     "file" : "CommitAttempt.json",
     "name" : "CommitAttempt",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt",

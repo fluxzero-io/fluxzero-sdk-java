@@ -1,0 +1,124 @@
+{
+  "name" : "Revision",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "A pinned revision and its value; reading revision evidence does not reconstruct event history. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "entity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision.entity",
+    "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "head",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision.head",
+    "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Revision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision#Revision",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "head",
+      "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "entity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision#entity",
+    "returnType" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "head",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision#head",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelHeadState",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "entity",
+    "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<?>>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "head",
+    "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

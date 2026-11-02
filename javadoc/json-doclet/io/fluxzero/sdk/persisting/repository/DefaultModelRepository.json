@@ -2672,6 +2672,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "loadGraphRevisions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadGraphRevisions",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Revision>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelTypes",
+      "type" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Pins cascade revision evidence, keeping event-sourced values lazy and verifying exact document revisions. "
+  }, {
     "name" : "loadGraphValue",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadGraphValue",
     "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",

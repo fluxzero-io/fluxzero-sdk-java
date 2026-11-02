@@ -750,6 +750,12 @@
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ]
   }, {
+    "name" : "Revision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "Value",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Value",
     "kind" : "record",

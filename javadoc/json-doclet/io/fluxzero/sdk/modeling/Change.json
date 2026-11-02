@@ -5,7 +5,7 @@
   "kind" : "record",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " One fully resolved immutable model mutation outcome consumed by commit preparation.\n\n <p>This type is public only so the repository package can consume the canonical internal value directly; it is not\n a supported application extension point.</p>\n",
+  "documentation" : " One immutable model mutation outcome consumed by commit preparation, with an optional lazy cascade before-value.\n\n <p>This type is public only so the repository package can consume the canonical internal value directly; it is not\n a supported application extension point.</p>\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
@@ -434,12 +434,26 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change#before",
     "returnType" : "java.lang.Object",
     "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the previous value, resolving a cascade's pinned value only on use. "
+  }, {
+    "name" : "beforeAliases",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change#beforeAliases",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : "Alias release is a value consumer only for Models that declare aliases. "
   }, {
     "name" : "beforeLastEventIndex",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change#beforeLastEventIndex",
@@ -459,6 +473,53 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "beforeType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change#beforeType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Previous concrete type without requiring a lazy cascade value. "
+  }, {
+    "name" : "cascaded",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change#cascaded",
+    "returnType" : "io.fluxzero.sdk.modeling.Change",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequence",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "present",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.util.function.Supplier<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -566,6 +627,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "existedBefore",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change#existedBefore",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Presence at this logical substep, independent of value materialization. "
   }, {
     "name" : "forRebase",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change#forRebase",
@@ -941,5 +1013,11 @@
     "annotations" : [ ],
     "documentation" : null
   } ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "LazyBefore",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change$LazyBefore",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

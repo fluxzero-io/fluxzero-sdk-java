@@ -150,6 +150,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations",
     "kind" : "record"
   }, {
+    "file" : "ModelGraphResolver.Revision.json",
+    "name" : "ModelGraphResolver.Revision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Revision",
+    "kind" : "record"
+  }, {
     "file" : "ModelGraphResolver.Value.json",
     "name" : "ModelGraphResolver.Value",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Value",
