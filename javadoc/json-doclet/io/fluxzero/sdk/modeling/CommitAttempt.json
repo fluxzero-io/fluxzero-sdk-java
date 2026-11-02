@@ -2351,7 +2351,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Internal single-document loading provenance; copies share the same one-time verification. "
+    "documentation" : "Internal single-Model loading provenance; copies share the same one-time verification. "
   }, {
     "name" : "withGraphReads",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#withGraphReads",

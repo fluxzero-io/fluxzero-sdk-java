@@ -1799,6 +1799,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "loadCascadeRelations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadCascadeRelations",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Relations",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "staged",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Entity<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads a complete descendant metadata closure for cascade preparation without reconstructing its values. "
+  }, {
     "name" : "loadContext",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadContext",
     "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
@@ -3920,6 +3946,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "verifyCurrentModelBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#verifyCurrentModelBoundary",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expectedStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Internal single-Model snapshot promotion before reading additional transactional dependencies. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

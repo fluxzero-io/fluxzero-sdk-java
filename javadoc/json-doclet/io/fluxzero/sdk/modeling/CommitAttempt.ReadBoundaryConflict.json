@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "final", "public", "static" ],
   "annotations" : [ ],
-  "documentation" : "Internal signal: no commit was submitted, but a document used during evaluation has changed. ",
+  "documentation" : "Internal signal: no commit was submitted, but a Model used during evaluation has changed. ",
   "typeParameters" : [ ],
   "superClass" : "java.lang.RuntimeException",
   "interfaces" : [ ],
