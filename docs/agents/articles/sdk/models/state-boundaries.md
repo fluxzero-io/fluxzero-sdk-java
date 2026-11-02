@@ -48,12 +48,30 @@ submission, without reevaluation even under RETRY or provisional batch dependenc
 original commit ID, unavailable canonical Model ID and pinned read index; `result` is null because no storage response
 exists. Ordinary storage conflicts instead have `result` and no `readConflict`, retaining normal conflict handling.
 
+Cascade preparation follows stored owning relationships with the commit's final parent changes overlaid, including
+a final no-op after an earlier move. It reconstructs the deleted roots and reached descendants together; other Apply
+targets do not expand their unrelated branches. Migrate existing relationships when changing their stored ownership;
+changing `@Parent` alone does not rewrite them. Current SDK parent constraints are checked before following older
+owning edges, so a newly added deletion protection still applies. Runtime validation detects children attached or moved
+after the pinned boundary and invokes the configured conflict handling.
+
+Cascade preparation reads the first child frontier directly, then fetches complete stored descendant subtrees only
+for reached cascade children. A deep unchanged cascade therefore needs two graph requests rather than one per level.
+A final or pending move can expose a subtree outside that metadata and
+require another request. Non-owning descendants may contribute metadata, but their values remain unloaded unless
+another validation needs them. Only collections actually fetched and retained after overlays count as complete.
+
 ## Model cache tracking
 
 Current Model loads can use cache entries whose state has been validated against the model store. The SDK starts
 boundary observation asynchronously and maintains one tracking loop per cache tracker; concurrent first loads do
 not create additional loops or reset its cursor. A transient initial failure leaves current loads on the ordinary
 store-validation path and allows a later load to retry initialization.
+
+An unchanged cached parent does not prove that its child relationships are current. Eligible single-target writes
+with built-in RETRY can reuse a cached event-sourced parent without an extra store read. If deletion or another
+transactional dependency later needs a fresh boundary, the SDK first verifies the parent's exact revision; a changed
+revision triggers eager reevaluation within the normal retry budget. Constrained child writes retain eager validation.
 
 Update pages use an exclusive cursor and strictly increasing state indices. Empty heartbeats retain that cursor;
 fixed or backwards-moving fixture clocks do not permit repeated indices. If tracking fails, current loads validate

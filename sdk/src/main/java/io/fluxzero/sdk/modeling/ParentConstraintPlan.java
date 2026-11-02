@@ -70,6 +70,13 @@ final class ParentConstraintPlan {
         return attempt;
     }
 
+    boolean requiresStorageBoundary(Class<?> modelType) {
+        // A current value proof for one Model does not establish current parent or child membership.
+        return !EntityMetadata.of(modelType).constrainedParentReferences().isEmpty()
+               || protectedReferences().stream().anyMatch(declaration -> declaration.reference().parentModelTypes()
+                       .stream().anyMatch(parentType -> EntityMetadata.compatibleTypes(parentType, modelType)));
+    }
+
     boolean requiresValidation(CommitAttempt attempt) {
         boolean deletion = false;
         for (CommitAttempt.Step step : attempt.steps()) {

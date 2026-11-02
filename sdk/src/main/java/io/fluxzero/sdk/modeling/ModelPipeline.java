@@ -21,6 +21,8 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -35,6 +37,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
+import io.fluxzero.sdk.persisting.repository.ModelGraphResolver;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.Invocation;
@@ -440,18 +443,18 @@ final class ModelPipeline {
             repository.invalidateModels(List.of(conflict.conflict().getModelId()));
             if (original == null) { request.message().withoutContext(CommitAttempt.class); }
             else { original.attachTo(request.message()); }
-            request.message().putContext(EagerDocumentBoundary.class, EagerDocumentBoundary.INSTANCE);
+            request.message().putContext(EagerReadBoundary.class, EagerReadBoundary.INSTANCE);
             try {
                 CommitAttempt result = evaluate(request, attempt, true, batched);
                 result.preparationRetries(1);
                 return result;
             } finally {
-                request.message().withoutContext(EagerDocumentBoundary.class);
+                request.message().withoutContext(EagerReadBoundary.class);
             }
         }
     }
 
-    private enum EagerDocumentBoundary { INSTANCE }
+    private enum EagerReadBoundary { INSTANCE }
 
     private CommitAttempt evaluate(
             ExecutionRequest request,
@@ -984,51 +987,84 @@ final class ModelPipeline {
             return evaluation;
         }
         evaluation.ensureReadBoundary();
-        LinkedHashMap<String, CascadeNode> nodes = new LinkedHashMap<>();
+        ModelReadBoundary boundary = ModelReadBoundary.state(
+                evaluation.readStateIndex(), !evaluation.readsDurableStateOnly());
+        ModelBatchScope.Snapshot snapshot = repository.graphStagedValues(boundary);
+        snapshot.readRelationships();
+        Map<String, ModelGraphResolver.ModelNode> models = new LinkedHashMap<>();
+        Map<String, Entity<?>> constrainedValues = new LinkedHashMap<>();
+        Map<String, List<ModelGraphEdge>> storedChildren = new LinkedHashMap<>();
         LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>();
-
-        for (String rootId : explicitlyDeleted) {
-            Class<?> rootType = modelType(
-                    rootId, evaluation, latestTransitions);
-            if (rootType == null) {
-                continue;
+        Map<String, List<ModelGraphEdge>> finalChildren = new LinkedHashMap<>();
+        latestTransitions.values().forEach(change -> {
+            repository.modelName(change.modelType());
+            if (change.after() != null) {
+                EntityMetadata.validate(change.modelType()).parentRelationships(change.modelId(), change.after()).stream()
+                        .filter(parent -> parent.deleteOnParentDeletion())
+                        .map(parent -> parent.asGraphEdge(change.modelId()))
+                        .forEach(edge -> finalChildren.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>())
+                                .add(edge));
             }
-            Graph<?> graph = repository.loadGraph(
-                    rootId, rootType,
-                    io.fluxzero.common.api.modeling.ModelReadBoundary.state(
-                            evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
-                    Graph.Options.DEFAULT);
-            addCascadeGraph(nodes, edges, graph);
-        }
-
-        for (Change transition : latestTransitions.values()) {
-            if (transition.before() != null && transition.after() != null
-                && !nodes.containsKey(transition.modelId())) {
-                addCascadeGraph(
-                        nodes, edges,
-                        repository.loadGraph(
-                                transition.modelId(), transition.modelType(),
-                                io.fluxzero.common.api.modeling.ModelReadBoundary.state(
-                                        evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
-                                Graph.Options.DEFAULT));
+        });
+        Set<String> cascaded = new LinkedHashSet<>(ModelRelationshipQueries.descendants(explicitlyDeleted, frontier -> {
+            List<String> missing = frontier.stream().filter(parent -> !storedChildren.containsKey(parent)).toList();
+            if (!missing.isEmpty()) {
+                // Keep the first frontier narrow; only known cascade children need recursive metadata.
+                ModelGraphResolver.Relations relations = storedChildren.isEmpty()
+                        ? repository.loadGraphRelations(missing, ModelRelationshipRead.Direction.CHILDREN,
+                                                        boundary, snapshot.values(), false)
+                        : repository.loadCascadeRelations(missing, boundary, snapshot.values());
+                models.putAll(relations.models());
+                relations.completeCollections().forEach(parent -> storedChildren.put(parent, new ArrayList<>()));
+                relations.edges().stream().filter(edge -> relations.completeCollections().contains(edge.getParentId()))
+                        .forEach(edge -> storedChildren.get(edge.getParentId()).add(edge));
             }
-        }
-        overlayFinalValues(latestTransitions, nodes, edges);
-        LinkedHashSet<String> cascaded = new LinkedHashSet<>(
-                ModelRelationshipQueries.ownedDescendants(explicitlyDeleted, edges));
-        cascaded.removeAll(explicitlyDeleted);
+            List<ModelGraphEdge> children = new ArrayList<>();
+            frontier.stream().flatMap(parent -> storedChildren.getOrDefault(parent, List.of()).stream())
+                    .filter(ModelGraphEdge::isDeleteOnParentDeletion)
+                    .filter(edge -> !latestTransitions.containsKey(edge.getChildId()))
+                    .filter(edge -> {
+                        ModelGraphResolver.ModelNode model = models.get(edge.getChildId());
+                        if (model.knownType() == null
+                            || EntityMetadata.of(model.knownType()).constrainedParentReferences().isEmpty()) {
+                            return true;
+                        }
+                        // SDK-local protection can be newer than the stored owning policy. Validate the current
+                        // declaration before deleting the child, otherwise the later parent check would see no survivor.
+                        Entity<?> child = constrainedValues.computeIfAbsent(model.id(), ignored -> model.entity().get());
+                        return EntityMetadata.of(child.type()).parentRelationships(model.id(), child.get()).stream()
+                                .anyMatch(parent -> parent.deleteOnParentDeletion()
+                                        && parent.parentId().equals(edge.getParentId()));
+                    }).forEach(children::add);
+            frontier.forEach(parent -> children.addAll(finalChildren.getOrDefault(parent, List.of())));
+            edges.addAll(children);
+            return children.stream().map(ModelGraphEdge::getChildId).toList();
+        }));
+        Map<String, Class<?>> types = new LinkedHashMap<>();
+        explicitlyDeleted.forEach(id -> types.put(id, latestTransitions.get(id).modelType()));
+        cascaded.forEach(id -> {
+            Change change = latestTransitions.get(id);
+            ModelGraphResolver.ModelNode model = models.get(id);
+            types.put(id, change != null ? change.modelType()
+                    : model.knownType() != null ? model.knownType() : model.entity().get().type());
+        });
+        // Verify the pinned values, including explicitly deleted DOCUMENT roots, before applying batch/final values.
+        // A lost document version remains a terminal preparation conflict, even when no child is cascaded.
+        Map<String, Entity<?>> values = repository.loadGraphValues(types, boundary, Map.of(), false);
         if (cascaded.isEmpty()) {
+            // The Runtime must still detect children attached after this read boundary.
             evaluation.cascadeRoots(explicitlyDeleted);
             return evaluation;
         }
 
         List<Change> transitions = cascaded.stream()
-                .map(nodes::get)
-                .filter(Objects::nonNull)
-                .map(node -> Change.applied(
-                        node.modelId(), node.modelType(),
-                        node.sequenceNumber(), node.lastEventIndex(),
-                        node.value(), null, null, null, true))
+                .map(id -> {
+                    Entity<?> stored = values.get(id);
+                    Entity<?> staged = snapshot.values().getOrDefault(id, stored);
+                    Change change = latestTransitions.get(id);
+                    return Change.applied(id, types.get(id), stored.sequenceNumber(), stored.lastEventIndex(),
+                            change == null ? staged.get() : change.after(), null, null, null, true);
+                })
                 .toList();
         List<CommitAttempt.Step> steps =
                 new ArrayList<>(evaluation.steps());
@@ -1088,74 +1124,6 @@ final class ModelPipeline {
                 readModelTypes, steps);
         evaluation.cascadeRoots(explicitlyDeleted);
         return evaluation;
-    }
-
-    private static void addCascadeGraph(
-            Map<String, CascadeNode> nodes,
-            Set<ModelGraphEdge> edges,
-            Graph<?> graph) {
-        List<Graph<?>> members = new ArrayList<>();
-        members.add(graph);
-        members.addAll(graph.descendants(Object.class));
-        for (Graph<?> member : members) {
-            String modelId = member.id().toString();
-            nodes.putIfAbsent(
-                    modelId,
-                    new CascadeNode(
-                            modelId, member.type(), member.get(),
-                            member.sequenceNumber(), member.lastEventIndex()));
-            if (member.get() != null) {
-                Graphs.addParentEdges(
-                        modelId, member.type(), member.get(), edges);
-            }
-        }
-    }
-
-    private static void overlayFinalValues(
-            Map<String, Change> latestTransitions,
-            Map<String, CascadeNode> nodes,
-            Set<ModelGraphEdge> edges) {
-        edges.removeIf(edge -> latestTransitions.containsKey(edge.getChildId()));
-        latestTransitions.forEach((modelId, transition) -> {
-            Object value = transition.after();
-            if (value == null) {
-                return;
-            }
-            Graphs.addParentEdges(
-                    modelId, transition.modelType(), value, edges);
-            CascadeNode known = nodes.get(modelId);
-            Class<?> type = transition.modelType();
-            if (type == null) {
-                type = value.getClass();
-            }
-            nodes.put(
-                    modelId,
-                    new CascadeNode(
-                            modelId, type, value,
-                            known != null ? known.sequenceNumber()
-                                    : transition.beforeSequenceNumber(),
-                            known != null ? known.lastEventIndex()
-                                    : transition.beforeLastEventIndex()));
-        });
-    }
-
-    private static Class<?> modelType(
-            String modelId,
-            CommitAttempt evaluation,
-            Map<String, Change> transitions) {
-        Change transition =
-                transitions.get(modelId);
-        return transition == null
-                ? evaluation.readModelTypes().get(modelId)
-                : transition.modelType();
-    }
-
-    private record CascadeNode(
-            String modelId,
-            Class<?> modelType,
-            Object value,
-            long sequenceNumber,
-            Long lastEventIndex) {
     }
 
     record ExplicitModelTarget(String modelId, Class<?> modelType) {
@@ -1243,7 +1211,7 @@ final class ModelPipeline {
             MutationPlan definition = definitionFor(substep);
             requiresStorageBoundary |= definition.reducer().requiresStorageBoundary();
             permitsDeferredBoundary = substep == directMessage && definition.reducer().permitsDeferredBoundary()
-                    && substep.getContext(EagerDocumentBoundary.class).isEmpty();
+                    && substep.getContext(EagerReadBoundary.class).isEmpty();
             if (substep == directMessage
                 && prefetched != null
                 && prefetched.entity != null
@@ -1255,6 +1223,11 @@ final class ModelPipeline {
                         target.sourceProperties(), prefetched.entity);
                 if (DeserializingMessage.getMessageBatchIndex() >= 0) {
                     context = repository.overlayPendingContext(context);
+                }
+                if (prefetched.deferBoundary) {
+                    context.withDeferredBoundary(() -> repository.verifyCurrentModelBoundary(
+                            target.modelId(), prefetched.modelStateIndex));
+                    deferredContext = context;
                 }
                 commitEntities.put(target.modelId(), context.entity(target.modelId()));
                 return new ModelReducer.ResolvedSubstep(context, definition.reducer());
@@ -1270,7 +1243,8 @@ final class ModelPipeline {
             if (boundary == null && !applyOnly && !requiresStorageBoundary) {
                 for (MutationPlan.ResolvedModel target : resolution.models()) {
                     if ((assertionsOnly || target.access().writes())
-                        && definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                        && (parentConstraints.requiresStorageBoundary(target.modelType())
+                            || definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly))) {
                         // A child cache cursor does not prove that a later-read ancestor is still current.
                         // Standalone assertions have no commit conflict check to repair a stale successful result.
                         requiresStorageBoundary = true;
@@ -1280,7 +1254,8 @@ final class ModelPipeline {
             }
             if (boundary == null && !applyOnly && !requiresStorageBoundary) {
                 for (MutationPlan.DeferredWriteTarget target : resolution.deferredWrites()) {
-                    if (definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                    if (parentConstraints.requiresStorageBoundary(target.modelType())
+                        || definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
                         // Result-bound writes can have only read-only inputs until Apply selects the actual target.
                         requiresStorageBoundary = true;
                         break;
@@ -1713,19 +1688,33 @@ final class ModelPipeline {
         MutationPlan.ResolvedModel target = targets.resolveSingle(message);
         if (target.access().writes()
             && definition.reducer().requiresCascadeStorageBoundary(message, target.modelType(), false)) { return null; }
+        EntityMetadata metadata = EntityMetadata.validate(target.modelType());
+        var configuration = metadata.rootConfiguration().orElseThrow();
+        boolean deferBoundary = target.access().writes() && parentConstraints.requiresStorageBoundary(target.modelType());
+        if (deferBoundary && (!metadata.constrainedParentReferences().isEmpty()
+                             || !Modifier.isFinal(target.modelType().getModifiers()) || metadata.hasAliases()
+                             || !definition.reducer().permitsDeferredBoundary()
+                             || DeserializingMessage.getMessageBatchIndex() >= 0
+                             || message.getContext(EagerReadBoundary.class).isPresent()
+                             || conflictPolicy != ModelConflictPolicy.RETRY || maxConflictRetries == 0
+                             || conflictResolver != DefaultModelConflictResolver.INSTANCE
+                             || configuration.conflictPolicy() != ModelConflictPolicy.DEFAULT
+                                && configuration.conflictPolicy() != ModelConflictPolicy.RETRY)) { return null; }
         // A cached document alone cannot establish the initial namespace boundary for later manual Graph reads.
-        return EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()
-                ? new PrefetchSlot(target) : null;
+        return configuration.eventSourced() ? new PrefetchSlot(target, deferBoundary) : null;
     }
 
     private static final class PrefetchSlot
             implements DefaultModelRepository.CurrentModelSink {
         private final MutationPlan.ResolvedModel target;
+        private final boolean deferBoundary;
         private Entity<?> entity;
         private long stateIndex;
+        private long modelStateIndex;
 
-        private PrefetchSlot(MutationPlan.ResolvedModel target) {
+        private PrefetchSlot(MutationPlan.ResolvedModel target, boolean deferBoundary) {
             this.target = target;
+            this.deferBoundary = deferBoundary;
         }
 
         @Override
@@ -1735,6 +1724,7 @@ final class ModelPipeline {
                 long modelStateIndex) {
             this.entity = entity;
             this.stateIndex = validThrough;
+            this.modelStateIndex = modelStateIndex;
         }
     }
 

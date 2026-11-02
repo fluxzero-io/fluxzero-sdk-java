@@ -33,6 +33,7 @@ import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.modeling.ModelRelationshipQueries;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -1484,8 +1485,14 @@ final class ModelReplayCursor {
     ModelGraphResolver.Relations graphRelations(
             List<String> modelIds, ModelRelationshipRead.Direction direction,
             ModelReadBoundary boundary, Map<String, Entity<?>> staged, boolean historical) {
+        return graphRelations(modelIds, direction, boundary, staged, historical, false);
+    }
+
+    ModelGraphResolver.Relations graphRelations(
+            List<String> modelIds, ModelRelationshipRead.Direction direction,
+            ModelReadBoundary boundary, Map<String, Entity<?>> staged, boolean historical, boolean recursive) {
         GetModelGraphResult response = getModelGraph(new GetModelGraph(
-                modelIds, boundary, direction == ModelRelationshipRead.Direction.CHILDREN ? 1 : -1, -1, 0, 0L,
+                modelIds, boundary, direction == ModelRelationshipRead.Direction.CHILDREN && !recursive ? 1 : -1, -1, 0, 0L,
                 direction == ModelRelationshipRead.Direction.CHILDREN
                         ? GetModelGraph.TraversalDirection.DESCENDANTS : GetModelGraph.TraversalDirection.ANCESTORS,
                 false));
@@ -1509,8 +1516,15 @@ final class ModelReplayCursor {
         });
         LinkedHashSet<String> selected = new LinkedHashSet<>(roots);
         if (direction == ModelRelationshipRead.Direction.CHILDREN) {
-            edges.removeIf(edge -> !roots.contains(edge.getParentId())
-                    || staged.containsKey(edge.getParentId()) && staged.get(edge.getParentId()).get() == null);
+            edges.removeIf(edge -> staged.containsKey(edge.getParentId()) && staged.get(edge.getParentId()).get() == null);
+            if (recursive && !edges.isEmpty()) {
+                Map<String, List<String>> children = new LinkedHashMap<>();
+                edges.forEach(edge -> children.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>())
+                        .add(edge.getChildId()));
+                selected.addAll(ModelRelationshipQueries.descendants(roots, frontier -> frontier.stream()
+                        .flatMap(parent -> children.getOrDefault(parent, List.of()).stream()).toList()));
+            }
+            edges.removeIf(edge -> !selected.contains(edge.getParentId()));
         } else {
             Graphs.ancestors(roots, edges, -1, -1).forEach(ancestor -> selected.add(ancestor.id()));
             edges.removeIf(edge -> !selected.contains(edge.getChildId()));
@@ -1549,7 +1563,8 @@ final class ModelReplayCursor {
                                        || boundary.before() && head.getStateIndex() == stateIndex)) {
                 String name = head.getModelType();
                 Class<?> type = modelTypeResolver.knownModelType(name, id).orElse(null);
-                if (type != null) {
+                // A recursive metadata closure may contain contracts outside the eventual cascade.
+                if (type != null && !recursive) {
                     EntityMetadata.validate(type);
                 }
                 nodes.put(id, new ModelGraphResolver.ModelNode(id, name, type,
@@ -1594,9 +1609,10 @@ final class ModelReplayCursor {
                                   || staged.containsKey(edge.getParentId()) && staged.get(edge.getParentId()).get() == null);
         }
         Set<String> complete = new LinkedHashSet<>(roots);
-        if (direction == ModelRelationshipRead.Direction.PARENTS) {
+        if (recursive || direction == ModelRelationshipRead.Direction.PARENTS) {
             response.getEvents().getStreams().forEach(stream -> complete.add(stream.getModelId()));
-            complete.addAll(staged.keySet());
+            if (!recursive) { complete.addAll(staged.keySet()); }
+            // Staged-only nodes and subtrees hidden by the overlay have not supplied complete collections.
             complete.retainAll(selected);
         }
         return new ModelGraphResolver.Relations(pinned, nodes, edges, complete, historical);

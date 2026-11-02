@@ -1263,6 +1263,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return result;
     }
 
+    /** Reads a complete descendant metadata closure for cascade preparation without reconstructing its values. */
+    public ModelGraphResolver.Relations loadCascadeRelations(
+            List<String> modelIds, ModelReadBoundary boundary, Map<String, Entity<?>> staged) {
+        return replayCursor.graphRelations(modelIds,
+                io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction.CHILDREN, boundary, staged, false, true);
+    }
+
     @Override
     public <T> Graph<T> loadGraph(
             @NonNull String rootId,
@@ -1651,6 +1658,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return modelCacheTracker != null
                && modelCacheTracker.supplyCurrentVersion(
                        modelId, modelType, sink);
+    }
+
+    /** Internal single-Model snapshot promotion before reading additional transactional dependencies. */
+    public long verifyCurrentModelBoundary(String modelId, long expectedStateIndex) {
+        var current = replayCursor.loadHeads(List.of(modelId), ModelReadBoundary.current());
+        ModelHeadState head = current.heads().get(modelId);
+        if (head == null || head.getStateIndex() != expectedStateIndex) {
+            throw new CommitAttempt.ReadBoundaryConflict(modelId, current.stateIndex());
+        }
+        return current.stateIndex();
     }
 
     private CommitAttempt loadContext(
