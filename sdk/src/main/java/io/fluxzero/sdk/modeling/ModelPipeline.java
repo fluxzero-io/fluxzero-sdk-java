@@ -993,6 +993,7 @@ final class ModelPipeline {
         snapshot.readRelationships();
         Map<String, ModelGraphResolver.ModelNode> models = new LinkedHashMap<>();
         Map<String, Entity<?>> constrainedValues = new LinkedHashMap<>();
+        Map<String, List<ModelGraphEdge>> storedChildren = new LinkedHashMap<>();
         LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>();
         Map<String, List<ModelGraphEdge>> finalChildren = new LinkedHashMap<>();
         latestTransitions.values().forEach(change -> {
@@ -1006,11 +1007,21 @@ final class ModelPipeline {
             }
         });
         Set<String> cascaded = new LinkedHashSet<>(ModelRelationshipQueries.descendants(explicitlyDeleted, frontier -> {
-            ModelGraphResolver.Relations relations = repository.loadGraphRelations(
-                    List.copyOf(frontier), ModelRelationshipRead.Direction.CHILDREN, boundary, snapshot.values(), false);
-            models.putAll(relations.models());
+            List<String> missing = frontier.stream().filter(parent -> !storedChildren.containsKey(parent)).toList();
+            if (!missing.isEmpty()) {
+                // Keep the first frontier narrow; only known cascade children need recursive metadata.
+                ModelGraphResolver.Relations relations = storedChildren.isEmpty()
+                        ? repository.loadGraphRelations(missing, ModelRelationshipRead.Direction.CHILDREN,
+                                                        boundary, snapshot.values(), false)
+                        : repository.loadCascadeRelations(missing, boundary, snapshot.values());
+                models.putAll(relations.models());
+                relations.completeCollections().forEach(parent -> storedChildren.put(parent, new ArrayList<>()));
+                relations.edges().stream().filter(edge -> relations.completeCollections().contains(edge.getParentId()))
+                        .forEach(edge -> storedChildren.get(edge.getParentId()).add(edge));
+            }
             List<ModelGraphEdge> children = new ArrayList<>();
-            relations.edges().stream().filter(ModelGraphEdge::isDeleteOnParentDeletion)
+            frontier.stream().flatMap(parent -> storedChildren.getOrDefault(parent, List.of()).stream())
+                    .filter(ModelGraphEdge::isDeleteOnParentDeletion)
                     .filter(edge -> !latestTransitions.containsKey(edge.getChildId()))
                     .filter(edge -> {
                         ModelGraphResolver.ModelNode model = models.get(edge.getChildId());

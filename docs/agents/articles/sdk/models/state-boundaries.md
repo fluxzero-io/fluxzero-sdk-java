@@ -55,6 +55,12 @@ changing `@Parent` alone does not rewrite them. Current SDK parent constraints a
 owning edges, so a newly added deletion protection still applies. Runtime validation detects children attached or moved
 after the pinned boundary and invokes the configured conflict handling.
 
+Cascade preparation reads the first child frontier directly, then fetches complete stored descendant subtrees only
+for reached cascade children. A deep unchanged cascade therefore needs two graph requests rather than one per level.
+A final or pending move can expose a subtree outside that metadata and
+require another request. Non-owning descendants may contribute metadata, but their values remain unloaded unless
+another validation needs them. Only collections actually fetched and retained after overlays count as complete.
+
 ## Model cache tracking
 
 Current Model loads can use cache entries whose state has been validated against the model store. The SDK starts

@@ -1263,6 +1263,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return result;
     }
 
+    /** Reads a complete descendant metadata closure for cascade preparation without reconstructing its values. */
+    public ModelGraphResolver.Relations loadCascadeRelations(
+            List<String> modelIds, ModelReadBoundary boundary, Map<String, Entity<?>> staged) {
+        return replayCursor.graphRelations(modelIds,
+                io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction.CHILDREN, boundary, staged, false, true);
+    }
+
     @Override
     public <T> Graph<T> loadGraph(
             @NonNull String rootId,

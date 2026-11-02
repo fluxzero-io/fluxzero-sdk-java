@@ -16,6 +16,7 @@ import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -170,6 +171,124 @@ class ModelCascadePreparationTest {
                         assertNotNull(Fluxzero.loadModel(id, Branch.class).get(), id);
                     }
                 });
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,50", "11,1", "35,1"})
+    void cascadeMetadataRequestsDoNotGrowWithDepth(int depth, int width) {
+        CountingClient client = new CountingClient();
+        try (Fluxzero app = application(client)) {
+            app.registerHandlers(ModelCascadePreparationBenchmark.TreeNode.class);
+            commit(app, new PutRoot("root", true));
+            commit(app, new CreateScratch("scratch"));
+            commit(app, new ModelCascadePreparationBenchmark.SeedTree("scratch", width, depth, 0, false));
+            app.cache().clear();
+            client.reset();
+            commit(app, new Complete("scratch", "root", "receipt", false));
+            assertEquals(2, client.graphRequests.size());
+            assertEquals(1, client.commits.size());
+            app.cache().clear();
+            app.apply(fc -> {
+                for (int branch = 0; branch < width; branch++) {
+                    for (int level = 0; level < depth; level++) {
+                        assertNull(Fluxzero.loadModel("scratch/" + branch + "/" + level,
+                                                      ModelCascadePreparationBenchmark.TreeNode.class).get());
+                    }
+                }
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void aDeepNonOwningSubtreeRemainsMetadataOnlyWithoutItsLocalModelContract(boolean nested) {
+        CountingClient client = new CountingClient();
+        try (Fluxzero app = application(client); Fluxzero writer = application(client)) {
+            commit(app, new PutBranch("root", null, null));
+            commit(app, new PutBranch("owned", "root", null));
+            String parent = null;
+            for (int level = 0; level < 20; level++) {
+                String id = "retained-" + level;
+                commit(writer, new PutRetained(id, parent, parent == null ? nested ? "owned" : "root" : null));
+                parent = id;
+            }
+            ((DefaultModelRepository) app.modelRepository()).configureModelTypes(() -> List.of(Branch.class));
+            app.cache().clear();
+            client.reset();
+            commit(app, new DeleteBranch("root"));
+            assertEquals(2, client.graphRequests.size());
+            assertTrue(client.graphRoots.stream().noneMatch(id -> id.startsWith("retained-")),
+                       client.graphRoots::toString);
+            assertEquals(nested, client.graphResults.stream().flatMap(r -> r.getEvents().getStreams().stream())
+                    .anyMatch(stream -> stream.getModelId().equals("retained-19")),
+                         "Only recursive metadata below a reached child may include non-owning descendants");
+            assertTrue(client.eventStreams.stream().noneMatch(id -> id.startsWith("retained-")),
+                       client.eventStreams::toString);
+            writer.cache().clear();
+            writer.apply(fc -> {
+                assertNull(Fluxzero.loadModel("owned", Branch.class).get());
+                for (int level = 0; level < 20; level++) {
+                    assertNotNull(Fluxzero.loadModel("retained-" + level, Retained.class).get());
+                }
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void aFinalMoveBackIntoTheCascadeRetainsChildrenHiddenByAnEarlierPendingMove(boolean initiallyInside) {
+        CountingClient client = new CountingClient();
+        CompletableFuture<Void> gate = new CompletableFuture<>();
+        AtomicReference<CompletableFuture<?>> move = new AtomicReference<>(), deletion = new AtomicReference<>();
+        try (Fluxzero app = application(client)) {
+            app.registerHandlers(Branch.class);
+            commit(app, new PutBranch("deleted", null, null));
+            commit(app, new PutBranch("retained", null, null));
+            commit(app, new PutBranch("child", initiallyInside ? "deleted" : "retained", null));
+            commit(app, new PutBranch("grandchild", "child", null));
+            app.apply(fc -> {
+                var messages = List.of("move", "delete").stream().map(value -> {
+                    var message = new DeserializingMessage(new Message(value), io.fluxzero.common.MessageType.COMMAND,
+                                                           fc.serializer());
+                    message.getSerializedObject().setSegment(17);
+                    return message;
+                }).toList();
+                DeserializingMessage.forEachInBatch(messages, message -> {
+                    if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                        client.commitGate = gate;
+                        move.set(fc.executeModelCommit(new Message(new PutBranch("child",
+                                initiallyInside ? "retained" : "deleted", null))));
+                        client.commitGate = null;
+                        assertFalse(move.get().isDone());
+                    } else {
+                        try {
+                            deletion.set(fc.executeModelCommit(new Message(new MoveThenDelete("deleted", "child"))));
+                            assertFalse(deletion.get().isDone());
+                            assertNull(Fluxzero.loadModel("grandchild", Branch.class).get(),
+                                       "The provisional cascade must include descendants hidden by the earlier move");
+                        } finally {
+                            gate.complete(null);
+                        }
+                    }
+                });
+                return null;
+            });
+            move.get().join();
+            deletion.get().join();
+            app.cache().clear();
+            app.apply(fc -> {
+                for (String id : List.of("deleted", "child", "grandchild")) {
+                    assertNull(Fluxzero.loadModel(id, Branch.class).get(), id);
+                }
+                assertNotNull(Fluxzero.loadModel("retained", Branch.class).get());
+                return null;
+            });
+        } finally {
+            client.commitGate = null;
+            gate.complete(null);
+        }
     }
 
     @ParameterizedTest
@@ -483,6 +602,7 @@ class ModelCascadePreparationTest {
     static class CountingClient extends LocalClient {
         final List<String> graphRoots = new CopyOnWriteArrayList<>();
         final List<GetModelGraph> graphRequests = new CopyOnWriteArrayList<>();
+        final List<GetModelGraphResult> graphResults = new CopyOnWriteArrayList<>();
         final List<String> eventStreams = new CopyOnWriteArrayList<>();
         final List<CommitModels> commits = new CopyOnWriteArrayList<>();
         final AtomicLong eventCount = new AtomicLong(), eventBytes = new AtomicLong();
@@ -495,7 +615,7 @@ class ModelCascadePreparationTest {
         CountingClient() { super(null); }
 
         void reset() {
-            graphRoots.clear(); graphRequests.clear(); eventStreams.clear(); commits.clear();
+            graphRoots.clear(); graphRequests.clear(); graphResults.clear(); eventStreams.clear(); commits.clear();
             eventCount.set(0); eventBytes.set(0);
         }
 
@@ -520,6 +640,7 @@ class ModelCascadePreparationTest {
                         try {
                             Object result = method.invoke(delegate, arguments);
                             if (method.getName().equals("getModelGraph")) {
+                                graphResults.add((GetModelGraphResult) result);
                                 afterGraph.accept((GetModelGraph) arguments[0]);
                             }
                             if (method.getName().equals("commitModels") && loseNextResponse.compareAndSet(true, false)) {
@@ -561,6 +682,13 @@ class ModelCascadePreparationTest {
     @Model(searchable = false)
     record Protected(@EntityId String protectedId,
                      @Parent(value = Branch.class, preventParentDeletion = true) String branchId) {}
+    @Model(searchable = false, name = "retained-branch")
+    record Retained(@EntityId String retainedId, @Parent(Retained.class) String parentId,
+                    @Parent(value = Branch.class, deleteOnParentDeletion = false) String branchId) {}
+
+    record PutRetained(String retainedId, String parentId, String branchId) {
+        @Apply Retained apply() { return new Retained(retainedId, parentId, branchId); }
+    }
 
     record PutProtected(String protectedId, String branchId) {
         @Apply Protected apply() { return new Protected(protectedId, branchId); }
