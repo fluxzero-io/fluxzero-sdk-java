@@ -22,7 +22,7 @@
         <logback.version>1.6.6</logback.version>
         <fluxzero.maven.plugin.version>1.19.3</fluxzero.maven.plugin.version>
         <maven.deploy.version>3.2.0</maven.deploy.version>
-        <maven.enforcer.version>3.6.3</maven.enforcer.version>
+        <maven.enforcer.version>3.7.0</maven.enforcer.version>
         <maven.install.version>3.2.0</maven.install.version>
         <maven.resources.version>3.5.0</maven.resources.version>
         <maven.surefire.version>3.6.1</maven.surefire.version>
