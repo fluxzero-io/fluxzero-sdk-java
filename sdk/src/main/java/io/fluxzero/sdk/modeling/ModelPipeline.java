@@ -1050,12 +1050,14 @@ final class ModelPipeline {
         });
         // Verify the pinned values, including explicitly deleted DOCUMENT roots, before applying batch/final values.
         // A lost document version remains a terminal preparation conflict, even when no child is cascaded.
-        Map<String, ModelGraphResolver.Revision> revisions = repository.loadGraphRevisions(types, boundary);
         if (cascaded.isEmpty()) {
+            repository.loadGraphValues(types, boundary, Map.of(), false);
             // The Runtime must still detect children attached after this read boundary.
             evaluation.cascadeRoots(explicitlyDeleted);
             return evaluation;
         }
+
+        Map<String, ModelGraphResolver.Revision> revisions = repository.loadGraphRevisions(types, boundary);
 
         List<Change> transitions = cascaded.stream()
                 .map(id -> {
