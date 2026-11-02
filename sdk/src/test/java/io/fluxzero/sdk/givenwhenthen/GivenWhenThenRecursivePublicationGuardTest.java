@@ -15,12 +15,17 @@
 package io.fluxzero.sdk.givenwhenthen;
 
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.ModelDeadlineUpdate;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.publishing.RecursivePublicationException;
 import io.fluxzero.sdk.publishing.RecursivePublicationGuard;
+import io.fluxzero.sdk.scheduling.Deadline;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.scheduling.ScheduledCommand;
 import io.fluxzero.sdk.test.TestFixture;
@@ -32,6 +37,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -163,6 +169,28 @@ class GivenWhenThenRecursivePublicationGuardTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
+    void commandModelDeadlineStartsANewBranchWhenPreparedAtTheCurrentDepthLimit(boolean async) {
+        var deferredHandler = new DeferredCommandHandler();
+        var builder = DefaultFluxzero.builder().setMaxPublicationDepth(2);
+        Object[] handlers = {DeadlineOwner.class, new FirstPublicationStepHandler(),
+                new SecondPublicationStepHandler(), new CreateModelDeadlineAtDepthLimitHandler(), deferredHandler};
+        var fixture = async ? TestFixture.createAsync(builder, handlers) : TestFixture.create(builder, handlers);
+
+        fixture.whenCommand(new FirstPublicationStep())
+                .expectNoErrors()
+                .expectThat(fc -> {
+                    var schedule = fc.messageScheduler().getSchedule(
+                            ModelDeadlineUpdate.scheduleId("deadline-owner", "default")).orElseThrow();
+                    var scheduledCommand = assertInstanceOf(ScheduledCommand.class, schedule.getPayload());
+                    assertEquals("0", scheduledCommand.getCommand().getMetadata().get(
+                            RecursivePublicationGuard.PUBLICATION_DEPTH_METADATA_KEY));
+                });
+        fixture.whenTimeElapses(Duration.ofSeconds(1)).expectNoErrors()
+                .expectThat(fc -> assertEquals(1, deferredHandler.invocations.get()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     void ordinaryScheduleCanStartANewBranchAtTheCurrentDepthLimit(boolean async) {
         var builder = DefaultFluxzero.builder().setMaxPublicationDepth(2);
         Object[] handlers = {new FirstPublicationStepHandler(), new SecondPublicationStepHandler(),
@@ -214,6 +242,14 @@ class GivenWhenThenRecursivePublicationGuardTest {
         }
     }
 
+    private static class CreateModelDeadlineAtDepthLimitHandler {
+        @HandleCommand
+        void handle(FinalPublicationStep ignored) {
+            Fluxzero.assertAndApply(new CreateDeadlineOwner(
+                    "deadline-owner", Fluxzero.currentTime().plusSeconds(1)));
+        }
+    }
+
     private static class DeferredCommandHandler {
         private final AtomicInteger invocations = new AtomicInteger();
 
@@ -241,6 +277,21 @@ class GivenWhenThenRecursivePublicationGuardTest {
     }
 
     private record DeferredCommand() {
+    }
+
+    @Model(searchable = false)
+    private record DeadlineOwner(@EntityId String deadlineOwnerId, Instant deadline) {
+        @Deadline
+        Schedule commandDeadline() {
+            return new Schedule(new DeferredCommand(), deadline);
+        }
+    }
+
+    private record CreateDeadlineOwner(String deadlineOwnerId, Instant deadline) {
+        @Apply
+        DeadlineOwner apply() {
+            return new DeadlineOwner(deadlineOwnerId, deadline);
+        }
     }
 
     private static int depth(Message message) {
