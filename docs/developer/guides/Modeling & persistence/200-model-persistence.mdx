@@ -603,6 +603,9 @@ Logical parent deletion recursively deletes children whose relevant `@Parent` ke
 parent in the same atomic commit prevents that lifecycle cascade.
 Cascade preparation follows the final owning relationships without reconstructing unrelated branches of other Models
 touched by the commit.
+Event-sourced cascade values stay unloaded until a validation, deadline, alias or commit-coordination check needs them.
+The first such read reconstructs the selected deletions together, keeping event reads batched. DOCUMENT revisions are
+still verified at the pinned boundary even when no check reads their values.
 Ownership is stored with the relationship; changing `@Parent` alone does not migrate existing relationships.
 SDK parent constraints, including `preventParentDeletion`, still use the current Model contract.
 

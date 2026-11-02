@@ -81,7 +81,7 @@ final class ParentConstraintPlan {
         boolean deletion = false;
         for (CommitAttempt.Step step : attempt.steps()) {
             for (Change change : step.changes()) {
-                if (change.after() == null && change.before() != null) {
+                if (change.after() == null && change.existedBefore()) {
                     deletion = true;
                 }
                 if (change.after() != null
@@ -124,9 +124,9 @@ final class ParentConstraintPlan {
             for (Change change : step.changes()) {
                 result.compute(change.modelId(), (ignored, previous) -> previous == null
                         ? new FinalChange(change.modelId(), change.modelType(), change.metadata(),
-                                          change.before(), change.after())
+                                          change.existedBefore(), change.after())
                         : new FinalChange(change.modelId(), change.modelType(), change.metadata(),
-                                          previous.before(), change.after()));
+                                          previous.existedBefore(), change.after()));
             }
         }
         return result;
@@ -174,7 +174,7 @@ final class ParentConstraintPlan {
         private void validateDeletedParents() {
             List<ProtectedReference> protectedReferences = null;
             for (FinalChange parent : changes.values()) {
-                if (parent.before() == null || parent.after() != null) { continue; }
+                if (!parent.existedBefore() || parent.after() != null) { continue; }
                 if (protectedReferences == null) {
                     protectedReferences = ParentConstraintPlan.this.protectedReferences();
                 }
@@ -226,9 +226,7 @@ final class ParentConstraintPlan {
                 LinkedHashSet<String> result = new LinkedHashSet<>(baseline);
                 for (FinalChange child : changes.values()) {
                     if (!modelName.equals(repository.modelName(child.type()))) { continue; }
-                    if (related(child.id(), child.type(), child.before(), key)) {
-                        result.remove(child.id());
-                    }
+                    result.remove(child.id());
                     if (related(child.id(), child.type(), child.after(), key)) {
                         result.add(child.id());
                     }
@@ -266,7 +264,7 @@ final class ParentConstraintPlan {
     }
 
     private record FinalChange(
-            String id, Class<?> type, EntityMetadata metadata, Object before, Object after) {}
+            String id, Class<?> type, EntityMetadata metadata, boolean existedBefore, Object after) {}
     private record ParentKey(String id, Class<?> type) {}
     private record Scope(String parentId, Class<?> parentType, Class<?> childType, String path) {}
     private record ScopeState(int baselineCount, Set<String> finalIds) {}

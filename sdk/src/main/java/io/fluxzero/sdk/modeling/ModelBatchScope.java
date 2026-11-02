@@ -95,13 +95,10 @@ public final class ModelBatchScope {
         last.forEach((modelId, transition) -> {
             Change initial = first.get(modelId);
             Object value = transition.after();
-            Object previous = initial.before();
-            Class<?> type = value != null ? value.getClass()
-                    : previous != null ? previous.getClass()
-                            : transition.modelType();
+            Class<?> type = value != null ? value.getClass() : initial.beforeType();
             scope.stageModel(
                     repositoryOwner, producer,
-                    effectiveNamespace, modelId, type, previous, value,
+                    effectiveNamespace, modelId, type, initial.existedBefore(), initial.beforeAliases(), value,
                     initial.beforeSequenceNumber(), position, segment);
         });
     }
@@ -473,13 +470,14 @@ public final class ModelBatchScope {
             String namespace,
             String modelId,
             Class<?> modelType,
-            Object before,
+            boolean before,
+            List<String> previousAliases,
             Object after,
             long sequenceNumber,
             int position,
             int segment) {
         ConcurrentLinkedDeque<PendingValue> exact = candidates(repositoryOwner, namespace, modelId);
-        Set<String> beforeAliases = aliases(before, modelType);
+        Set<String> beforeAliases = previousAliases == null ? Set.of() : Set.copyOf(previousAliases);
         Set<String> afterAliases = aliases(after, modelType);
         PendingValue value = new PendingValue(
                 producer, modelId, modelType, after,
@@ -577,13 +575,13 @@ public final class ModelBatchScope {
     private static boolean existedBefore(
             Collection<PendingValue> candidates,
             String modelId,
-            Object before,
+            boolean before,
             int position,
             int segment) {
         PendingValue previous = visible(candidates, modelId, position, true);
         return previous != null && previous.segment() == segment
                && status(previous) == Status.PENDING
-                ? previous.existedBefore() : before != null;
+                ? previous.existedBefore() : before;
     }
 
     private static Set<String> aliases(Object value, Class<?> type) {

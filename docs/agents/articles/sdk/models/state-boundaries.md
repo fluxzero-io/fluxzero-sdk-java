@@ -49,8 +49,10 @@ original commit ID, unavailable canonical Model ID and pinned read index; `resul
 exists. Ordinary storage conflicts instead have `result` and no `readConflict`, retaining normal conflict handling.
 
 Cascade preparation follows stored owning relationships with the commit's final parent changes overlaid, including
-a final no-op after an earlier move. It reconstructs the deleted roots and reached descendants together; other Apply
-targets do not expand their unrelated branches. Migrate existing relationships when changing their stored ownership;
+a final no-op after an earlier move. Event-sourced values stay lazy until validation, deadlines, alias release or
+commit coordination consumes them; the first value read reconstructs the selected deletions in one shared batch.
+DOCUMENT revisions are still verified eagerly at the pinned boundary. Other Apply targets do not expand their
+unrelated branches. Migrate existing relationships when changing their stored ownership;
 changing `@Parent` alone does not rewrite them. Current SDK parent constraints are checked before following older
 owning edges, so a newly added deletion protection still applies. Runtime validation detects children attached or moved
 after the pinned boundary and invokes the configured conflict handling.

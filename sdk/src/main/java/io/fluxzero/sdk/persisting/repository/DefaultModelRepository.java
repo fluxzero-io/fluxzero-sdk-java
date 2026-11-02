@@ -1251,6 +1251,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return replayCursor.graphValues(modelTypes, boundary, staged, historical);
     }
 
+    /** Pins cascade revision evidence, keeping event-sourced values lazy and verifying exact document revisions. */
+    public Map<String, ModelGraphResolver.Revision> loadGraphRevisions(
+            Map<String, Class<?>> modelTypes, ModelReadBoundary boundary) {
+        return replayCursor.graphRevisions(modelTypes, boundary);
+    }
+
     @Override
     public ModelGraphResolver.Relations loadGraphRelations(
             List<String> modelIds, io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction direction,
@@ -2958,11 +2964,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
         private RelationshipUpdate relationshipUpdate(
                 Change transition) {
+            if (transition.after() == null) { return RelationshipUpdate.CLEARED; }
             EntityMetadata metadata = transition.metadata();
             if (metadata.parentReferences().isEmpty()) {
-                return transition.after() == null
-                        ? RelationshipUpdate.CLEARED
-                        : RelationshipUpdate.UNCHANGED;
+                return RelationshipUpdate.UNCHANGED;
             }
             List<ModelRelationship> before = metadata.parentRelationships(
                             transition.modelId(), transition.before()).stream()
@@ -2972,8 +2977,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             transition.modelId(), transition.after()).stream()
                     .map(relationship -> relationship.asCommitRelationship(modelNamePrefix))
                     .toList();
-            boolean update = transition.after() == null
-                             || !before.equals(after);
+            boolean update = !before.equals(after);
             return new RelationshipUpdate(
                     update, update ? after : List.of());
         }

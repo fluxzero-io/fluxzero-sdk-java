@@ -1460,6 +1460,28 @@ final class ModelReplayCursor {
         return null;
     }
 
+    Map<String, ModelGraphResolver.Revision> graphRevisions(Map<String, Class<?>> types, ModelReadBoundary boundary) {
+        LoadResult loaded = loadHeads(List.copyOf(types.keySet()), boundary);
+        if (!Objects.equals(boundary.stateIndex(), loaded.stateIndex())) {
+            throw new GraphBoundaryMovedException("Graph revisions changed their pinned state boundary");
+        }
+        List<MutationPlan.ResolvedModel> replay = new ArrayList<>(), documents = new ArrayList<>();
+        types.forEach((id, type) -> {
+            EntityMetadata metadata = EntityMetadata.validate(type);
+            (metadata.rootConfiguration().orElseThrow().eventSourced() ? replay : documents).add(
+                    new MutationPlan.ResolvedModel(id, type, MutationPlan.Access.READ_ONLY,
+                            List.of(metadata.entityId().orElseThrow().name())));
+        });
+        // Documents must prove their exact pinned revisions even when no value consumer runs.
+        Map<String, Entity<?>> verified = reconstructProjection(documents, loaded.heads(), loaded.stateIndex(), false);
+        Supplier<Map<String, Entity<?>>> values = io.fluxzero.common.ObjectUtils.memoize(() ->
+                reconstructProjection(replay, loaded.heads(), loaded.stateIndex(), false));
+        Map<String, ModelGraphResolver.Revision> result = new LinkedHashMap<>();
+        types.forEach((id, type) -> result.put(id, new ModelGraphResolver.Revision(loaded.heads().get(id),
+                verified.containsKey(id) ? () -> verified.get(id) : () -> values.get().get(id))));
+        return result;
+    }
+
     Map<String, Entity<?>> graphValues(Map<String, Class<?>> types, ModelReadBoundary boundary,
                                       Map<String, Entity<?>> staged, boolean historical) {
         List<MutationPlan.ResolvedModel> targets = types.entrySet().stream()
