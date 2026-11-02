@@ -48,6 +48,13 @@ submission, without reevaluation even under RETRY or provisional batch dependenc
 original commit ID, unavailable canonical Model ID and pinned read index; `result` is null because no storage response
 exists. Ordinary storage conflicts instead have `result` and no `readConflict`, retaining normal conflict handling.
 
+Cascade preparation follows stored owning relationships with the commit's final parent changes overlaid, including
+a final no-op after an earlier move. It reconstructs the deleted roots and reached descendants together; other Apply
+targets do not expand their unrelated branches. Migrate existing relationships when changing their stored ownership;
+changing `@Parent` alone does not rewrite them. Current SDK parent constraints are checked before following older
+owning edges, so a newly added deletion protection still applies. Runtime validation detects children attached or moved
+after the pinned boundary and invokes the configured conflict handling.
+
 ## Model cache tracking
 
 Current Model loads can use cache entries whose state has been validated against the model store. The SDK starts

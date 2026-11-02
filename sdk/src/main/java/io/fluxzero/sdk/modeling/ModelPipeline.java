@@ -21,6 +21,8 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -35,6 +37,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
+import io.fluxzero.sdk.persisting.repository.ModelGraphResolver;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.Invocation;
@@ -984,57 +987,73 @@ final class ModelPipeline {
             return evaluation;
         }
         evaluation.ensureReadBoundary();
-        LinkedHashMap<String, CascadeNode> nodes = new LinkedHashMap<>();
+        ModelReadBoundary boundary = ModelReadBoundary.state(
+                evaluation.readStateIndex(), !evaluation.readsDurableStateOnly());
+        ModelBatchScope.Snapshot snapshot = repository.graphStagedValues(boundary);
+        snapshot.readRelationships();
+        Map<String, ModelGraphResolver.ModelNode> models = new LinkedHashMap<>();
+        Map<String, Entity<?>> constrainedValues = new LinkedHashMap<>();
         LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>();
-
-        for (String rootId : explicitlyDeleted) {
-            Class<?> rootType = modelType(
-                    rootId, evaluation, latestTransitions);
-            if (rootType == null) {
-                continue;
+        Map<String, List<ModelGraphEdge>> finalChildren = new LinkedHashMap<>();
+        latestTransitions.values().forEach(change -> {
+            repository.modelName(change.modelType());
+            if (change.after() != null) {
+                EntityMetadata.validate(change.modelType()).parentRelationships(change.modelId(), change.after()).stream()
+                        .filter(parent -> parent.deleteOnParentDeletion())
+                        .map(parent -> parent.asGraphEdge(change.modelId()))
+                        .forEach(edge -> finalChildren.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>())
+                                .add(edge));
             }
-            Graph<?> graph = repository.loadGraph(
-                    rootId, rootType,
-                    io.fluxzero.common.api.modeling.ModelReadBoundary.state(
-                            evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
-                    Graph.Options.DEFAULT);
-            addCascadeGraph(nodes, edges, graph);
-        }
-
-        if (!hasCascadeChildren(explicitlyDeleted, latestTransitions, edges)) {
-            // Keep the roots so the Runtime still detects children attached after this read boundary.
-            evaluation.cascadeRoots(explicitlyDeleted);
-            return evaluation;
-        }
-
-        for (Change transition : latestTransitions.values()) {
-            if (transition.before() != null && transition.after() != null
-                && !nodes.containsKey(transition.modelId())) {
-                addCascadeGraph(
-                        nodes, edges,
-                        repository.loadGraph(
-                                transition.modelId(), transition.modelType(),
-                                io.fluxzero.common.api.modeling.ModelReadBoundary.state(
-                                        evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
-                                Graph.Options.DEFAULT));
-            }
-        }
-        overlayFinalValues(latestTransitions, nodes, edges);
-        LinkedHashSet<String> cascaded = new LinkedHashSet<>(
-                ModelRelationshipQueries.ownedDescendants(explicitlyDeleted, edges));
-        cascaded.removeAll(explicitlyDeleted);
+        });
+        Set<String> cascaded = new LinkedHashSet<>(ModelRelationshipQueries.descendants(explicitlyDeleted, frontier -> {
+            ModelGraphResolver.Relations relations = repository.loadGraphRelations(
+                    List.copyOf(frontier), ModelRelationshipRead.Direction.CHILDREN, boundary, snapshot.values(), false);
+            models.putAll(relations.models());
+            List<ModelGraphEdge> children = new ArrayList<>();
+            relations.edges().stream().filter(ModelGraphEdge::isDeleteOnParentDeletion)
+                    .filter(edge -> !latestTransitions.containsKey(edge.getChildId()))
+                    .filter(edge -> {
+                        ModelGraphResolver.ModelNode model = models.get(edge.getChildId());
+                        if (model.knownType() == null
+                            || EntityMetadata.of(model.knownType()).constrainedParentReferences().isEmpty()) {
+                            return true;
+                        }
+                        // SDK-local protection can be newer than the stored owning policy. Validate the current
+                        // declaration before deleting the child, otherwise the later parent check would see no survivor.
+                        Entity<?> child = constrainedValues.computeIfAbsent(model.id(), ignored -> model.entity().get());
+                        return EntityMetadata.of(child.type()).parentRelationships(model.id(), child.get()).stream()
+                                .anyMatch(parent -> parent.deleteOnParentDeletion()
+                                        && parent.parentId().equals(edge.getParentId()));
+                    }).forEach(children::add);
+            frontier.forEach(parent -> children.addAll(finalChildren.getOrDefault(parent, List.of())));
+            edges.addAll(children);
+            return children.stream().map(ModelGraphEdge::getChildId).toList();
+        }));
+        Map<String, Class<?>> types = new LinkedHashMap<>();
+        explicitlyDeleted.forEach(id -> types.put(id, latestTransitions.get(id).modelType()));
+        cascaded.forEach(id -> {
+            Change change = latestTransitions.get(id);
+            ModelGraphResolver.ModelNode model = models.get(id);
+            types.put(id, change != null ? change.modelType()
+                    : model.knownType() != null ? model.knownType() : model.entity().get().type());
+        });
+        // Verify the pinned values, including explicitly deleted DOCUMENT roots, before applying batch/final values.
+        // A lost document version remains a terminal preparation conflict, even when no child is cascaded.
+        Map<String, Entity<?>> values = repository.loadGraphValues(types, boundary, Map.of(), false);
         if (cascaded.isEmpty()) {
+            // The Runtime must still detect children attached after this read boundary.
             evaluation.cascadeRoots(explicitlyDeleted);
             return evaluation;
         }
 
         List<Change> transitions = cascaded.stream()
-                .map(nodes::get)
-                .filter(Objects::nonNull)
-                .map(node -> Change.applied(
-                        node.modelId(), node.modelType(),
-                        node.sequenceNumber(), node.lastEventIndex(),
-                        node.value(), null, null, null, true))
+                .map(id -> {
+                    Entity<?> stored = values.get(id);
+                    Entity<?> staged = snapshot.values().getOrDefault(id, stored);
+                    Change change = latestTransitions.get(id);
+                    return Change.applied(id, types.get(id), stored.sequenceNumber(), stored.lastEventIndex(),
+                            change == null ? staged.get() : change.after(), null, null, null, true);
+                })
                 .toList();
         List<CommitAttempt.Step> steps =
                 new ArrayList<>(evaluation.steps());
@@ -1094,87 +1113,6 @@ final class ModelPipeline {
                 readModelTypes, steps);
         evaluation.cascadeRoots(explicitlyDeleted);
         return evaluation;
-    }
-
-    private static boolean hasCascadeChildren(
-            Set<String> deletedRoots, Map<String, Change> latestTransitions, Set<ModelGraphEdge> edges) {
-        // Final values replace incoming edges even when the last substep was a no-op after an earlier move.
-        if (edges.stream().anyMatch(edge -> edge.isDeleteOnParentDeletion()
-                && deletedRoots.contains(edge.getParentId()) && !latestTransitions.containsKey(edge.getChildId()))) {
-            return true;
-        }
-        return latestTransitions.values().stream().filter(change -> change.after() != null)
-                .anyMatch(change -> EntityMetadata.validate(change.modelType())
-                        .parentRelationships(change.modelId(), change.after()).stream()
-                        .anyMatch(parent -> parent.deleteOnParentDeletion() && deletedRoots.contains(parent.parentId())));
-    }
-
-    private static void addCascadeGraph(
-            Map<String, CascadeNode> nodes,
-            Set<ModelGraphEdge> edges,
-            Graph<?> graph) {
-        List<Graph<?>> members = new ArrayList<>();
-        members.add(graph);
-        members.addAll(graph.descendants(Object.class));
-        for (Graph<?> member : members) {
-            String modelId = member.id().toString();
-            nodes.putIfAbsent(
-                    modelId,
-                    new CascadeNode(
-                            modelId, member.type(), member.get(),
-                            member.sequenceNumber(), member.lastEventIndex()));
-            if (member.get() != null) {
-                Graphs.addParentEdges(
-                        modelId, member.type(), member.get(), edges);
-            }
-        }
-    }
-
-    private static void overlayFinalValues(
-            Map<String, Change> latestTransitions,
-            Map<String, CascadeNode> nodes,
-            Set<ModelGraphEdge> edges) {
-        edges.removeIf(edge -> latestTransitions.containsKey(edge.getChildId()));
-        latestTransitions.forEach((modelId, transition) -> {
-            Object value = transition.after();
-            if (value == null) {
-                return;
-            }
-            Graphs.addParentEdges(
-                    modelId, transition.modelType(), value, edges);
-            CascadeNode known = nodes.get(modelId);
-            Class<?> type = transition.modelType();
-            if (type == null) {
-                type = value.getClass();
-            }
-            nodes.put(
-                    modelId,
-                    new CascadeNode(
-                            modelId, type, value,
-                            known != null ? known.sequenceNumber()
-                                    : transition.beforeSequenceNumber(),
-                            known != null ? known.lastEventIndex()
-                                    : transition.beforeLastEventIndex()));
-        });
-    }
-
-    private static Class<?> modelType(
-            String modelId,
-            CommitAttempt evaluation,
-            Map<String, Change> transitions) {
-        Change transition =
-                transitions.get(modelId);
-        return transition == null
-                ? evaluation.readModelTypes().get(modelId)
-                : transition.modelType();
-    }
-
-    private record CascadeNode(
-            String modelId,
-            Class<?> modelType,
-            Object value,
-            long sequenceNumber,
-            Long lastEventIndex) {
     }
 
     record ExplicitModelTarget(String modelId, Class<?> modelType) {

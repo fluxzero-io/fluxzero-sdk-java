@@ -601,6 +601,10 @@ history remains and the same ID may later be recreated.
 Logical parent deletion recursively deletes children whose relevant `@Parent` keeps the default
 `deleteOnParentDeletion = true`, including pathless and shared-DAG descendants. Moving a child away or recreating the
 parent in the same atomic commit prevents that lifecycle cascade.
+Cascade preparation follows the final owning relationships without reconstructing unrelated branches of other Models
+touched by the commit.
+Ownership is stored with the relationship; changing `@Parent` alone does not migrate existing relationships.
+SDK parent constraints, including `preventParentDeletion`, still use the current Model contract.
 
 ### Use Parent shorthands for common relationship rules
 
