@@ -186,6 +186,7 @@ class ModelCascadePreparationTest {
             client.reset();
             commit(app, new Complete("scratch", "root", "receipt", false));
             assertEquals(2, client.graphRequests.size());
+            assertEquals(1, client.eventCount.get(), "Only the ordinary event-sourced Apply input needs event history");
             assertEquals(1, client.commits.size());
             app.cache().clear();
             app.apply(fc -> {
@@ -198,6 +199,106 @@ class ModelCascadePreparationTest {
                 return null;
             });
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void coldCascadeDoesNotReadValuesWhenStagingATrackedBatch(boolean tracked) {
+        CountingClient client = new CountingClient();
+        try (Fluxzero app = application(client)) {
+            app.registerHandlers(ModelCascadePreparationBenchmark.TreeNode.class);
+            commit(app, new PutRoot("root", true));
+            commit(app, new CreateScratch("scratch"));
+            for (int version = 0; version < 5; version++) {
+                commit(app, new ModelCascadePreparationBenchmark.SeedTree("scratch", 2, 12, version, false));
+            }
+            app.cache().clear();
+            client.reset();
+            app.apply(fc -> {
+                Message command = new Message(new Complete("scratch", "root", "receipt", false));
+                if (tracked) {
+                    var message = new DeserializingMessage(command, io.fluxzero.common.MessageType.COMMAND, fc.serializer());
+                    message.getSerializedObject().setSegment(17);
+                    DeserializingMessage.forEachInBatch(List.of(message), ignored -> fc.executeModelCommit(command).join());
+                } else { fc.executeModelCommit(command).join(); }
+                return null;
+            });
+            assertEquals(1, client.eventCount.get(), "Neither staging nor commit preparation may replay the children");
+            assertEquals(1, client.commits.size());
+            app.cache().clear();
+            app.apply(fc -> {
+                assertTrue(Fluxzero.loadModel("scratch/0/11", ModelCascadePreparationBenchmark.TreeNode.class).isEmpty());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void valueChecksOnEveryChildKeepHistoryReadsBatched() {
+        CountingClient client = new CountingClient();
+        try (Fluxzero app = application(client)) {
+            app.registerHandlers(GuardedChild.class);
+            commit(app, new PutBranch("root", null, null));
+            for (int version = 0; version < 4; version++) {
+                for (int child = 0; child < 20; child++) {
+                    commit(app, new PutGuardedChild("guarded-" + child, "root", version));
+                }
+            }
+            app.cache().clear();
+            client.reset();
+            GuardedChild.checks.set(0);
+            commit(app, new DeleteBranch("root"));
+            assertEquals(20, GuardedChild.checks.get());
+            assertTrue(client.valueReads.get() <= 3, "Value consumers must not introduce a storage request per child");
+            assertEquals(1, client.commits.size());
+        }
+    }
+
+    @Test
+    void pendingCascadeReleasesChildAliasesForTheNextBatchCommand() {
+        CountingClient client = new CountingClient();
+        CompletableFuture<Void> gate = new CompletableFuture<>();
+        AtomicReference<CompletableFuture<?>> deletion = new AtomicReference<>(), creation = new AtomicReference<>();
+        try (Fluxzero app = application(client)) {
+            app.registerHandlers(AliasedChild.class);
+            commit(app, new PutBranch("root", null, null));
+            commit(app, new PutBranch("retained", null, null));
+            commit(app, new PutAliasedChild("old-child", "root", "shared-alias"));
+            app.cache().clear();
+            app.apply(fc -> {
+                var messages = List.of(new Message(new DeleteBranch("root")),
+                        new Message(new PutAliasedChild("new-child", "retained", "shared-alias"))).stream().map(command -> {
+                    var message = new DeserializingMessage(command, io.fluxzero.common.MessageType.COMMAND, fc.serializer());
+                    message.getSerializedObject().setSegment(17);
+                    return message;
+                }).toList();
+                DeserializingMessage.forEachInBatch(messages, message -> {
+                    if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                        client.commitGate = gate;
+                        deletion.set(fc.executeModelCommit(message.toMessage()));
+                        client.commitGate = null;
+                        assertFalse(deletion.get().isDone());
+                    } else {
+                        try {
+                            assertTrue(Fluxzero.loadModel("shared-alias", AliasedChild.class).isEmpty(),
+                                       "The pending cascade must release its child's alias in the batch view");
+                            creation.set(fc.executeModelCommit(message.toMessage()));
+                        }
+                        finally { gate.complete(null); }
+                    }
+                });
+                return null;
+            });
+            deletion.get().join();
+            creation.get().join();
+            app.cache().clear();
+            app.apply(fc -> {
+                assertEquals(new AliasedChild("new-child", "retained", "shared-alias"),
+                        Fluxzero.loadModel("shared-alias", AliasedChild.class).get());
+                assertTrue(Fluxzero.loadModel("old-child", AliasedChild.class).isEmpty());
+                return null;
+            });
+        } finally { gate.complete(null); }
     }
 
     @ParameterizedTest
@@ -605,7 +706,7 @@ class ModelCascadePreparationTest {
         final List<GetModelGraphResult> graphResults = new CopyOnWriteArrayList<>();
         final List<String> eventStreams = new CopyOnWriteArrayList<>();
         final List<CommitModels> commits = new CopyOnWriteArrayList<>();
-        final AtomicLong eventCount = new AtomicLong(), eventBytes = new AtomicLong();
+        final AtomicLong eventCount = new AtomicLong(), eventBytes = new AtomicLong(), valueReads = new AtomicLong();
         final AtomicBoolean loseNextResponse = new AtomicBoolean();
         volatile Consumer<CommitModels> beforeCommit = ignored -> {};
         volatile Consumer<GetModelGraph> afterGraph = ignored -> {};
@@ -615,6 +716,7 @@ class ModelCascadePreparationTest {
         CountingClient() { super(null); }
 
         void reset() {
+            valueReads.set(0);
             graphRoots.clear(); graphRequests.clear(); graphResults.clear(); eventStreams.clear(); commits.clear();
             eventCount.set(0); eventBytes.set(0);
         }
@@ -648,6 +750,7 @@ class ModelCascadePreparationTest {
                                         CompletableFuture.failedFuture(new IllegalStateException("Lost commit response")));
                             }
                             if (result instanceof GetModelEventsResult events) {
+                                if (!events.getPayloads().isEmpty()) { valueReads.incrementAndGet(); }
                                 events.getStreams().forEach(stream -> eventStreams.add(stream.getModelId()));
                                 eventCount.addAndGet(events.getPayloads().size());
                                 eventBytes.addAndGet(events.getPayloads().stream().mapToLong(p -> p.getEvent().getBytes()).sum());
@@ -692,6 +795,28 @@ class ModelCascadePreparationTest {
 
     record PutProtected(String protectedId, String branchId) {
         @Apply Protected apply() { return new Protected(protectedId, branchId); }
+    }
+
+    @Model(searchable = false)
+    record GuardedChild(@EntityId String childId, @Parent(Branch.class) String branchId, int version) {
+        static final AtomicLong checks = new AtomicLong();
+        @AssertLegal(cascade = true)
+        void check(DeleteBranch ignored) {
+            if (version < 0) { throw new IllegalStateException("Invalid child"); }
+            checks.incrementAndGet();
+        }
+    }
+    record PutGuardedChild(String childId, String branchId, int version) {
+        @Apply GuardedChild apply(@Nullable GuardedChild before) { return new GuardedChild(childId, branchId, version); }
+    }
+
+    @Model(searchable = false)
+    record AliasedChild(@EntityId String childId, @Parent(Branch.class) String branchId, @Alias String alias) {}
+    record PutAliasedChild(String childId, String branchId, String alias) {
+        @AssertLegal void aliasAvailable() {
+            assertTrue(Fluxzero.loadModel(alias, AliasedChild.class).isEmpty(), "Alias must be available");
+        }
+        @Apply AliasedChild apply(@Nullable AliasedChild before) { return new AliasedChild(childId, branchId, alias); }
     }
 
     record PutForeign(String foreignId, String branchId) {

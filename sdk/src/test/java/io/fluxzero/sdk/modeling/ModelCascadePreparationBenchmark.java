@@ -35,6 +35,7 @@ public class ModelCascadePreparationBenchmark {
         int rounds = Integer.getInteger("rounds", 5);
         boolean cascade = Boolean.getBoolean("cascade");
         boolean retained = Boolean.getBoolean("retained");
+        boolean guarded = Boolean.getBoolean("guarded");
         int width = Integer.getInteger("width", 0), depth = Integer.getInteger("depth", 0);
         ThreadMXBean allocation = ManagementFactory.getThreadMXBean() instanceof ThreadMXBean bean
                 && bean.isThreadAllocatedMemorySupported() ? bean : null;
@@ -45,6 +46,7 @@ public class ModelCascadePreparationBenchmark {
                           children, history, warmups, iterations, rounds, cascade, width, depth, retained);
         try (var fc = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
             fc.registerHandlers(TreeNode.class);
+            if (guarded) { fc.registerHandlers(GuardedChild.class); }
             seedHistory(fc, children, history);
             for (int round = -1; round < rounds; round++) {
                 long nanos = 0, bytes = 0, graphRoots = 0, graphRequests = 0, streams = 0, events = 0, eventBytes = 0;
@@ -53,16 +55,23 @@ public class ModelCascadePreparationBenchmark {
                 for (int i = 0; i < count; i++) {
                     String suffix = round + "-" + i;
                     Complete command = new Complete("scratch-" + suffix, "root", "receipt-" + suffix, false);
-                    commit(fc, new CreateScratch(command.scratchId()));
-                    if (cascade) { commit(fc, new CreateOwned("owned-" + suffix, command.scratchId())); }
-                    for (int event = 0; event < (width > 0 ? history : 0); event++) {
-                        commit(fc, new SeedTree(command.scratchId(), width, depth, event, retained));
+                    if (guarded) {
+                        commit(fc, new PutBranch(command.scratchId(), null, null));
+                        for (int event = 0; event < history; event++) {
+                            commit(fc, new SeedGuarded(command.scratchId(), width, event));
+                        }
+                    } else {
+                        commit(fc, new CreateScratch(command.scratchId()));
+                        if (cascade) { commit(fc, new CreateOwned("owned-" + suffix, command.scratchId())); }
+                        for (int event = 0; event < (width > 0 ? history : 0); event++) {
+                            commit(fc, new SeedTree(command.scratchId(), width, depth, event, retained));
+                        }
                     }
                     fc.cache().clear();
                     client.reset();
                     long allocatedBefore = allocation == null ? 0 : allocation.getThreadAllocatedBytes(thread);
                     long start = System.nanoTime();
-                    commit(fc, command);
+                    commit(fc, guarded ? new DeleteBranch(command.scratchId()) : command);
                     nanos += System.nanoTime() - start;
                     bytes += allocation == null ? 0 : allocation.getThreadAllocatedBytes(thread) - allocatedBefore;
                     graphRoots += client.graphRoots.size(); streams += client.eventStreams.size();
@@ -73,7 +82,7 @@ public class ModelCascadePreparationBenchmark {
                     // Serialize response metadata outside the timed/allocation window, including in warmups.
                     metadataBytes += client.graphResults.stream().mapToLong(r -> JsonUtils.asBytes(r).length).sum();
                     if (client.commits.size() != 1) { throw new AssertionError("Expected exactly one commit"); }
-                    commit(fc, new DeleteReceipt(command.receiptId()));
+                    if (!guarded) { commit(fc, new DeleteReceipt(command.receiptId())); }
                 }
                 if (round >= 0) {
                     System.out.printf("round=%d us/op=%.1f caller-bytes/op=%.0f graph-roots/op=%.1f "
@@ -90,6 +99,16 @@ public class ModelCascadePreparationBenchmark {
 
     record DeleteReceipt(String receiptId) {
         @Apply Receipt apply(Receipt before) { return null; }
+    }
+
+    record SeedGuarded(String rootId, int width, int version) {
+        @io.fluxzero.sdk.persisting.eventsourcing.InterceptApply List<?> expand() {
+            List<Object> changes = new ArrayList<>();
+            for (int child = 0; child < width; child++) {
+                changes.add(new PutGuardedChild(rootId + "/" + child, rootId, version));
+            }
+            return changes;
+        }
     }
 
     @Model(searchable = false)

@@ -219,6 +219,9 @@ public interface ModelGraphResolver {
         public boolean hasIdentity() { return present || entity instanceof HeadValue value && value.head() != null; }
     }
 
+    /** A pinned revision and its value; reading revision evidence does not reconstruct event history. */
+    record Revision(ModelHeadState head, Supplier<Entity<?>> entity) {}
+
     /** Reconstructs explicitly requested values together; unrelated metadata nodes must remain unloaded. */
     Map<String, Entity<?>> loadGraphValues(Map<String, Class<?>> modelTypes, ModelReadBoundary boundary,
                                           Map<String, Entity<?>> staged, boolean historical);

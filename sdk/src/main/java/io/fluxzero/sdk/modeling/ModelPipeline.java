@@ -977,7 +977,7 @@ final class ModelPipeline {
         for (CommitAttempt.Step step : evaluation.steps()) {
             for (Change transition : step.changes()) {
                 latestTransitions.put(transition.modelId(), transition);
-                if (transition.before() != null && transition.after() == null) {
+                if (transition.existedBefore() && transition.after() == null) {
                     explicitlyDeleted.add(transition.modelId());
                 }
             }
@@ -1050,20 +1050,28 @@ final class ModelPipeline {
         });
         // Verify the pinned values, including explicitly deleted DOCUMENT roots, before applying batch/final values.
         // A lost document version remains a terminal preparation conflict, even when no child is cascaded.
-        Map<String, Entity<?>> values = repository.loadGraphValues(types, boundary, Map.of(), false);
         if (cascaded.isEmpty()) {
+            repository.loadGraphValues(types, boundary, Map.of(), false);
             // The Runtime must still detect children attached after this read boundary.
             evaluation.cascadeRoots(explicitlyDeleted);
             return evaluation;
         }
 
+        Map<String, ModelGraphResolver.Revision> revisions = repository.loadGraphRevisions(types, boundary);
+
         List<Change> transitions = cascaded.stream()
                 .map(id -> {
-                    Entity<?> stored = values.get(id);
-                    Entity<?> staged = snapshot.values().getOrDefault(id, stored);
+                    ModelGraphResolver.Revision stored = revisions.get(id);
+                    Entity<?> staged = snapshot.values().get(id);
                     Change change = latestTransitions.get(id);
-                    return Change.applied(id, types.get(id), stored.sequenceNumber(), stored.lastEventIndex(),
-                            change == null ? staged.get() : change.after(), null, null, null, true);
+                    boolean overlaid = change != null || staged != null;
+                    Object overlay = change != null ? change.after() : staged == null ? null : staged.get();
+                    long sequence = stored.head() == null ? -1L : stored.head().getSequenceNumber();
+                    if (overlaid) {
+                        return Change.applied(id, types.get(id), sequence, null, overlay, null, null, null, true);
+                    }
+                    return Change.cascaded(id, types.get(id), sequence,
+                            stored.head() != null && !stored.head().isDeleted(), () -> stored.entity().get().get());
                 })
                 .toList();
         List<CommitAttempt.Step> steps =

@@ -18,11 +18,15 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import java.lang.reflect.Executable;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
+import static io.fluxzero.common.ObjectUtils.memoize;
+
 /**
- * One fully resolved immutable model mutation outcome consumed by commit preparation.
+ * One immutable model mutation outcome consumed by commit preparation, with an optional lazy cascade before-value.
  *
  * <p>This type is public only so the repository package can consume the canonical internal value directly; it is not
  * a supported application extension point.</p>
@@ -44,6 +48,36 @@ public record Change(
         Objects.requireNonNull(modelType, "modelType");
         Objects.requireNonNull(metadata, "metadata");
     }
+
+    /** Returns the previous value, resolving a cascade's pinned value only on use. */
+    @Override
+    public Object before() {
+        return before instanceof LazyBefore lazy ? lazy.value().get() : before;
+    }
+
+    /** Presence at this logical substep, independent of value materialization. */
+    public boolean existedBefore() {
+        return before instanceof LazyBefore lazy ? lazy.present() : before != null;
+    }
+
+    /** Previous concrete type without requiring a lazy cascade value. */
+    public Class<?> beforeType() {
+        return before instanceof LazyBefore || before == null ? modelType : before.getClass();
+    }
+
+    /** Alias release is a value consumer only for Models that declare aliases. */
+    public List<String> beforeAliases() {
+        EntityMetadata concrete = EntityMetadata.of(beforeType());
+        return concrete.hasAliases() ? concrete.aliases(before()) : List.of();
+    }
+
+    static Change cascaded(String id, Class<?> type, long sequence, boolean present,
+                           Supplier<?> value) {
+        return applied(id, type, sequence, null,
+                new LazyBefore(present, memoize(value)), null, null, null, true);
+    }
+
+    private record LazyBefore(boolean present, Supplier<?> value) {}
 
     static Change applied(
             String modelId, Class<?> modelType,
@@ -176,7 +210,7 @@ public record Change(
                         overrides.publication(), overrides.strategy(),
                         overrides.conflict());
         EntityMetadata.TransitionDecision decision = settings.decide(
-                settings.forceModified() || !Objects.equals(before, after),
+                cascadedDeletion || settings.forceModified() || !Objects.equals(before, after),
                 cascadedDeletion, true);
         return new Change(
                 modelId, declaredType,

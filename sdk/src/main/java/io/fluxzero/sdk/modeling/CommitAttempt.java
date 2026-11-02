@@ -1366,7 +1366,7 @@ public final class CommitAttempt {
 
     private static ModelConflictPolicy transitionPolicy(
             Change change, ModelConflictPolicy application) {
-        boolean creation = change.before() == null && change.beforeSequenceNumber() < 0L;
+        boolean creation = !change.existedBefore() && change.beforeSequenceNumber() < 0L;
         ModelConflictPolicy result = inherit(change.conflictPolicy(), application);
         return creation && result == ModelConflictPolicy.ACCEPT ? ModelConflictPolicy.FAIL : result;
     }
