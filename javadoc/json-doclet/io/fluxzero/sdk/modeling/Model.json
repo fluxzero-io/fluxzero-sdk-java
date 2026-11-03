@@ -48,7 +48,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Whether the latest model state should be stored in the shared application cache.\n <p>\n Models participating in a commit may additionally be retained in a commit-local cache until the commit\n completes. A document revision alone is not a namespace snapshot: simple DOCUMENT writes verify that revision\n when an additional transactional read first needs a shared boundary; complex contexts verify before evaluation.\n"
+    "documentation" : " Whether the latest model state should be stored in the shared application cache.\n Complete event-sourced revisions reconstructed by historical Graph reads may also seed this cache;\n newer cached revisions take precedence, and the Graph retains its selected state boundary.\n <p>\n Models participating in a commit may additionally be retained in a commit-local cache until the commit\n completes. A document revision alone is not a namespace snapshot: simple DOCUMENT writes verify that revision\n when an additional transactional read first needs a shared boundary; complex contexts verify before evaluation.\n"
   }, {
     "name" : "cachingDepth",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Model#cachingDepth",
