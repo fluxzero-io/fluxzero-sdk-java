@@ -17,6 +17,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -34,7 +35,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
+import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitCacheTracking;
+import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitTrackedThrough;
+import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.clearCacheAndAwait;
 import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -62,7 +68,11 @@ class GraphPinnedReadCostTest {
         var client = new ObservedClient();
         var fixture = TestFixture.createAsync(DefaultFluxzero.builder(), client)
                 .givenCommands(VALUES.stream().map(v -> new PutValue(v.valueId(), v.revision())).toList())
-                .given(fc -> fc.cache().clear());
+                .given(fc -> {
+                    awaitCacheTracking(fc);
+                    awaitTrackedThrough(client.polls, fc.apply(ignored -> Fluxzero.loadCurrentGraph(ROOT).stateIndex()));
+                    clearCacheAndAwait(fc);
+                });
         var query = new GetValues(ROOT, DEPENDENCIES, pinned);
 
         // Warm the same path from an empty SDK cache. No writes occur between reads.
@@ -100,7 +110,7 @@ class GraphPinnedReadCostTest {
         try (Fluxzero app = app(new ObservedClient())) {
             commit(app, new PutValue(ROOT, 1));
             long first = app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT).stateIndex());
-            app.cache().clear();
+            clearCacheAndAwait(app);
             assertEquals(1, app.apply(fc -> Fluxzero.loadGraph(ROOT).atStateIndex(first).get()).revision());
             commit(app, new PutValue(ROOT, 2));
             Value current = app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT).get());
@@ -110,7 +120,7 @@ class GraphPinnedReadCostTest {
             }
             Graph<Value> latest = app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT));
             assertEquals(1, latest.previous().get().revision());
-            app.cache().clear();
+            clearCacheAndAwait(app);
             assertEquals(1, app.apply(fc -> Fluxzero.loadGraph(ROOT).atStateIndex(first).get()).revision());
             assertEquals(2, app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT).get()).revision());
         }
@@ -121,7 +131,7 @@ class GraphPinnedReadCostTest {
         try (Fluxzero app = app(new ObservedClient())) {
             commit(app, new PutRelated("parent", null));
             long first = app.apply(fc -> Fluxzero.loadCurrentGraph("parent", Related.class).stateIndex());
-            app.cache().clear();
+            clearCacheAndAwait(app);
             Related value = app.apply(fc -> Fluxzero.loadGraph("parent", Related.class).atStateIndex(first).get());
             commit(app, new PutRelated("child", "parent"));
             long second = app.apply(fc -> Fluxzero.loadCurrentGraph("parent", Related.class).stateIndex());
@@ -147,7 +157,7 @@ class GraphPinnedReadCostTest {
             Class<?> type = applicationOptOut ? Value.class : Uncached.class;
             commit(app, applicationOptOut ? new PutValue(ROOT, 1) : new PutUncached(ROOT.toString()));
             long boundary = app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT.toString(), type).stateIndex());
-            app.cache().clear();
+            clearCacheAndAwait(app);
             for (int repeat = 0; repeat < 2; repeat++) {
                 client.reads.clear();
                 Object value = app.apply(fc -> Fluxzero.loadGraph(ROOT.toString(), type).atStateIndex(boundary).get());
@@ -171,7 +181,7 @@ class GraphPinnedReadCostTest {
             commit(other, new PutValue(ROOT, 9));
             long blueBoundary = Graphs.lazyCurrent(ROOT, Value.class, blue).stateIndex();
             long redBoundary = Graphs.lazyCurrent(ROOT, Value.class, red).stateIndex();
-            app.cache().clear();
+            clearCacheAndAwait(app);
             for (int repeat = 0; repeat < 2; repeat++) {
                 assertEquals(1, Graphs.lazy(ROOT, Value.class, blue).atStateIndex(blueBoundary).get().revision());
                 assertEquals(9, Graphs.lazy(ROOT, Value.class, red).atStateIndex(redBoundary).get().revision());
@@ -237,6 +247,7 @@ class GraphPinnedReadCostTest {
     /** Observes real in-memory storage; model responses are never synthesized. */
     private static final class ObservedClient extends LocalClient {
         final List<Read> reads = new CopyOnWriteArrayList<>();
+        final BlockingQueue<TrackModelUpdates> polls = new LinkedBlockingQueue<>();
 
         ObservedClient() { super(null); }
 
@@ -250,6 +261,11 @@ class GraphPinnedReadCostTest {
                 reads.add(new Read(request, result.toMetric()));
                 return result;
             }).when(observed).getModelEvents(any());
+            doAnswer(invocation -> {
+                TrackModelUpdates request = invocation.getArgument(0);
+                polls.add(request);
+                return storage.trackModelUpdates(request);
+            }).when(observed).trackModelUpdates(any());
             return observed;
         }
     }

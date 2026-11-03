@@ -17,6 +17,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
@@ -29,8 +30,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 
+import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitCacheTracking;
+import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitTrackedThrough;
+import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.clearCacheAndAwait;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.AdditionalAnswers.delegatesTo;
@@ -51,7 +57,11 @@ class ModelAliasReadCostTest {
         var client = new ObservedClient();
         var fixture = new ObservedFixture(client, synchronous)
                 .givenCommands(new PutValue(ID, ALIAS, 1))
-                .given(fc -> fc.cache().clear());
+                .given(fc -> {
+                    awaitCacheTracking(fc);
+                    awaitTrackedThrough(client.polls, fc.apply(ignored -> Fluxzero.loadCurrentGraph(ID).stateIndex()));
+                    clearCacheAndAwait(fc);
+                });
 
         // First resolve the literal alias from an empty cache.
         client.reads.clear();
@@ -120,6 +130,7 @@ class ModelAliasReadCostTest {
 
     private static final class ObservedClient extends LocalClient {
         final List<Read> reads = new CopyOnWriteArrayList<>();
+        final BlockingQueue<TrackModelUpdates> polls = new LinkedBlockingQueue<>();
 
         ObservedClient() { super(null); }
 
@@ -133,6 +144,11 @@ class ModelAliasReadCostTest {
                 reads.add(new Read(request, result.toMetric()));
                 return result;
             }).when(observed).getModelEvents(any());
+            doAnswer(invocation -> {
+                TrackModelUpdates request = invocation.getArgument(0);
+                polls.add(request);
+                return storage.trackModelUpdates(request);
+            }).when(observed).trackModelUpdates(any());
             return observed;
         }
     }
