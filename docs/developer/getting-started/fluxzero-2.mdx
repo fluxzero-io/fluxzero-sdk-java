@@ -2986,33 +2986,19 @@ This connects event-bound Model/Graph reads to the migration's event mapping, wi
 replay is behind. It does not start the migration itself. Preserve consumer progress and avoid duplicate
 side effects while transferring listeners. Moved read-only listeners must not write back to legacy Aggregates.
 
-Move command handlers and other business-write paths last. Prepare them in the new app, but keep them
-inactive until the ownership switch. Pause the old app's writes, drain in-flight operations, record the
-final published event index and let replay reach it. Stop the replay runner, then start the same migration
-entry point with `adopt <cutover-event-index>`. Equivalently, build a fresh runner with the same configuration
-and invoke:
+Model documents and declared Graph projections are maintained during replay. Assign collections distinct from those
+still owned by the old application, including the Graph projection collections. Ordinary Model and Graph searches
+then expose the latest indexed state while old command handlers continue publishing events.
 
-<Tabs syncKey="language">
-<TabItem label="Java">
+Move command handlers and other business-write paths last. Pause the old app's writes, drain in-flight operations,
+record the final published event index and let replay reach it. Stop the runner and enable the new application's
+write handlers. No adoption or document copying is required: the Model documents are already live.
 
-```java
-migration.run("adopt", Long.toString(cutoverEventIndex));
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-migration.run("adopt", cutoverEventIndex.toString())
-```
-
-</TabItem>
-</Tabs>
-
-`cutoverEventIndex` is that recorded final boundary, not an arbitrary timestamp. Adoption verifies durable
-catch-up and adopts staged documents where applicable; it is resumable. Verify the resulting Models, Graphs
-and queries, then enable the new application's write handlers while the old ones stay disabled. There must
-never be two independent business-write owners for the migrated state.
+Use a Runtime supporting live migration documents; older Runtimes reject the new replay request. An earlier runner
+may have left staged state. Stop all old runners, including failover standbys, before adopting that state and
+starting the new version; do not mix staging and live runner versions. Live replay refuses to start in that case: verify and adopt the staged state first with
+the retained `migration.run("adopt", index)` operation, using the older runner's durable source boundary. Existing
+stored staging records keep their original behavior during Runtime recovery.
 
 #### 3. Switch off the old application
 
@@ -3024,7 +3010,7 @@ to erase its history.
 #### Migration boundaries to keep explicit
 
 The route consumes the published event log. Legacy `STORE_ONLY` events are not recovered by that backfill.
-Document-backed adoption verifies staged state before adopting it. Compare actual values and relationships,
+Model documents use their configured collections throughout replay. Compare actual values and relationships,
 not only counts, and validate application search behavior as well as replay.
 
 Once ordinary Model writes begin, recovery is forward-only: there is no generic switch back to the former

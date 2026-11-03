@@ -2052,8 +2052,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private ModelReplayCursor.DocumentVersion loadDocumentProjection(
             String modelId, Class<?> modelType, boolean migration) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
-        return loadDocumentUnchecked(
-                modelId, modelType, metadata, migration);
+        // Published-event replay maintains the same canonical documents as ordinary Model updates.
+        return loadDocumentUnchecked(modelId, modelType, metadata, false);
     }
 
     @SuppressWarnings("unchecked")
@@ -2349,9 +2349,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 boolean migration,
                 Supplier<CompletableFuture<Optional<CommitModelsResult>>> operation,
                 Runnable afterCommit) {
-            GraphProjectionCommit projections = migration
-                    ? GraphProjectionCommit.EMPTY
-                    : graphProjections(attempt);
+            GraphProjectionCommit projections = graphProjections(attempt);
             CompletableFuture<Void> registrations = projections.roots().isEmpty()
                     ? COMPLETED_VOID
                     : CompletableFuture.allOf(
@@ -2686,6 +2684,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (!evaluation.identityReads().isEmpty()) {
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads(commit, evaluation.identityReads());
             }
+            if (migration) {
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit);
+            }
             return new Outcome(commit, preparedChanges, existingEvent);
         }
 
@@ -2738,6 +2739,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (!candidate.getAliasObservations().isEmpty()) {
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads(
                         commit, candidate.getAliasObservations());
+            }
+            if (candidate instanceof io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments) {
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit);
             }
             return new Outcome(commit, rebased.changes, original.existingEvent);
         }

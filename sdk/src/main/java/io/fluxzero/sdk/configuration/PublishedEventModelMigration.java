@@ -46,10 +46,10 @@ import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
  * Runs a published-event Aggregate-to-Model migration in an isolated Fluxzero application context.
  *
  * <p>The migration application registers only the selected Model definitions and one global EVENT consumer. It never
- * registers ordinary application handlers, automatic Model command handling or materialized Graph projections while
- * replaying. Every original global event is reduced through the normal Model replay pipeline without being published
- * again. Direct documents remain invisible until {@link #adopt(long)} verifies the durable consumer boundary and asks
- * the {@link io.fluxzero.sdk.persisting.repository.ModelRepository} to adopt them.</p>
+ * registers ordinary application handlers or automatic Model command handling while replaying. Every original
+ * global event is reduced through the normal Model replay pipeline without being published again. Model documents
+ * and declared Graph projections are maintained in their configured collections, so readers can move before command
+ * ownership changes. Use collections distinct from those still owned by the legacy application.</p>
  *
  * <p>The consumer name must remain stable across restarts and application instances. Fluxzero fixes the consumer to
  * one globally ordered tracker and one synchronous handler thread; extra application instances therefore act as
@@ -121,7 +121,7 @@ public final class PublishedEventModelMigration implements AutoCloseable {
         return modelTypes;
     }
 
-    /** Returns the isolated repository used to validate migrated state before cutover. */
+    /** Returns the repository used to validate the live migrated state before command cutover. */
     public ModelRepository repository() {
         requireOpen();
         return application.modelRepository();
@@ -137,10 +137,18 @@ public final class PublishedEventModelMigration implements AutoCloseable {
      */
     public Registration replay() {
         requireOpen();
+        if (!client.getSearchClient().getModelMigrations(
+                new io.fluxzero.common.api.search.GetModelMigrations(1)).getMigrations().isEmpty()) {
+            throw new IllegalStateException(
+                    "Legacy staged Model documents exist in this namespace; verify and adopt them before starting live replay");
+        }
         if (!replaying.compareAndSet(false, true)) {
             throw new IllegalStateException("Published-event Model migration is already replaying");
         }
         try {
+            modelTypes.stream().flatMap(type -> io.fluxzero.sdk.modeling.EntityMetadata.graphProjectionRoots(type).stream())
+                    .map(io.fluxzero.sdk.modeling.EntityMetadata.GraphProjectionRoot::modelType).distinct()
+                    .forEach(type -> application.modelRepository().registerGraphProjection(type, false).join());
             Registration registration = application.registerHandlers(eventMigrator);
             trackerRegistration = registration;
             log.info("Published-event Model migration {} is replaying with {} Model definitions",
@@ -154,7 +162,8 @@ public final class PublishedEventModelMigration implements AutoCloseable {
     }
 
     /**
-     * Adopts all staged Model documents after the replay consumer has durably reached {@code cutoverEventIndex}.
+     * Adopts documents left in staging by an older migration runner after its durable consumer reached the boundary.
+     * New live replay already maintains ordinary documents and does not require adoption.
      *
      * <p>Run this as an explicit cutover operation. Per-Model Runtime adoption is atomic and resumable; invoking a
      * single adoption job avoids redundant Graph rebuilds and ambiguous operator reporting.</p>

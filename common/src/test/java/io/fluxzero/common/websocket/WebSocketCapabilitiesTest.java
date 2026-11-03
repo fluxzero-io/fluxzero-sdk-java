@@ -29,6 +29,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class WebSocketCapabilitiesTest {
 
     @Test
+    void liveMigrationRequiresAnExplicitSupportedVersion() {
+        assertFalse(WebSocketCapabilities.supportsLiveModelMigration(null));
+        assertFalse(WebSocketCapabilities.supportsLiveModelMigration(Map.of()));
+        assertFalse(WebSocketCapabilities.supportsLiveModelMigration(Map.of(
+                WebSocketCapabilities.LIVE_MODEL_MIGRATION_VERSION_HEADER, List.of("2"))));
+        assertTrue(WebSocketCapabilities.supportsLiveModelMigration(Map.of(
+                WebSocketCapabilities.LIVE_MODEL_MIGRATION_VERSION_HEADER.toLowerCase(), List.of("1"))));
+    }
+
+    @Test
     void identitySelectionRequiresAnExplicitSupportedVersion() {
         assertFalse(WebSocketCapabilities.supportsModelIdentitySelection(null));
         assertFalse(WebSocketCapabilities.supportsModelIdentitySelection(Map.of()));
