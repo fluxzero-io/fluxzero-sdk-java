@@ -24,10 +24,43 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ModelCommitValidatorTest {
+
+    @Test
+    void liveMigrationRoundTripsWithoutChangingLegacyStagingOrReadDependencies() {
+        CommitModels legacy = existingEventCommit("event-1", "event-1", 42L);
+        var live = new CommitModelsWithLiveMigrationDocuments(
+                new CommitModelsWithAliasReads(legacy, List.of("order-1")));
+        assertTrue(legacy.stagesMigrationDocuments());
+        assertTrue(live.isMigration());
+        assertFalse(live.stagesMigrationDocuments());
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(live));
+        var decoded = (CommitModels) io.fluxzero.common.serialization.JsonUtils.fromJson(
+                io.fluxzero.common.serialization.JsonUtils.asJson(live), io.fluxzero.common.api.JsonType.class);
+        assertEquals(live, decoded);
+        assertFalse(decoded.stagesMigrationDocuments());
+        assertEquals(List.of("order-1"), decoded.getReadAliasIds());
+        assertFalse(live.withDeadlineUpdates(List.of()).stagesMigrationDocuments());
+        var oldDecoded = (CommitModels) io.fluxzero.common.serialization.JsonUtils.fromJson(
+                io.fluxzero.common.serialization.JsonUtils.asJson(legacy), io.fluxzero.common.api.JsonType.class);
+        assertTrue(oldDecoded.stagesMigrationDocuments());
+        assertThrows(IllegalArgumentException.class, () -> new CommitModelsWithLiveMigrationDocuments(publishedCommit(-1L)));
+        assertThrows(IllegalArgumentException.class, () -> new CommitModelsWithLiveMigrationDocuments(
+                new CommitModelsWithIdentityReads(legacy, List.of(new ModelAliasObservation("alias", "order-1")))));
+    }
+
+    @Test
+    void liveMigrationPreservesSourceIdentityAndNoPublicationValidation() {
+        var live = new CommitModelsWithLiveMigrationDocuments(existingEventCommit("event-1", "event-1", 42L));
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(live));
+        var invalid = new CommitModelsWithLiveMigrationDocuments(existingEventCommit("different", "event-1", 42L));
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(invalid));
+        live.getSubsteps().getFirst().getEvent().setIndex(null);
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(live));
+    }
 
     @Test
     void acceptsSimplePublishedCreateAndUpdate() {

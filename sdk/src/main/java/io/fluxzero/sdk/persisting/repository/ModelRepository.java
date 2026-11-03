@@ -324,7 +324,8 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
-     * Verifies and adopts every staged direct Model migration known to this application.
+     * Verifies and adopts every legacy staged direct Model migration known to this application.
+     * Current published-event replay writes directly to the configured collections and needs no adoption.
      * Materialized Graph projections declared by the application are rebuilt after every staged document has been
      * adopted. The accepted normalized source remains isolated from later staging until the first ordinary Model write,
      * so another legacy boundary can be re-adopted without exposing unverified state. Repeating the operation is also a

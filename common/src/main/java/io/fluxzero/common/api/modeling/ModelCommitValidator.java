@@ -53,7 +53,8 @@ public final class ModelCommitValidator {
         if (!commit.getReadAliasIds().isEmpty()) {
             Set<String> aliases = uniqueIds(commit.getReadAliasIds(), "read alias");
             if (!(commit instanceof CommitModelsWithAliasReads || commit instanceof CommitModelsWithDeadlines
-                    || commit instanceof CommitModelsWithIdentityReads) || !commit.getReadModelIds().containsAll(aliases)) {
+                    || commit instanceof CommitModelsWithIdentityReads
+                    || commit instanceof CommitModelsWithLiveMigrationDocuments) || !commit.getReadModelIds().containsAll(aliases)) {
                 throw new IllegalArgumentException("Alias reads require an alias-aware commit and exact lookup head reads");
             }
         }

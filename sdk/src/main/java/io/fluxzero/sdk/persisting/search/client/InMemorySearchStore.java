@@ -1023,7 +1023,7 @@ public class InMemorySearchStore implements SearchClient {
                         if (mutation == null) {
                             continue;
                         }
-                        String collection = commit.isMigration()
+                        String collection = commit.stagesMigrationDocuments()
                                 ? io.fluxzero.common.api.modeling.ModelDocumentMutation.MIGRATION_COLLECTION
                                 : mutation.getCollection();
                         String documentKey = asIdentifier(
@@ -1051,7 +1051,7 @@ public class InMemorySearchStore implements SearchClient {
                                     position.getSequenceNumber(), stateIndex, position.isHistoryComplete(), target.isDelete());
                             modelDocumentVersions.put(documentKey, new DirectDocumentVersion(
                                     collection, head, role == 0 ? of(document, head) : null, role == 1));
-                            if (!commit.isMigration()) {
+                            if (!commit.stagesMigrationDocuments()) {
                                 adoptedModelIds.remove(target.getModelId());
                                 adoptedModelSources.remove(target.getModelId());
                             }
@@ -1095,7 +1095,7 @@ public class InMemorySearchStore implements SearchClient {
                     }
                 }
             }
-            return commit.isMigration()
+            return commit.stagesMigrationDocuments()
                     ? () -> { }
                     : prepareMessages(indexed);
         }

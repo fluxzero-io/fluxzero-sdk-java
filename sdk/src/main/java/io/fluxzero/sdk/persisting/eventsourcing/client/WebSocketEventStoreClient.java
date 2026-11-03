@@ -199,6 +199,12 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
             throw new UnsupportedOperationException(
                     "This Runtime does not support explicit Model identity selection; upgrade the Runtime before enabling alias mutation targets");
         }
+        if (request instanceof io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments
+            && !io.fluxzero.common.websocket.WebSocketCapabilities.supportsLiveModelMigration(
+                    session.getHandshakeResponseHeaders())) {
+            throw new UnsupportedOperationException(
+                    "This Runtime does not support live Model migration documents; upgrade the Runtime before starting replay");
+        }
         return request;
     }
 

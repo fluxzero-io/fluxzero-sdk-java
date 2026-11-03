@@ -803,7 +803,7 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
-    void publishedEventMigrationStagesDocumentBackedModelsThroughTheSameCommit() {
+    void publishedEventMigrationMaintainsLiveDocumentsThroughTheSameCommit() {
         DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
@@ -823,6 +823,7 @@ class ModelCommitHandlerRegistryTest {
 
             CommitModels commit = captured.join();
             assertTrue(commit.isMigration());
+            assertFalse(commit.stagesMigrationDocuments());
             assertFalse(commit.getSubsteps().getFirst().isPublishEvent());
             assertEquals(
                     42L,
@@ -838,7 +839,7 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
-    void publishedEventMigrationDoesNotStartMaterializedGraphProjection() {
+    void publishedEventMigrationStartsMaterializedGraphProjection() {
         DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
@@ -852,8 +853,7 @@ class ModelCommitHandlerRegistryTest {
                     new Message(new RetryRootMigration("migrated-graph")),
                     42L).join();
 
-            verify(repository, never()).registerGraphProjection(
-                    any(), anyBoolean());
+            verify(repository).registerGraphProjection(RetryRoot.class, false);
             verify(eventStoreClient).commitModels(any());
         } finally {
             subject.close();
