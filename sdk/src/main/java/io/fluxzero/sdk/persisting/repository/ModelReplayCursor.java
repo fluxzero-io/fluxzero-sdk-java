@@ -1348,20 +1348,28 @@ final class ModelReplayCursor {
                                     EntityMetadata.of(type).entityId().map(property -> property.name()).orElse(null),
                                     null, entityHelper, serializer);
                         }
+                        boolean cacheRevision = historical && modelCache instanceof ModelCache
+                                && !boundary.before() && head.isHistoryComplete()
+                                && EntityMetadata.validate(storedType).rootConfiguration().orElseThrow().eventSourced()
+                                && EntityMetadata.validate(storedType).rootConfiguration().orElseThrow().cached();
+                        Entity<?> cachedRevision = cacheRevision ? modelCache.get(id) : null;
                         if (cacheTracker != null && !historical && !boundary.before()
                             && EntityMetadata.validate(storedType).rootConfiguration().orElseThrow().eventSourced()) {
                             ModelCacheTracker.CurrentModel cached = cacheTracker.peekCurrentVersion(id, storedType);
-                            if (cached != null && cached.entity() instanceof ModelRoot<?> root
-                                && id.equals(root.id().toString()) && root.sequenceNumber() == head.getSequenceNumber()
-                                && root.stateIndex() == head.getStateIndex()) {
-                                // Untyped and alias roots discover their class before they can reuse an exact revision.
-                                return root;
-                            }
+                            cachedRevision = cached == null ? null : cached.entity();
+                        }
+                        if (cachedRevision instanceof ModelRoot<?> root && root.type().equals(storedType)
+                            && id.equals(root.id().toString()) && root.sequenceNumber() == head.getSequenceNumber()
+                            && root.stateIndex() == head.getStateIndex()) {
+                            // The pinned head proves the revision; it does not advance this Graph's snapshot.
+                            return root;
                         }
                         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                                 id, storedType, MutationPlan.Access.READ_ONLY,
                                 List.of(EntityMetadata.validate(storedType).entityId().orElseThrow().name()));
-                        Map<String, ModelCache.Stamp> publications = cacheTracker != null && !historical && !boundary.before()
+                        // Historical admissions seed replay but do not claim current tracker coverage.
+                        Map<String, ModelCache.Stamp> publications = cacheRevision
+                                || cacheTracker != null && !historical && !boundary.before()
                                 ? new LinkedHashMap<>() : null;
                         Entity<?> entity = reconstructProjection(List.of(target), Map.of(id, head), loaded.stateIndex(),
                                                                 historical, publications).get(id);
@@ -1374,7 +1382,7 @@ final class ModelReplayCursor {
                             throw new EventSourcingException("Resolved Graph revision is no longer available for '%s' at state %d"
                                     .formatted(id, head.getStateIndex()));
                         }
-                        if (publications != null && publications.get(id) != null) {
+                        if (!historical && publications != null && publications.get(id) != null) {
                             // Only this exact pinned reconstruction's publication proves that the cache can be reused.
                             cacheTracker.loaded(id, storedType, loaded.stateIndex(), publications.get(id));
                         }
@@ -1784,7 +1792,7 @@ final class ModelReplayCursor {
         LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
         if (!replayTargets.isEmpty()) {
             ReconstructionBatch reconstructed = session().reconstruct(
-                    replayTargets, ModelReadBoundary.at(stateIndex), !historicalBoundary);
+                    replayTargets, ModelReadBoundary.at(stateIndex), !historicalBoundary || cachePublications != null);
             if (reconstructed.stateIndex() != stateIndex) {
                 throw new GraphBoundaryMovedException(
                         "Model graph moved from state index %d to %d during reconstruction"

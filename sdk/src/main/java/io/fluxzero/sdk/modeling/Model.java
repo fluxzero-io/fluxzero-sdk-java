@@ -179,6 +179,8 @@ public @interface Model {
 
     /**
      * Whether the latest model state should be stored in the shared application cache.
+     * Complete event-sourced revisions reconstructed by historical Graph reads may also seed this cache;
+     * newer cached revisions take precedence, and the Graph retains its selected state boundary.
      * <p>
      * Models participating in a commit may additionally be retained in a commit-local cache until the commit
      * completes. A document revision alone is not a namespace snapshot: simple DOCUMENT writes verify that revision
