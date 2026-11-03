@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.lang.ref.Reference;
 import java.time.Duration;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -62,7 +64,9 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Answers.CALLS_REAL_METHODS;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 class ModelCacheTrackerTest {
@@ -1110,6 +1114,17 @@ class ModelCacheTrackerTest {
                 new CountDownLatch(1);
         AtomicInteger refreshCount =
                 new AtomicInteger();
+        CountDownLatch claimingRefresh = new CountDownLatch(1);
+        CountDownLatch continueRefresh = new CountDownLatch(1);
+        AtomicBoolean firstClaim = new AtomicBoolean(true);
+        AtomicBoolean requested = spy(new AtomicBoolean());
+        doAnswer(invocation -> {
+            if (firstClaim.compareAndSet(true, false)) {
+                claimingRefresh.countDown();
+                assertTrue(continueRefresh.await(5L, TimeUnit.SECONDS));
+            }
+            return invocation.callRealMethod();
+        }).when(requested).set(false);
         try (ModelCacheTracker tracker =
                      new ModelCacheTracker(
                              eventStore, cache,
@@ -1124,6 +1139,14 @@ class ModelCacheTrackerTest {
                                          .RefreshedBatch(
                                                  safeStateIndex, Map.of("sample-1", after));
                              })) {
+            // Pause the first worker while it claims its request. A concurrent materialization
+            // signal must enter this worker's boundary snapshot or remain pending for the next one.
+            var requestedField = ModelCacheTracker.class.getDeclaredField("refreshRequested");
+            requestedField.setAccessible(true);
+            requestedField.set(tracker, requested);
+            var executorField = ModelCacheTracker.class.getDeclaredField("refreshExecutor");
+            executorField.setAccessible(true);
+            ExecutorService refreshExecutor = (ExecutorService) executorField.get(tracker);
             tracker.loaded(
                     "sample-1",
                     SampleModel.class,
@@ -1161,10 +1184,16 @@ class ModelCacheTrackerTest {
                     before,
                     cache.get("sample-1"));
 
+            assertTrue(claimingRefresh.await(5L, TimeUnit.SECONDS));
             materializationPoll.complete(
                     new TrackModelUpdatesResult(
                             2L, 11L, 11L, 11L,
                             List.of()));
+            awaitNext(polls); // The materialization page and its refresh request are now published.
+            var refreshFinished = refreshExecutor.submit(() -> {});
+            continueRefresh.countDown();
+            refreshFinished.get(5L, TimeUnit.SECONDS);
+            assertEquals(1, refreshCount.get(), "The materialization signal must survive the in-flight claim");
             assertTrue(
                     refreshed.await(
                             5L,
@@ -1173,7 +1202,10 @@ class ModelCacheTrackerTest {
                     after,
                     awaitCurrent(tracker, "sample-1", SampleModel.class));
         } finally {
+            continueRefresh.countDown();
             cache.close();
+            // A soft-cache eviction would correctly skip refresh and invalidate this test's premise.
+            Reference.reachabilityFence(before);
         }
     }
 

@@ -915,14 +915,12 @@ final class ModelCacheTracker implements AutoCloseable {
                 new LinkedHashMap<>();
         Map<String, Entry> targetEntries = new LinkedHashMap<>();
         Map<String, ModelCache.ReadToken> tokens = new LinkedHashMap<>();
-        long refreshBoundary =
-                Math.min(
-                        cursor,
-                        materializedCursor);
         Throwable refreshFailure = null;
         boolean fullBatch = false;
         try {
             refreshRequested.set(false);
+            // A concurrent request must be included in this snapshot or remain pending for the next worker.
+            long refreshBoundary = Math.min(cursor, materializedCursor);
             //Collapse one tracker page and very closely following commits into one batched suffix load.
             LockSupport.parkNanos(
                     java.util.concurrent.TimeUnit.MILLISECONDS
