@@ -21,7 +21,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Verifies and adopts every staged direct Model migration known to this application.\n Materialized Graph projections declared by the application are rebuilt after every staged document has been\n adopted. The accepted normalized source remains isolated from later staging until the first ordinary Model write,\n so another legacy boundary can be re-adopted without exposing unverified state. Repeating the operation is also a\n safe way to resume projection rebuilds after a failure.\n\n @return the number of staged Model documents adopted by this invocation\n @see io.fluxzero.sdk.configuration.PublishedEventModelMigration\n"
+    "documentation" : " Verifies and adopts every legacy staged direct Model migration known to this application.\n Current published-event replay writes directly to the configured collections and needs no adoption.\n Materialized Graph projections declared by the application are rebuilt after every staged document has been\n adopted. The accepted normalized source remains isolated from later staging until the first ordinary Model write,\n so another legacy boundary can be re-adopted without exposing unverified state. Repeating the operation is also a\n safe way to resume projection rebuilds after a failure.\n\n @return the number of staged Model documents adopted by this invocation\n @see io.fluxzero.sdk.configuration.PublishedEventModelMigration\n"
   }, {
     "name" : "deleteModel",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#deleteModel",

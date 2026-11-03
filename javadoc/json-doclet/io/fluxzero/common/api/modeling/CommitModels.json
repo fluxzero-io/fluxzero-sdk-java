@@ -55,7 +55,7 @@
         "value" : "NON_DEFAULT"
       }
     } ],
-    "documentation" : " Whether direct documents produced by this commit belong to a published-event migration and\n must remain in migration staging until explicit adoption.\n",
+    "documentation" : " Whether this commit replays an existing published event. Legacy migration wire types stage their documents;\n {@link CommitModelsWithLiveMigrationDocuments} retains migration semantics with ordinary document storage.\n",
     "constantValue" : null
   }, {
     "name" : "possibleDuplicate",
@@ -406,6 +406,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Returns the sole target when this commit has one substep with one target, otherwise {@code null}. "
+  }, {
+    "name" : "stagesMigrationDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels#stagesMigrationDocuments",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether materialization must preserve the legacy staging contract for this wire request. "
   }, {
     "name" : "toMetric",
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels#toMetric",

@@ -55,6 +55,11 @@
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads",
     "kind" : "class"
   }, {
+    "file" : "CommitModelsWithLiveMigrationDocuments.json",
+    "name" : "CommitModelsWithLiveMigrationDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments",
+    "kind" : "class"
+  }, {
     "file" : "CommitModelsWithRelationships.json",
     "name" : "CommitModelsWithRelationships",
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithRelationships",

@@ -34,6 +34,14 @@
     "documentation" : "Filter languages accepted by the server, including live refresh and independent scan/idle boundaries. ",
     "constantValue" : "Fluxzero-Consumer-Filter-Versions"
   }, {
+    "name" : "LIVE_MODEL_MIGRATION_VERSION_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.LIVE_MODEL_MIGRATION_VERSION_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Published-event replay can materialize directly into its configured Model collections. ",
+    "constantValue" : "Fluxzero-Live-Model-Migration-Version"
+  }, {
     "name" : "MESSAGE_ENVELOPE_VERSION_HEADER",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.MESSAGE_ENVELOPE_VERSION_HEADER",
     "type" : "java.lang.String",
@@ -429,6 +437,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Whether this peer advertises the consumer filter language understood by this SDK. Missing means unsupported. "
+  }, {
+    "name" : "supportsLiveModelMigration",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#supportsLiveModelMigration",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Missing or unknown capability versions never permit live migration materialization. "
   }, {
     "name" : "supportsModelIdentitySelection",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#supportsModelIdentitySelection",
