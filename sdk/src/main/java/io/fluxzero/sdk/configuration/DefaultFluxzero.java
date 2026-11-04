@@ -897,10 +897,14 @@ public class DefaultFluxzero implements Fluxzero {
                                                                              (t, i) -> adhocInterceptor.andThen(i)));
             }
 
+            DispatchInterceptor deferredCommandDispatchInterceptor = dispatchChains.get(COMMAND);
             int resolvedMaxPublicationDepth = maxPublicationDepth();
             if (resolvedMaxPublicationDepth >= 0) {
                 RecursivePublicationGuard recursivePublicationGuard =
                         new RecursivePublicationGuard(resolvedMaxPublicationDepth);
+                deferredCommandDispatchInterceptor = deferredCommandDispatchInterceptor.andThen(
+                        (message, messageType, topic) -> message.addMetadata(
+                                RecursivePublicationGuard.PUBLICATION_DEPTH_METADATA_KEY, "0"));
                 Stream.of(COMMAND, EVENT, QUERY, WEBREQUEST, CUSTOM).forEach(
                         messageType -> dispatchChains.computeIfPresent(
                                 messageType, (t, i) -> i.andThen(recursivePublicationGuard)));
@@ -1058,7 +1062,7 @@ public class DefaultFluxzero implements Fluxzero {
             MessageScheduler messageScheduler = new DefaultMessageScheduler(client,
                                                                             serializer,
                                                                             dispatchChains.get(SCHEDULE),
-                                                                            dispatchChains.get(COMMAND),
+                                                                            deferredCommandDispatchInterceptor,
                                                                             taskScheduler,
                                                                             localHandlerRegistry(SCHEDULE,
                                                                                                  handlerChains,

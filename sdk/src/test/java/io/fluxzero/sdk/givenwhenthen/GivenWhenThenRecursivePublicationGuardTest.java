@@ -22,10 +22,14 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.publishing.RecursivePublicationException;
 import io.fluxzero.sdk.publishing.RecursivePublicationGuard;
 import io.fluxzero.sdk.scheduling.Schedule;
+import io.fluxzero.sdk.scheduling.ScheduledCommand;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,7 +37,9 @@ import java.util.function.Predicate;
 
 import static io.fluxzero.common.MessageType.EVENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GivenWhenThenRecursivePublicationGuardTest {
 
@@ -115,6 +121,126 @@ class GivenWhenThenRecursivePublicationGuardTest {
                 .expectEvents((Predicate<Message>) event -> event.getPayload().equals(new ScheduleObserved(1))
                                                     && depth(event) == 1)
                 .expectNoErrors();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void selfSchedulingCommandStartsANewPublicationBranchForEachDelivery(boolean async) {
+        var handler = new ReschedulingCommandHandler();
+        var builder = DefaultFluxzero.builder().setMaxPublicationDepth(2);
+        var fixture = async ? TestFixture.createAsync(builder, handler) : TestFixture.create(builder, handler);
+        fixture.whenCommand(new ScheduledStep(0)).expectNoErrors();
+        for (int step = 1; step <= 10; step++) {
+            int expectedStep = step;
+            fixture.whenTimeElapses(Duration.ofSeconds(1)).expectNoErrors()
+                    .expectThat(fc -> assertEquals(expectedStep + 1, handler.invocations.get()));
+        }
+        assertEquals(1, handler.maximumDepth.get(), "A scheduled delivery must start a fresh branch");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void scheduledCommandStartsANewBranchWhenCreatedAtTheCurrentDepthLimit(boolean async) {
+        var deferredHandler = new DeferredCommandHandler();
+        var builder = DefaultFluxzero.builder().setMaxPublicationDepth(2);
+        Object[] handlers = {new FirstPublicationStepHandler(), new SecondPublicationStepHandler(),
+                new ScheduleCommandAtDepthLimitHandler(), deferredHandler};
+        var fixture = async ? TestFixture.createAsync(builder, handlers) : TestFixture.create(builder, handlers);
+
+        fixture.whenCommand(new FirstPublicationStep())
+                .expectNoErrors()
+                .expectThat(fc -> {
+                    var schedule = fc.messageScheduler().getSchedule("at-depth-limit").orElseThrow();
+                    var scheduledCommand = assertInstanceOf(ScheduledCommand.class, schedule.getPayload());
+                    assertEquals("0", scheduledCommand.getCommand().getMetadata().get(
+                            RecursivePublicationGuard.PUBLICATION_DEPTH_METADATA_KEY));
+                });
+        fixture.whenTimeElapses(Duration.ofSeconds(1)).expectNoErrors()
+                .expectThat(fc -> assertEquals(1, deferredHandler.invocations.get()));
+        fixture.whenTimeElapses(Duration.ofSeconds(1)).expectNoErrors()
+                .expectThat(fc -> assertEquals(1, deferredHandler.invocations.get()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void ordinaryScheduleCanStartANewBranchAtTheCurrentDepthLimit(boolean async) {
+        var builder = DefaultFluxzero.builder().setMaxPublicationDepth(2);
+        Object[] handlers = {new FirstPublicationStepHandler(), new SecondPublicationStepHandler(),
+                new ScheduleAtDepthLimitHandler()};
+        var fixture = async ? TestFixture.createAsync(builder, handlers) : TestFixture.create(builder, handlers);
+
+        fixture.whenCommand(new FirstPublicationStep())
+                .expectNoErrors()
+                .expectThat(fc -> assertTrue(fc.messageScheduler().getSchedule("at-depth-limit").isPresent()));
+    }
+
+    private static class ReschedulingCommandHandler {
+        private final AtomicInteger invocations = new AtomicInteger();
+        private final AtomicInteger maximumDepth = new AtomicInteger();
+
+        @HandleCommand
+        void handle(ScheduledStep step, DeserializingMessage message) {
+            invocations.incrementAndGet();
+            maximumDepth.accumulateAndGet(depth(message.toMessage()), Math::max);
+            if (step.iteration() < 10) {
+                Fluxzero.scheduleCommand(new ScheduledStep(step.iteration() + 1), "recursive-command",
+                                         Fluxzero.currentTime().plusSeconds(1));
+            }
+        }
+    }
+
+    private record ScheduledStep(int iteration) {
+    }
+
+    private static class FirstPublicationStepHandler {
+        @HandleCommand
+        void handle(FirstPublicationStep ignored) {
+            Fluxzero.sendCommandAndWait(new SecondPublicationStep());
+        }
+    }
+
+    private static class SecondPublicationStepHandler {
+        @HandleCommand
+        void handle(SecondPublicationStep ignored) {
+            Fluxzero.sendCommandAndWait(new FinalPublicationStep());
+        }
+    }
+
+    private static class ScheduleCommandAtDepthLimitHandler {
+        @HandleCommand
+        void handle(FinalPublicationStep ignored) {
+            Fluxzero.scheduleCommand(new DeferredCommand(), "at-depth-limit",
+                                     Fluxzero.currentTime().plusSeconds(1));
+        }
+    }
+
+    private static class DeferredCommandHandler {
+        private final AtomicInteger invocations = new AtomicInteger();
+
+        @HandleCommand
+        void handle(DeferredCommand ignored) {
+            invocations.incrementAndGet();
+        }
+    }
+
+    private static class ScheduleAtDepthLimitHandler {
+        @HandleCommand
+        void handle(FinalPublicationStep ignored) {
+            Fluxzero.schedule(new ScheduledRecursiveEvent(0), "at-depth-limit",
+                              Fluxzero.currentTime().plusSeconds(1));
+        }
+    }
+
+    private record FirstPublicationStep() {
+    }
+
+    private record SecondPublicationStep() {
+    }
+
+    private record FinalPublicationStep() {
+    }
+
+    private record DeferredCommand() {
     }
 
     private static int depth(Message message) {
