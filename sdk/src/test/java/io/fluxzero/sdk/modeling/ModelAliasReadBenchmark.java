@@ -43,26 +43,29 @@ import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.clearC
  * Standalone before/after cost study using the same workload bytecode and different production artifacts.
  * Identity-first Graph access explores the head-only mechanism using an existing public API.
  * Seeding, cache resets and assertions are outside timing/allocation windows. Worker allocations are excluded.
+ * Response metric traversal and counter updates run inside the observed read, so reported costs include instrumentation.
  * Cold resets evict bodies but retain repository identity hints; unknown-identity churn is measured separately.
- * Properties: history, warmups, warmupMillis, iterations, rounds, reverse, expectedWarmAliasPayloads.
- * The last property changes assertions only. No Runtime/network latency is simulated.
+ * Properties: history, warmups, warmupMillis, iterations, rounds, reverse, variant=baseline|candidate.
+ * The variant defaults to candidate and changes cost assertions only. No Runtime/network latency is simulated.
  */
 public class ModelAliasReadBenchmark {
     private static final String PRIMARY = "custom-owner", ALIAS = "friendly-name";
     private enum Route { MODEL_PRIMARY, MODEL_ALIAS, GRAPH_IDENTITY_ALIAS }
+    private enum Variant { BASELINE, CANDIDATE }
 
     public static void main(String[] args) {
         int history = Integer.getInteger("history", 1);
         int iterations = Integer.getInteger("iterations", 200), rounds = Integer.getInteger("rounds", 5);
+        Variant variant = Variant.valueOf(System.getProperty("variant", "candidate").toUpperCase(Locale.ROOT));
         boolean reverse = Boolean.getBoolean("reverse");
         List<Route> routes = reverse ? List.of(Route.GRAPH_IDENTITY_ALIAS, Route.MODEL_ALIAS, Route.MODEL_PRIMARY)
                                      : List.of(Route.MODEL_PRIMARY, Route.MODEL_ALIAS, Route.GRAPH_IDENTITY_ALIAS);
         for (boolean cold : reverse ? List.of(true, false) : List.of(false, true)) {
-            for (Route route : routes) { measure(route, cold, history, iterations, rounds); }
+            for (Route route : routes) { measure(route, cold, history, iterations, rounds, variant); }
         }
     }
 
-    private static void measure(Route route, boolean cold, int history, int iterations, int rounds) {
+    private static void measure(Route route, boolean cold, int history, int iterations, int rounds, Variant variant) {
         var client = new ObservedClient();
         ThreadMXBean allocation = (ThreadMXBean) ManagementFactory.getThreadMXBean();
         allocation.setThreadAllocatedMemoryEnabled(true);
@@ -105,8 +108,8 @@ public class ModelAliasReadBenchmark {
                     if (!expected.equals(actual)) { throw new AssertionError("Wrong value for " + route); }
                     long expectedCalls = !cold && route == Route.MODEL_PRIMARY ? 0
                             : cold && route == Route.GRAPH_IDENTITY_ALIAS ? 2 : 1;
-                    long expectedPayloads = cold ? history : route == Route.MODEL_ALIAS
-                            ? Integer.getInteger("expectedWarmAliasPayloads", history) : 0;
+                    long expectedPayloads = cold || route == Route.MODEL_ALIAS && variant == Variant.BASELINE
+                            ? history : 0;
                     if (client.calls != expectedCalls || client.payloads != expectedPayloads || client.graphCalls != 0) {
                         throw new AssertionError("Unexpected storage cost: " + route + "/" + cold + ": "
                                 + client.calls + "/" + client.payloads + "/" + client.graphCalls);

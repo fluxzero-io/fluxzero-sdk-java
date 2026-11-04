@@ -39,7 +39,11 @@ class ModelAliasCacheContractTest extends ModelAliasCacheContract {
     }
 
     @AfterAll
-    static void stop() throws Exception { server.stop(); }
+    static void stop() throws Exception {
+        if (server != null) {
+            server.stop();
+        }
+    }
 
     @Override protected Client[] clients(String namespace) {
         return new Client[]{client(namespace), client(namespace)};

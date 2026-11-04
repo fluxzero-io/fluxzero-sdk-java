@@ -17,8 +17,8 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
-import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
@@ -34,8 +34,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitCacheTracking;

@@ -58,7 +58,8 @@ import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitC
  * Properties: {@code scenario=low-hit|pressure|concurrent|stale}, {@code history=1}, {@code payloadSize=128},
  * {@code warmups=1000} (pressure: workingSet, stale: 100), {@code iterations=200}, {@code rounds=5},
  * {@code aliasEvery=10}, {@code workingSet=1536}, {@code workers=4}, {@code catalogSize=32} (0..32).
- * All operation counts, histories, values and assertions are identical between variants. There are no timed warmups.
+ * Both variants execute the same reads and histories and validate the same values; only expected storage costs differ.
+ * Warmup uses fixed operation counts.
  * <p>
  * Low-hit reads use a never-observed alias every aliasEvery operations; the other reads are a warm canonical control.
  * Pressure cycles over more than 1024 distinct aliases while their canonical roots remain resident. Concurrent reads
@@ -66,8 +67,10 @@ import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitC
  * owner per operation, with exactly history seed events and one update while the reader's tracker response is held.
  * The live canonical proof is checked before measuring the foreground read; no waiting duration establishes state.
  * <p>
- * Setup, writes, tracker gates, request counters, task submission, value checks and metrics-log truncation are outside
+ * Setup, writes, tracker gates, counter resets, task submission, value checks and metrics-log truncation are outside
  * individual read timing and calling-thread allocation. Caller allocations exclude SDK transport/refresh workers.
+ * Response metric traversal and atomic counter updates are inside the observed read. Their cost can vary with payload
+ * volume, so latency/allocation results include instrumentation and are not pure SDK overhead.
  * Concurrent batch wall time includes worker scheduling, in addition to the individual read latency distributions.
  * This uses real LocalClient storage behind the same proxy in both variants, not a network-latency simulation.
  */

@@ -1320,7 +1320,7 @@ final class ModelReplayCursor {
             return new ReconstructionBatch(loaded.stateIndex(),
                     Map.of(target.modelId(), loaded.entities().get(selected)), loaded.cachePublications());
         }
-        // Unknown aliases keep one payload request. A known identity can register its fence BEFORE that request.
+        // Cold aliases keep ordinary pagination; known identities register their fence before the first payload request.
         return session().reconstruct(List.of(target), ReplayWindow.complete(boundary), true, probe, canonical, null);
     }
 

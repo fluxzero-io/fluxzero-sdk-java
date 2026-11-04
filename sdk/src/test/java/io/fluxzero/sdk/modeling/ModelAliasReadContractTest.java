@@ -49,6 +49,7 @@ import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.evictM
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.AdditionalAnswers.delegatesTo;
@@ -138,9 +139,8 @@ class ModelAliasReadContractTest {
         var client = new AfterReadClient();
         var fixture = new Fixture(client, synchronous);
         try (Fluxzero writer = writer(client)) {
-            put(writer, "first", "lookup", 1);
-            read(fixture, "first", new Item("first", "lookup", 1));
-            read(fixture, "lookup", new Item("first", "lookup", 1)); // Establish the candidate hint.
+            prime(fixture, client, writer);
+            client.reads.clear();
             client.afterRead.set(() -> {
                 put(writer, "first", "released", 2);
                 put(writer, "second", "lookup", 9);
@@ -148,6 +148,12 @@ class ModelAliasReadContractTest {
             fixture.whenQuery(new ReadItem("lookup")).expectResult(new Item("first", "lookup", 1))
                     .expectEvents(new PutItem("first", "released", 2), new PutItem("second", "lookup", 9))
                     .expectNoCommands();
+            assertNull(client.afterRead.get(), "The controlled mutation must actually run");
+            GetModelEvents aliasRead = client.reads.stream()
+                    .filter(request -> request.getRequests().stream().anyMatch(r -> r.getModelId().equals("lookup")))
+                    .findFirst().orElseThrow();
+            assertTrue(aliasRead.getRequests().stream().allMatch(r -> r.getMaxSize() == 0),
+                       "The mutation must follow the optimized head response");
             read(fixture, "lookup", new Item("second", "lookup", 9));
         }
     }
