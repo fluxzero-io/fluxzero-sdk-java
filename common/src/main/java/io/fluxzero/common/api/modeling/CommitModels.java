@@ -81,8 +81,8 @@ public class CommitModels extends Command implements RetryAwareRequest {
     volatile boolean possibleDuplicate;
 
     /**
-     * Whether direct documents produced by this commit belong to a published-event migration and
-     * must remain in migration staging until explicit adoption.
+     * Whether this commit replays an existing published event. Legacy migration wire types stage their documents;
+     * {@link CommitModelsWithLiveMigrationDocuments} retains migration semantics with ordinary document storage.
      */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     boolean migration;
@@ -142,6 +142,11 @@ public class CommitModels extends Command implements RetryAwareRequest {
         this.migration = migration;
     }
 
+    /** Whether materialization must preserve the legacy staging contract for this wire request. */
+    public boolean stagesMigrationDocuments() {
+        return migration;
+    }
+
     @Override
     public void markPossibleDuplicate() {
         possibleDuplicate = true;
@@ -162,6 +167,9 @@ public class CommitModels extends Command implements RetryAwareRequest {
     /** Replaces scheduler effects while retaining explicit identity observations and all existing commit facets. */
     public CommitModels withDeadlineUpdates(List<ModelDeadlineUpdate> updates) {
         CommitModels result = new CommitModelsWithDeadlines(this, updates);
+        if (this instanceof CommitModelsWithLiveMigrationDocuments) {
+            return new CommitModelsWithLiveMigrationDocuments(result);
+        }
         return getAliasObservations().isEmpty() ? result
                 : new CommitModelsWithIdentityReads(result, getAliasObservations());
     }

@@ -298,6 +298,8 @@ class ModelReplayCursorTest {
         var root = ImmutableModelRoot.<CachedMixedModel>builder().id(id).type(CachedMixedModel.class)
                 .value(new CachedMixedModel(id)).stateIndex(10L).sequenceNumber(1L).build();
         ModelCacheTracker tracker = mock(ModelCacheTracker.class);
+        ModelCache cache = new ModelCache(new DefaultCache());
+        cache.put(id, root);
         when(tracker.peekCurrentVersion(id, CachedMixedModel.class))
                 .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, 10L));
         EventStoreClient client = mock(EventStoreClient.class);
@@ -311,7 +313,7 @@ class ModelReplayCursorTest {
             @Override public Class<?> modelType(String name, String modelId) { return CachedMixedModel.class; }
         };
         ModelReplayCursor cursor = new ModelReplayCursor(client, new JacksonSerializer(), mock(EntityHelper.class),
-                new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, null, null,
+                new MutationPlan.Compiler(List.of()), cache, null, null, null,
                 ModelReplayCursor.EventBoundaryBarrier.NONE, types);
         var boundary = ModelReadBoundary.at(20L);
 
@@ -322,6 +324,46 @@ class ModelReplayCursorTest {
                 () -> cursor.graphValue(id, CachedMixedModel.class, boundary, tracker, true));
         assertThrows(EventSourcingException.class,
                 () -> cursor.graphIdentity(id, CachedMixedModel.class, boundary, true, tracker).entity().get());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"state", "commit", "event"})
+    void historicalHeadProvesAnExactCachedRevisionWithoutCurrentTrackerCoverage(String selector) {
+        String id = "cached";
+        var root = ImmutableModelRoot.<CachedReplayModel>builder().id(id).type(CachedReplayModel.class)
+                .value(new CachedReplayModel(id)).stateIndex(10L).sequenceNumber(0L).build();
+        try (DefaultCache delegate = new DefaultCache()) {
+            ModelCache cache = new ModelCache(delegate);
+            cache.put(id, root);
+            EventStoreClient client = mock(EventStoreClient.class);
+            var head = new ModelHeadState(id, CachedReplayModel.class.getSimpleName(), 0L, 10L, true, false);
+            ModelReadBoundary boundary = switch (selector) {
+                case "commit" -> ModelReadBoundary.commit("commit", 0);
+                case "event" -> ModelReadBoundary.event(1L);
+                default -> ModelReadBoundary.at(20L);
+            };
+            when(client.getModelEvents(any())).thenAnswer(invocation -> {
+                GetModelEvents request = invocation.getArgument(0);
+                assertEquals(boundary, request.getBoundary());
+                assertEquals(0, request.getRequests().getFirst().getMaxSize());
+                return new GetModelEventsResult(request.getRequestId(), 20L, List.of(),
+                        List.of(new ModelEventStream(id, head, List.of())));
+            });
+            ModelTypeResolver types = mock(ModelTypeResolver.class);
+            when(types.modelType(head.getModelType(), id)).thenAnswer(ignored -> CachedReplayModel.class);
+            JacksonSerializer serializer = mock(JacksonSerializer.class);
+            EntityHelper helper = mock(EntityHelper.class);
+            var cursor = new ModelReplayCursor(client, serializer, helper, new MutationPlan.Compiler(List.of()),
+                    cache, null, null, null, ModelReplayCursor.EventBoundaryBarrier.NONE, types);
+
+            var identity = cursor.graphIdentity(id, CachedReplayModel.class, boundary, true, null);
+
+            assertEquals(20L, identity.boundary().stateIndex());
+            assertTrue(identity.historical());
+            assertSame(root, identity.entity().get());
+            verify(client).getModelEvents(any());
+            verifyNoInteractions(serializer, helper);
+        }
     }
 
     @Test

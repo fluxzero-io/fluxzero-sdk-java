@@ -108,6 +108,24 @@ class WebSocketEventStoreClientTest {
     }
 
     @Test
+    void liveMigrationRequiresCapabilityWithoutChangingLegacyRequests() {
+        var client = new RecordingEventStoreClient();
+        var session = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);
+        var ordinary = commit("migration");
+        var staged = new io.fluxzero.common.api.modeling.CommitModels(ordinary.getCommitId(), ordinary.getReadStateIndex(),
+                ordinary.getReadModelIds(), ordinary.getSubsteps(), ordinary.getConflictPolicy(), ordinary.getGuarantee(), true, true);
+        var live = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(staged);
+        try {
+            org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of());
+            assertEquals(staged, client.adaptRequestForSession(staged, session));
+            assertThrows(UnsupportedOperationException.class, () -> client.adaptRequestForSession(live, session));
+            org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of(
+                    io.fluxzero.common.websocket.WebSocketCapabilities.LIVE_MODEL_MIGRATION_VERSION_HEADER, List.of("1")));
+            assertEquals(live, client.adaptRequestForSession(live, session));
+        } finally { client.close(); }
+    }
+
+    @Test
     void identityRequestsRequireCapabilityWhileLegacyRequestsRemainUsable() {
         var client = new RecordingEventStoreClient();
         var session = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);

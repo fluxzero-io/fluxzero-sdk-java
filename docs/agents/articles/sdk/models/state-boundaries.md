@@ -65,6 +65,14 @@ another validation needs them. Only collections actually fetched and retained af
 
 ## Model cache tracking
 
+Explicit historical Graph reads validate the selected head before reusing an exact cached EVENT_SOURCED revision.
+Complete reconstructed revisions may seed the existing Model cache with its normal publication fencing and
+newer-revision precedence; they do not establish current tracker coverage. Keep the original Graph boundary for
+relationships and history. Incomplete historical heads retain their replay errors, and `cached = false` and
+`disableAutomaticModelCaching()` also exclude this reuse. No cache entry is added per requested snapshot.
+Historical-only reads do not start the update tracker: a remote erasure cannot be served by a fresh head-validated
+read, but a dormant cached body can remain until cache eviction or clearing.
+
 Current Model loads can use cache entries whose state has been validated against the model store. The SDK starts
 boundary observation asynchronously and maintains one tracking loop per cache tracker; concurrent first loads do
 not create additional loops or reset its cursor. A transient initial failure leaves current loads on the ordinary

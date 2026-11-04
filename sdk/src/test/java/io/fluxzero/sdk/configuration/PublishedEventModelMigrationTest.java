@@ -149,6 +149,24 @@ class PublishedEventModelMigrationTest {
     }
 
     @Test
+    void refusesLiveReplayWhenLegacyStagedDocumentsRemain() {
+        LocalClient client = org.mockito.Mockito.spy(LocalClient.newInstance(null));
+        var search = org.mockito.Mockito.spy(client.getSearchClient());
+        org.mockito.Mockito.doReturn(search).when(client).getSearchClient();
+        org.mockito.Mockito.doReturn(new io.fluxzero.common.api.search.GetModelMigrationsResult(1L,
+                java.util.List.of(new io.fluxzero.common.api.modeling.ModelHeadState(
+                        "legacy", "LegacyModel", 0L, 1L, true, false))))
+                .when(search).getModelMigrations(org.mockito.ArgumentMatchers.any());
+        try (var migration = PublishedEventModelMigration.builder().name("legacy-staging-guard")
+                .client(client).modelTypes(LegacyModel.class).build()) {
+            var failure = assertThrows(IllegalStateException.class, migration::replay);
+            assertTrue(failure.getMessage().contains("verify and adopt"));
+            assertTrue(client.getTrackingClient(EVENT).getPosition(migration.name())
+                    .isNew(new int[]{0, MAX_SEGMENT}));
+        }
+    }
+
+    @Test
     void replayRegistrationStopsOnlyReplayAndLeavesTheRunnerReusable() {
         LocalClient client = LocalClient.newInstance(null);
         try (PublishedEventModelMigration migration =

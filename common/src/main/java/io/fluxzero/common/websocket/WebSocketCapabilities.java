@@ -52,6 +52,18 @@ public final class WebSocketCapabilities {
     public static final String RUNTIME_SESSION_ID_HEADER = "Fluxzero-Runtime-Session-Id";
     public static final String RUNTIME_VERSION_HEADER = "Fluxzero-Runtime-Version";
 
+    /** Published-event replay can materialize directly into its configured Model collections. */
+    public static final String LIVE_MODEL_MIGRATION_VERSION_HEADER = "Fluxzero-Live-Model-Migration-Version";
+
+    /** Missing or unknown capability versions never permit live migration materialization. */
+    public static boolean supportsLiveModelMigration(Map<String, List<String>> headers) {
+        return headers != null && headers.entrySet().stream()
+                .filter(entry -> LIVE_MODEL_MIGRATION_VERSION_HEADER.equalsIgnoreCase(entry.getKey()))
+                .filter(entry -> entry.getValue() != null)
+                .flatMap(entry -> entry.getValue().stream())
+                .anyMatch("1"::equals);
+    }
+
     /** Explicit primary/alias selection and atomic alias-owner observations understood by the server. */
     public static final String MODEL_IDENTITY_SELECTION_VERSION_HEADER = "Fluxzero-Model-Identity-Selection-Version";
 

@@ -73,10 +73,17 @@ explicit lifecycle control, `replay()` returns a `Registration`; cancel it to st
 when finished.
 
 The runner registers only the catalog and one globally ordered, single-threaded EVENT consumer. It does not start
-ordinary handlers, automatic Model commands or materialized Graph projections during replay, and does not republish
-historical events. Each Model commit completes before the durable consumer position advances. Source-event identity
-makes restart overlap idempotent. Staged direct documents are not adopted for ordinary search yet; validate staged
-values and relationships through `migration.repository()`, then compare against the old application.
+ordinary handlers or automatic Model commands during replay, and does not republish historical events. It registers
+and maintains the declared Graph projections using their normal completion policy. Each Model commit completes before the durable consumer position advances. Source-event identity
+makes restart overlap idempotent. Model documents and Graph projections are stored in their configured collections throughout replay. Give them
+collections distinct from those still owned by the old application, including explicit Graph projection collections.
+Validate values, relationships and ordinary searches through a separate reader, then compare against the old application.
+Searches expose the latest indexed state; they do not provide historical versions of search documents.
+
+Use a Runtime that supports live migration documents. An older Runtime is rejected before sending a live migration
+commit. Persisted records from older staged migrations retain their original storage behavior. If staged documents
+already exist, stop every old migration-runner instance, including failover standbys. The runner refuses live replay until they have been verified and adopted with the existing `adopt`
+operation; do not silently resume document-only Models against an empty ordinary source.
 
 ## Coordinate readers without starting another replay
 
@@ -99,24 +106,21 @@ sets another bounded wait. If replay has reached the event but the mapping is st
 than returning stale or future state. Preserve normal handler retry and listener idempotency. New read-only
 listeners must not write to the old Aggregates.
 
-## Adopt at a verified cutover boundary
+## Transfer readers, then commands
 
-1. Pause the old application's business writes and drain in-flight work. Record the final published event index.
-2. Wait until the migration's durable consumer position covers that inclusive boundary, then stop replay.
-3. Run a single adoption job with the same catalog, serializer and consumer name:
-   `migration.run("adopt", Long.toString(cutoverEventIndex))` in Java, or
-   `migration.run("adopt", cutoverEventIndex.toString())` in Kotlin.
-4. Verify Models, relationships, searches and declared Graph projections before enabling new writes. Keep the old
-   write paths disabled; there must be one business-write owner.
+1. Keep the old application as command owner while the runner rebuilds and follows its published events.
+2. Wait for replay to catch up and verify current Model values, relationships, ordinary searches and declared Graph
+   projections. Move read-only queries and listeners to the Model application; configure event-bound readers as above.
+3. For command cutover, pause the old application's business writes, drain in-flight work and record the final event
+   index. Wait for the migration consumer to cover that inclusive boundary, then stop replay.
+4. Enable Model commands in the new application. The Model documents and search collections are already live; no
+   document copy or adoption is required. Keep the old write paths disabled.
 
-`adopt(long)` returns `CompletableFuture<Integer>` and refuses a negative boundary, active replay, or durable position
-that has not caught up. It delegates to `ModelRepository.adoptModelMigrations()`. Per-Model adoption is atomic and
-resumable, not one transaction over the whole migration. Projection rebuilding can also be resumed; qualify the
-application's declared projections before claiming the cutover is complete. The isolated runner itself deliberately
-has no materialized projections registered during replay. `run("adopt", ...)` waits for adoption and closes the
-migration; callers using `adopt(...)` directly own that lifecycle.
+The retained `adopt(long)`/`run("adopt", index)` operation supports staged state from an older runner. It refuses a
+negative boundary, active replay or a durable position that has not caught up. Per-Model adoption is resumable, and
+projection rebuilding can be resumed after failure. It is not part of the normal new three-phase rollout.
 
-Test restart overlap, late/unmapped events, bounded reader wait, rejected early adoption, rerun after partial failure,
-historical serialized data and the final ownership switch. Synthetic fixture seeding alone does not prove durable
-migration progress or a retained Runtime cutover. Never invent an event index from wall-clock time or silently
-replace a missing historical mapping with current state.
+Test restart overlap, late/unmapped events, bounded reader wait, historical serialized data, latest search and Graph
+updates, deletion, legacy-collection isolation and the final ownership switch. Synthetic fixture seeding alone does
+not prove durable migration progress or a retained Runtime cutover. Never invent an event index from wall-clock time
+or silently replace a missing historical mapping with current state.
