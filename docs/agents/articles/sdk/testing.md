@@ -91,6 +91,8 @@ For cleanup, `expectOnlyScheduledCommands` checks When-phase dispatch attempts, 
 `expectOnlyActiveScheduledCommands` for active command payloads and `expectNoSchedules` for absence of both schedule kinds.
 The asynchronous local fixture waits only for accepted schedule work: a rejected old parent lifetime or ignored
 `ifAbsent` attempt neither replaces accepted pending work nor creates an additional consumer wait.
+Running schedule batches remain pending even after cancellation or rescheduling; future attempts wait for the
+fixture clock to advance. Returned asynchronous results follow the consumer's `awaitAsyncResults` setting.
 
 For tracked handler failures that require compensation or a correction, use an asynchronous fixture and the error-corrections article. Assert the original `expectError(...)`, the triggered follow-up message, and its final observable result separately.
 
