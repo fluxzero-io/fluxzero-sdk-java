@@ -35,12 +35,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
-import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitCacheTracking;
-import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitTrackedThrough;
-import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.clearCacheAndAwait;
 import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -69,9 +68,10 @@ class GraphPinnedReadCostTest {
         var fixture = TestFixture.createAsync(DefaultFluxzero.builder(), client)
                 .givenCommands(VALUES.stream().map(v -> new PutValue(v.valueId(), v.revision())).toList())
                 .given(fc -> {
-                    awaitCacheTracking(fc);
-                    awaitTrackedThrough(client.polls, fc.apply(ignored -> Fluxzero.loadCurrentGraph(ROOT).stateIndex()));
-                    clearCacheAndAwait(fc);
+                    // Fixture command completion does not wait for the separate Model cache tracker.
+                    // Admit the warm values only after its commit page has finished processing.
+                    client.awaitTrackerAtHead();
+                    clearCache(fc);
                 });
         var query = new GetValues(ROOT, DEPENDENCIES, pinned);
 
@@ -93,7 +93,7 @@ class GraphPinnedReadCostTest {
                         return true;
                     }).expectNoEvents().expectNoCommands();
             // The injected root needs no getModelEvents call in this minimal fixture.
-            assertEquals(3, client.reads.size());
+            assertEquals(3, client.reads.size(), () -> "Unexpected storage reads: " + client.reads);
             assertEquals(Map.of("first", 1L,
                                "second", 1L, "third", 1L),
                     client.reads.stream().flatMap(r -> r.request().getRequests().stream())
@@ -106,13 +106,16 @@ class GraphPinnedReadCostTest {
     }
 
     @Test
-    void olderSnapshotCannotReplaceANewerCachedRevision() {
-        try (Fluxzero app = app(new ObservedClient())) {
+    void olderSnapshotCannotReplaceANewerCachedRevision() throws Exception {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client)) {
             commit(app, new PutValue(ROOT, 1));
+            client.awaitTrackerAtHead();
             long first = app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT).stateIndex());
-            clearCacheAndAwait(app);
+            clearCache(app);
             assertEquals(1, app.apply(fc -> Fluxzero.loadGraph(ROOT).atStateIndex(first).get()).revision());
             commit(app, new PutValue(ROOT, 2));
+            client.awaitTrackerAtHead();
             Value current = app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT).get());
             for (int repeat = 0; repeat < 2; repeat++) {
                 assertEquals(1, app.apply(fc -> Fluxzero.loadGraph(ROOT).atStateIndex(first).get()).revision());
@@ -120,20 +123,23 @@ class GraphPinnedReadCostTest {
             }
             Graph<Value> latest = app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT));
             assertEquals(1, latest.previous().get().revision());
-            clearCacheAndAwait(app);
+            clearCache(app);
             assertEquals(1, app.apply(fc -> Fluxzero.loadGraph(ROOT).atStateIndex(first).get()).revision());
             assertEquals(2, app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT).get()).revision());
         }
     }
 
     @Test
-    void unchangedCachedValueRetainsTheRequestedRelationshipSnapshot() {
-        try (Fluxzero app = app(new ObservedClient())) {
+    void unchangedCachedValueRetainsTheRequestedRelationshipSnapshot() throws Exception {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client)) {
             commit(app, new PutRelated("parent", null));
+            client.awaitTrackerAtHead();
             long first = app.apply(fc -> Fluxzero.loadCurrentGraph("parent", Related.class).stateIndex());
-            clearCacheAndAwait(app);
+            clearCache(app);
             Related value = app.apply(fc -> Fluxzero.loadGraph("parent", Related.class).atStateIndex(first).get());
             commit(app, new PutRelated("child", "parent"));
+            client.awaitTrackerAtHead();
             long second = app.apply(fc -> Fluxzero.loadCurrentGraph("parent", Related.class).stateIndex());
 
             Graph<Related> old = app.apply(fc -> Fluxzero.loadGraph("parent", Related.class).atStateIndex(first));
@@ -149,7 +155,7 @@ class GraphPinnedReadCostTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void historicalReadsHonorBothCacheOptOuts(boolean applicationOptOut) {
+    void historicalReadsHonorBothCacheOptOuts(boolean applicationOptOut) throws Exception {
         var client = new ObservedClient();
         var builder = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook();
         if (applicationOptOut) { builder.disableAutomaticModelCaching(); }
@@ -157,7 +163,7 @@ class GraphPinnedReadCostTest {
             Class<?> type = applicationOptOut ? Value.class : Uncached.class;
             commit(app, applicationOptOut ? new PutValue(ROOT, 1) : new PutUncached(ROOT.toString()));
             long boundary = app.apply(fc -> Fluxzero.loadCurrentGraph(ROOT.toString(), type).stateIndex());
-            clearCacheAndAwait(app);
+            clearCache(app);
             for (int repeat = 0; repeat < 2; repeat++) {
                 client.reads.clear();
                 Object value = app.apply(fc -> Fluxzero.loadGraph(ROOT.toString(), type).atStateIndex(boundary).get());
@@ -168,7 +174,7 @@ class GraphPinnedReadCostTest {
     }
 
     @Test
-    void historicalCacheDoesNotCrossNamespacesOrHideErasure() {
+    void historicalCacheDoesNotCrossNamespacesOrHideErasure() throws Exception {
         LocalClient client = LocalClient.newInstance();
         try (Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
                 .build(client.forNamespace("blue"));
@@ -181,7 +187,7 @@ class GraphPinnedReadCostTest {
             commit(other, new PutValue(ROOT, 9));
             long blueBoundary = Graphs.lazyCurrent(ROOT, Value.class, blue).stateIndex();
             long redBoundary = Graphs.lazyCurrent(ROOT, Value.class, red).stateIndex();
-            clearCacheAndAwait(app);
+            clearCache(app);
             for (int repeat = 0; repeat < 2; repeat++) {
                 assertEquals(1, Graphs.lazy(ROOT, Value.class, blue).atStateIndex(blueBoundary).get().revision());
                 assertEquals(9, Graphs.lazy(ROOT, Value.class, red).atStateIndex(redBoundary).get().revision());
@@ -194,6 +200,23 @@ class GraphPinnedReadCostTest {
 
     private static Fluxzero app(LocalClient client) {
         return DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+    }
+
+    private static void clearCache(Fluxzero app) throws Exception {
+        var cleared = new CompletableFuture<Void>();
+        // The default cache notifies its listeners asynchronously. A delayed clear notification can
+        // invalidate a newly warmed Model revision, so observe completion before measuring reuse.
+        var registration = app.cache().registerEvictionListener(event -> {
+            if (event.getId() == null && event.getReason() == io.fluxzero.common.caching.CacheEviction.Reason.manual) {
+                cleared.complete(null);
+            }
+        });
+        try {
+            app.cache().clear();
+            cleared.get(5, TimeUnit.SECONDS);
+        } finally {
+            registration.cancel();
+        }
     }
 
     private static void commit(Fluxzero app, Object command) {
@@ -247,13 +270,15 @@ class GraphPinnedReadCostTest {
     /** Observes real in-memory storage; model responses are never synthesized. */
     private static final class ObservedClient extends LocalClient {
         final List<Read> reads = new CopyOnWriteArrayList<>();
-        final BlockingQueue<TrackModelUpdates> polls = new LinkedBlockingQueue<>();
+        private final BlockingQueue<TrackModelUpdates> trackingRequests = new LinkedBlockingQueue<>();
+        private EventStoreClient storageDelegate;
 
         ObservedClient() { super(null); }
 
         @Override
         protected EventStoreClient createEventStoreClient() {
             EventStoreClient storage = super.createEventStoreClient();
+            storageDelegate = storage;
             EventStoreClient observed = mock(EventStoreClient.class, delegatesTo(storage));
             doAnswer(invocation -> {
                 GetModelEvents request = invocation.getArgument(0);
@@ -263,10 +288,26 @@ class GraphPinnedReadCostTest {
             }).when(observed).getModelEvents(any());
             doAnswer(invocation -> {
                 TrackModelUpdates request = invocation.getArgument(0);
-                polls.add(request);
+                if (request.getMaxWaitMillis() > 0) { trackingRequests.add(request); }
                 return storage.trackModelUpdates(request);
             }).when(observed).trackModelUpdates(any());
             return observed;
+        }
+
+        private void awaitTrackerAtHead() throws Exception {
+            // This real zero-wait read establishes the durable setup boundary, not tracker readiness.
+            long boundary = storageDelegate.trackModelUpdates(new TrackModelUpdates(-1L, 1, 0L))
+                    .get(5, TimeUnit.SECONDS).getCurrentStateIndex();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            for (;;) {
+                // The tracker issues its next long poll only after publishing the previous page's cursor
+                // and completing its processingPage future. Bootstrap completion alone proves neither.
+                long remaining = deadline - System.nanoTime();
+                assertTrue(remaining > 0, "The Model cache tracker did not reach setup boundary " + boundary);
+                TrackModelUpdates request = trackingRequests.poll(remaining, TimeUnit.NANOSECONDS);
+                assertNotNull(request, "The Model cache tracker did not reach setup boundary " + boundary);
+                if (request.getLastStateIndex() >= boundary) { return; }
+            }
         }
     }
 }
