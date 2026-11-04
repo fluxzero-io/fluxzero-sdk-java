@@ -19,6 +19,7 @@ import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
@@ -31,17 +32,25 @@ import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import jakarta.annotation.Nullable;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitCacheTracking;
+import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitTrackedThrough;
 import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.clearCacheAndAwait;
+import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.evictModelAndAwait;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -131,6 +140,7 @@ class ModelAliasReadContractTest {
         try (Fluxzero writer = writer(client)) {
             put(writer, "first", "lookup", 1);
             read(fixture, "first", new Item("first", "lookup", 1));
+            read(fixture, "lookup", new Item("first", "lookup", 1)); // Establish the candidate hint.
             client.afterRead.set(() -> {
                 put(writer, "first", "released", 2);
                 put(writer, "second", "lookup", 9);
@@ -140,6 +150,127 @@ class ModelAliasReadContractTest {
                     .expectNoCommands();
             read(fixture, "lookup", new Item("second", "lookup", 9));
         }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true,true", "true,false", "false,true", "false,false"})
+    void cacheLossAfterHeadKeepsCanonicalIdentityAndTheFirstBoundary(boolean synchronous, boolean clear) {
+        var client = new AfterReadClient();
+        var fixture = new Fixture(client, synchronous);
+        try (Fluxzero writer = writer(client)) {
+            prime(fixture, client, writer);
+            client.afterRead.set(() -> {
+                if (clear) { clearCacheAndAwait(fixture.getFluxzero()); }
+                else { evictModelAndAwait(fixture.getFluxzero(), "first"); }
+                put(writer, "first", "released", 2);
+                put(writer, "second", "lookup", 9);
+            });
+            client.reads.clear();
+            read(fixture, "lookup", new Item("first", "lookup", 1));
+            assertTrue(client.reads.getFirst().getRequests().stream().allMatch(r -> r.getMaxSize() == 0));
+            // Independent writer commits can also read. Only the fallback is pinned to the first response boundary.
+            assertEquals(List.of("first"), client.reads.stream().filter(r -> r.getBoundary().historical())
+                    .flatMap(r -> r.getRequests().stream()).map(r -> r.getModelId()).toList());
+            read(fixture, "lookup", new Item("second", "lookup", 9));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void erasedCanonicalSpellingCannotRedirectPinnedFallbackToAnotherOwner(boolean synchronous) {
+        var client = new AfterReadClient();
+        var fixture = new Fixture(client, synchronous);
+        try (Fluxzero writer = writer(client)) {
+            prime(fixture, client, writer);
+            client.afterRead.set(() -> {
+                clearCacheAndAwait(fixture.getFluxzero());
+                writer.modelRepository().deleteModel("first", ModelDeletionCascade.NONE).join();
+                put(writer, "second", "first", 9);
+            });
+            fixture.whenQuery(new ReadItem("lookup")).expectExceptionalResult(EventSourcingException.class);
+            read(fixture, "second", new Item("second", "first", 9));
+            read(fixture, "lookup", null);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void knownColdAliasCannotPublishAcrossAClearDuringItsPayloadRead(boolean synchronous) {
+        var client = new AfterReadClient();
+        var fixture = new Fixture(client, synchronous);
+        try (Fluxzero writer = writer(client)) {
+            prime(fixture, client, writer);
+            clearCacheAndAwait(fixture.getFluxzero());
+            client.afterRead.set(() -> clearCacheAndAwait(fixture.getFluxzero()));
+            read(fixture, "lookup", new Item("first", "lookup", 1));
+            client.reads.clear();
+            read(fixture, "first", new Item("first", "lookup", 1));
+            assertEquals(1, client.reads.size(), "A clear after read-token admission must fence canonical publication");
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void canonicalFallbackRetainsItsHeadAcrossMultiplePayloadPages(boolean synchronous) {
+        var client = new AfterReadClient();
+        var fixture = new Fixture(client, synchronous);
+        try (Fluxzero writer = writer(client)) {
+            awaitCacheTracking(fixture.getFluxzero());
+            // The default stream page holds 128 memberships; the final value must come from a later page.
+            for (int version = 0; version < 130; version++) { put(writer, "first", "lookup", version); }
+            long boundary = writer.apply(fc -> Fluxzero.loadCurrentGraph("first", Item.class).stateIndex());
+            awaitTrackedThrough(client.polls, boundary);
+            clearCacheAndAwait(fixture.getFluxzero());
+            read(fixture, "first", new Item("first", "lookup", 129));
+            read(fixture, "lookup", new Item("first", "lookup", 129));
+            client.afterRead.set(() -> {
+                clearCacheAndAwait(fixture.getFluxzero());
+                put(writer, "first", "released", 130);
+                put(writer, "second", "lookup", 9);
+                // The writer also replayed several pages. Count only reader requests after this response hook.
+                client.reads.clear();
+            });
+            client.reads.clear();
+            read(fixture, "lookup", new Item("first", "lookup", 129));
+            List<GetModelEvents> pages = client.reads.stream().filter(r -> r.getBoundary().historical()).toList();
+            assertTrue(pages.size() >= 2, "Fallback must actually cross a payload page boundary");
+            assertTrue(pages.stream().allMatch(r -> Long.valueOf(boundary).equals(r.getBoundary().stateIndex())
+                    && r.getRequests().stream().allMatch(s -> s.getModelId().equals("first"))));
+            read(fixture, "lookup", new Item("second", "lookup", 9));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void foreignTypeRebindingDoesNotEvictTheOtherOwnersCanonicalCache(boolean synchronous) {
+        var client = new AfterReadClient();
+        var fixture = new Fixture(client, synchronous);
+        try (Fluxzero writer = writer(client)) {
+            prime(fixture, client, writer);
+            put(writer, "first", "released", 2);
+            commit(writer, new PutForeign("second", "lookup"));
+            long boundary = writer.apply(fc -> Fluxzero.loadCurrentGraph("second", Foreign.class).stateIndex());
+            awaitTrackedThrough(client.polls, boundary);
+            fixture.whenQuery(new ReadForeign("second")).expectResult(new Foreign("second", "lookup"));
+            read(fixture, "first", new Item("first", "released", 2));
+            client.reads.clear();
+            fixture.whenQuery(new ReadItem("lookup")).expectExceptionalResult(EventSourcingException.class);
+            assertTrue(client.reads.getFirst().getRequests().stream().allMatch(r -> r.getMaxSize() == 0),
+                       "The foreign-type test must exercise the live-candidate head path");
+            client.reads.clear();
+            fixture.whenQuery(new ReadForeign("second")).expectResult(new Foreign("second", "lookup"));
+            assertTrue(client.reads.isEmpty(), "A wrong-type alias must not evict the valid foreign canonical owner");
+        }
+    }
+
+    private static void prime(Fixture fixture, AfterReadClient client, Fluxzero writer) {
+        awaitCacheTracking(fixture.getFluxzero());
+        put(writer, "first", "lookup", 1);
+        long boundary = writer.apply(fc -> Fluxzero.loadCurrentGraph("first", Item.class).stateIndex());
+        awaitTrackedThrough(client.polls, boundary);
+        clearCacheAndAwait(fixture.getFluxzero());
+        read(fixture, "first", new Item("first", "lookup", 1));
+        read(fixture, "lookup", new Item("first", "lookup", 1));
     }
 
     @ParameterizedTest
@@ -218,6 +349,15 @@ class ModelAliasReadContractTest {
         @Apply Other apply() { return new Other(id); }
     }
 
+    @Model(searchable = false)
+    record Foreign(@EntityId String id, @Alias String alias) {}
+    record PutForeign(String id, String alias) {
+        @Apply Foreign apply() { return new Foreign(id, alias); }
+    }
+    record ReadForeign(String id) {
+        @HandleQuery Foreign handle() { return Fluxzero.loadModel(id, Foreign.class, false).get(); }
+    }
+
     private static final class Fixture extends TestFixture {
         Fixture(Client client, boolean synchronous) {
             super(DefaultFluxzero.builder(), ignored -> List.of(), client, synchronous);
@@ -226,6 +366,8 @@ class ModelAliasReadContractTest {
 
     private static final class AfterReadClient extends LocalClient {
         final AtomicReference<Runnable> afterRead = new AtomicReference<>();
+        final List<GetModelEvents> reads = new CopyOnWriteArrayList<>();
+        final BlockingQueue<TrackModelUpdates> polls = new LinkedBlockingQueue<>();
         AfterReadClient() { super(null); }
         @Override
         protected EventStoreClient createEventStoreClient() {
@@ -234,11 +376,17 @@ class ModelAliasReadContractTest {
             doAnswer(invocation -> {
                 GetModelEvents request = invocation.getArgument(0);
                 GetModelEventsResult response = storage.getModelEvents(request);
+                reads.add(request);
                 Runnable action = request.getRequests().stream().anyMatch(stream -> stream.getModelId().equals("lookup"))
                         ? afterRead.getAndSet(null) : null;
                 if (action != null) { action.run(); }
                 return response;
             }).when(observed).getModelEvents(any());
+            doAnswer(invocation -> {
+                TrackModelUpdates request = invocation.getArgument(0);
+                polls.add(request);
+                return storage.trackModelUpdates(request);
+            }).when(observed).trackModelUpdates(any());
             return observed;
         }
     }

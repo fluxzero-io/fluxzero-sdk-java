@@ -78,6 +78,16 @@ boundary observation asynchronously and maintains one tracking loop per cache tr
 not create additional loops or reset its cursor. A transient initial failure leaves current loads on the ordinary
 store-validation path and allows a later load to retry initialization.
 
+Standalone current reads of cached EVENT_SOURCED Models can reuse an exact canonical revision after a fresh
+head read validates the original lookup spelling, primary-ID precedence, stored type, sequence and state index.
+A bounded repository-local identity hint selects a cache candidate; it never proves an alias binding. Unknown
+aliases and evicted bodies retain one ordinary payload request. A previously observed identity can be admitted
+canonically only with a read fence registered before that request; the first unknown alias read does not publish
+under a newly discovered canonical key. A live candidate that changed can require a head request followed by
+reconstruction at that first response's boundary. Cache loss during validation uses that same boundary; erased
+history fails rather than redirecting a canonical spelling to another owner. A pure cache hit establishes no new
+tracker coverage. Historical, transactional/staged, DOCUMENT and cache-disabled paths retain their own contracts.
+
 An unchanged cached parent does not prove that its child relationships are current. Eligible single-target writes
 with built-in RETRY can reuse a cached event-sourced parent without an extra store read. If deletion or another
 transactional dependency later needs a fresh boundary, the SDK first verifies the parent's exact revision; a changed

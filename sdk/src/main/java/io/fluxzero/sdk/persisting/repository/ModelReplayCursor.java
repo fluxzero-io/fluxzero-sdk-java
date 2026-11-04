@@ -111,6 +111,16 @@ final class ModelReplayCursor {
 
     private final EventStoreClient eventStoreClient;
     private final boolean primaryOnly;
+    // Candidate identities only: every hit still validates the original spelling against storage.
+    private final Map<String, AliasCandidate> aliasCandidates = Collections.synchronizedMap(
+            new LinkedHashMap<>(16, 0.75f, true) {
+                @Override protected boolean removeEldestEntry(Map.Entry<String, AliasCandidate> eldest) {
+                    return size() > 1_024;
+                }
+            });
+
+    private record AliasCandidate(String modelId, Class<?> type, long observedThrough) {}
+
     private final ReadBatcher requestBatcher;
     private final boolean prefetchPages;
     private final Settings settings;
@@ -412,13 +422,18 @@ final class ModelReplayCursor {
             List<String> modelIds,
             ModelReadBoundary boundary,
             boolean requireCompleteHistory) {
+        return loadHeads(modelIds, boundary, requireCompleteHistory, null);
+    }
+
+    private LoadResult loadHeads(List<String> modelIds, ModelReadBoundary boundary,
+                                 boolean requireCompleteHistory, HeadProbe probe) {
         Objects.requireNonNull(boundary, "boundary");
         List<String> ids = validateIds(modelIds);
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
         ids.forEach(id -> cursors.put(id, -1L));
         return load(
                 cursors, boundary, ignored -> {
-                }, true, requireCompleteHistory);
+                }, true, requireCompleteHistory, probe);
     }
 
     private LoadResult loadChunk(
@@ -910,7 +925,7 @@ final class ModelReplayCursor {
     CommitAttempt contextWithHeadProbe(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
                                        ModelCacheTracker cacheTracker, boolean requireBoundary, HeadProbe probe) {
         return contextAtBoundary(resolution, boundary, Map.of(), null, cacheTracker,
-                                 requireBoundary, false, false, probe);
+                                 requireBoundary, false, false, probe, true);
     }
 
     private CommitAttempt contextAtBoundary(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
@@ -918,6 +933,14 @@ final class ModelReplayCursor {
                                              Function<String, Entity<?>> pendingAncestor, ModelCacheTracker cacheTracker,
                                              boolean requireBoundary, boolean migration, boolean forceStorageBoundary,
                                              HeadProbe probe) {
+        return contextAtBoundary(resolution, boundary, stagedValues, pendingAncestor, cacheTracker,
+                                 requireBoundary, migration, forceStorageBoundary, probe, false);
+    }
+
+    private CommitAttempt contextAtBoundary(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
+                                             Map<String, Object> stagedValues, Function<String, Entity<?>> pendingAncestor,
+                                             ModelCacheTracker cacheTracker, boolean requireBoundary, boolean migration,
+                                             boolean forceStorageBoundary, HeadProbe probe, boolean modelAliasRead) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(stagedValues, "stagedValues");
@@ -1009,11 +1032,29 @@ final class ModelReplayCursor {
                     ? currentProjection(replayTargets, cacheTracker)
                     : null;
             if (current == null) {
-                ReconstructionBatch batch = session().reconstruct(
-                        replayTargets, ReplayWindow.complete(boundary), !boundary.historical(), probe);
+                MutationPlan.ResolvedModel only = replayTargets.size() == 1 ? replayTargets.getFirst() : null;
+                boolean aliasRead = modelAliasRead && !primaryOnly && !historicalBoundary && !migration
+                        && !forceStorageBoundary && stagedValues.isEmpty() && pendingAncestor == null
+                        && !resolution.hasAncestorDependencies() && documentTargets.isEmpty()
+                        && only != null && only.access() == MutationPlan.Access.READ_ONLY
+                        && modelCache instanceof ModelCache
+                        && EntityMetadata.of(only.modelType()).hasAliases()
+                        && EntityMetadata.of(only.modelType()).rootConfiguration().orElseThrow().cached();
+                ReconstructionBatch batch = aliasRead ? reconstructAliasRead(only, boundary, probe)
+                        : session().reconstruct(replayTargets, ReplayWindow.complete(boundary), !boundary.historical(), probe);
                 stateIndex = batch.stateIndex();
                 loaded.putAll(batch.entities());
                 cachePublications.putAll(batch.cachePublications());
+                if (aliasRead) {
+                    Entity<?> entity = batch.entities().get(only.modelId());
+                    if (entity.isPresent() && !only.modelId().equals(entity.id().toString())) {
+                        AliasCandidate next = new AliasCandidate(entity.id().toString(), only.modelType(), stateIndex);
+                        aliasCandidates.compute(only.modelId(), (id, previous) -> previous != null
+                                && previous.observedThrough() >= next.observedThrough() ? previous : next);
+                    } else {
+                        aliasCandidates.remove(only.modelId());
+                    }
+                }
             } else {
                 stateIndex = current.stateIndex();
                 loaded.putAll(current.entities());
@@ -1243,6 +1284,48 @@ final class ModelReplayCursor {
                 target.modelId(), documentReader.load(
                         target.modelId(), target.modelType(), false).entity()));
         return new ModelCacheTracker.RefreshedBatch(safeStateIndex, cacheUpdates);
+    }
+
+    private ReconstructionBatch reconstructAliasRead(MutationPlan.ResolvedModel target,
+                                                      ModelReadBoundary boundary, HeadProbe probe) {
+        ModelCache guarded = (ModelCache) modelCache;
+        AliasCandidate hint = aliasCandidates.get(target.modelId());
+        String canonical = hint != null && hint.type().equals(target.modelType()) ? hint.modelId() : null;
+        ModelCache.Stamp stamp = canonical == null ? null : guarded.stamp(canonical);
+        Entity<?> candidate = stamp == null ? null : guarded.get(canonical, stamp);
+        if (candidate instanceof ModelRoot<?> && candidate.isPresent() && candidate.type().equals(target.modelType())
+            && canonical.equals(candidate.id().toString())) {
+            LoadResult heads = loadHeads(List.of(target.modelId()), boundary, true, probe);
+            ModelHeadState head = heads.heads().get(target.modelId());
+            if (head == null) {
+                return new ReconstructionBatch(heads.stateIndex(), Map.of(target.modelId(), session().empty(target)), Map.of());
+            }
+            candidate = guarded.get(canonical, stamp);
+            boolean sameType = modelTypeResolver.modelName(target.modelType()).equals(head.getModelType());
+            if (!head.isDeleted() && canonical.equals(head.getModelId())
+                && candidate instanceof ModelRoot<?> root && candidate.isPresent()
+                && canonical.equals(root.id().toString()) && root.type().equals(target.modelType())
+                && sameType
+                && root.sequenceNumber() == head.getSequenceNumber() && root.stateIndex() == head.getStateIndex()) {
+                // The head proves this read; it does not grant new tracker coverage or publish a cache stamp.
+                return new ReconstructionBatch(heads.stateIndex(), Map.of(target.modelId(), root), Map.of());
+            }
+            // Preserve the old wrong-type path without disturbing an unrelated owner's cache.
+            String selected = sameType ? head.getModelId() : target.modelId();
+            MutationPlan.ResolvedModel resolved = new MutationPlan.ResolvedModel(
+                    selected, target.modelType(), target.access(), target.sourceProperties());
+            ReconstructionBatch loaded = session().reconstruct(List.of(resolved),
+                    ReplayWindow.complete(ModelReadBoundary.at(heads.stateIndex())), true, probe,
+                    null, Map.of(selected, head));
+            return new ReconstructionBatch(loaded.stateIndex(),
+                    Map.of(target.modelId(), loaded.entities().get(selected)), loaded.cachePublications());
+        }
+        // Unknown aliases keep one payload request. A known identity can register its fence BEFORE that request.
+        return session().reconstruct(List.of(target), ReplayWindow.complete(boundary), true, probe, canonical, null);
+    }
+
+    void clearAliasCandidates() {
+        aliasCandidates.clear();
     }
 
     /** Returns a coherent current cache projection, or {@code null} when replay must establish the boundary. */
@@ -2207,6 +2290,12 @@ final class ModelReplayCursor {
 
         private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
                                                  boolean cacheAtBoundary, HeadProbe probe) {
+            return reconstruct(targets, window, cacheAtBoundary, probe, null, null);
+        }
+
+        private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                 boolean cacheAtBoundary, HeadProbe probe, String aliasCandidate,
+                                                 Map<String, ModelHeadState> expectedHeads) {
             if (targets.isEmpty()) {
                 long stateBoundary = ModelReplayCursor.this.load(
                         Map.of(), window.boundary(),
@@ -2221,7 +2310,8 @@ final class ModelReplayCursor {
                 if (targets.size() == 1) {
                     if (EntityMetadata.of(first.modelType())
                             .rootConfiguration().orElseThrow().cached()) {
-                        readTokens = Map.of(first.modelId(), guarded.beginRead(first.modelId()));
+                        readTokens = aliasCandidate == null ? Map.of(first.modelId(), guarded.beginRead(first.modelId()))
+                                : guarded.beginReads(List.of(first.modelId(), aliasCandidate));
                     }
                 } else {
                     List<String> cachedIds = new ArrayList<>(targets.size());
@@ -2252,7 +2342,17 @@ final class ModelReplayCursor {
             ModelReplayCursor.LoadResult loaded =
                     ModelReplayCursor.this.load(
                             cursors, window.boundary(),
-                            page -> applyPage(page, states, window), false, true, probe);
+                            page -> {
+                                if (expectedHeads != null) {
+                                    for (ModelEventStream stream : page.response().getStreams()) {
+                                        if (!Objects.equals(expectedHeads.get(stream.getModelId()), stream.getHead())) {
+                                            throw new EventSourcingException("Resolved Model revision is no longer available for '"
+                                                    + stream.getModelId() + "' at state " + window.boundary().stateIndex());
+                                        }
+                                    }
+                                }
+                                applyPage(page, states, window);
+                            }, false, true, probe);
             LinkedHashMap<String, Entity<?>> cacheCandidates =
                     new LinkedHashMap<>(Math.min(16, targets.size()));
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>(targets.size());
@@ -2265,6 +2365,11 @@ final class ModelReplayCursor {
                 MutationPlan.ResolvedModel resolvedTarget = state.target;
                 if (!window.prefix()) {
                     validateReconstruction(resolvedTarget, head, entity);
+                }
+                if (expectedHeads != null && (!resolvedTarget.modelId().equals(entity.id().toString())
+                        || !resolvedTarget.modelType().equals(entity.type()))) {
+                    throw new EventSourcingException("Resolved Model identity changed during reconstruction of "
+                            + target.modelId());
                 }
                 boolean cacheable = !window.prefix()
                                     && cacheAtBoundary && head != null && head.isHistoryComplete()

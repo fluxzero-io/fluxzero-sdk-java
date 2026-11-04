@@ -19,10 +19,12 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.caching.CacheEviction;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.modeling.ModelRoot;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Completion barriers for tests that assert cache hits rather than eventual cache admission. */
 public final class ModelCacheTestSupport {
@@ -43,6 +45,28 @@ public final class ModelCacheTestSupport {
         });
         try {
             app.cache().clear();
+            await(completed);
+        } finally {
+            listener.cancel();
+        }
+    }
+
+    /** Evicts the actual repository key, including its owner/namespace, rather than a bare application cache key. */
+    public static void evictModelAndAwait(Fluxzero app, String modelId) {
+        AtomicReference<Object> selected = new AtomicReference<>();
+        CompletableFuture<Void> completed = new CompletableFuture<>();
+        Registration listener = app.cache().registerEvictionListener(event -> {
+            if (selected.get() != null && selected.get().equals(event.getId())) { completed.complete(null); }
+        });
+        try {
+            app.cache().modifyEach((key, value) -> {
+                if (value instanceof ModelRoot<?> root && modelId.equals(root.id().toString())) {
+                    selected.set(key);
+                    return null;
+                }
+                return value;
+            });
+            if (selected.get() == null) { throw new AssertionError("Model was not physically cached: " + modelId); }
             await(completed);
         } finally {
             listener.cancel();

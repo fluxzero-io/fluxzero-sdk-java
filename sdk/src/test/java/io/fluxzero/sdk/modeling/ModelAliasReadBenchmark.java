@@ -40,10 +40,12 @@ import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.awaitT
 import static io.fluxzero.sdk.persisting.repository.ModelCacheTestSupport.clearCacheAndAwait;
 
 /**
- * Standalone current-code cost study, not a benchmark of an implemented fix.
+ * Standalone before/after cost study using the same workload bytecode and different production artifacts.
  * Identity-first Graph access explores the head-only mechanism using an existing public API.
  * Seeding, cache resets and assertions are outside timing/allocation windows. Worker allocations are excluded.
- * Properties: history, warmups, warmupMillis, iterations, rounds, reverse. No Runtime/network latency is simulated.
+ * Cold resets evict bodies but retain repository identity hints; unknown-identity churn is measured separately.
+ * Properties: history, warmups, warmupMillis, iterations, rounds, reverse, expectedWarmAliasPayloads.
+ * The last property changes assertions only. No Runtime/network latency is simulated.
  */
 public class ModelAliasReadBenchmark {
     private static final String PRIMARY = "custom-owner", ALIAS = "friendly-name";
@@ -75,6 +77,12 @@ public class ModelAliasReadBenchmark {
             awaitTrackedThrough(client.polls, boundary);
             clearCacheAndAwait(app);
             Item expected = app.apply(fc -> Fluxzero.loadModel(PRIMARY, Item.class, false).get());
+            if (!cold && route == Route.MODEL_ALIAS) {
+                // Identical setup for both artifacts: learn the lookup before measuring steady-state reuse.
+                for (int i = 0; i < 2; i++) {
+                    if (!expected.equals(app.apply(fc -> read(route)))) { throw new AssertionError("Incorrect warmup"); }
+                }
+            }
             int warmups = Integer.getInteger("warmups", cold ? 300 : 2_000);
             for (int round = -1; round < rounds; round++) {
                 int count = round < 0 ? warmups : iterations;
@@ -97,7 +105,8 @@ public class ModelAliasReadBenchmark {
                     if (!expected.equals(actual)) { throw new AssertionError("Wrong value for " + route); }
                     long expectedCalls = !cold && route == Route.MODEL_PRIMARY ? 0
                             : cold && route == Route.GRAPH_IDENTITY_ALIAS ? 2 : 1;
-                    long expectedPayloads = cold || route == Route.MODEL_ALIAS ? history : 0;
+                    long expectedPayloads = cold ? history : route == Route.MODEL_ALIAS
+                            ? Integer.getInteger("expectedWarmAliasPayloads", history) : 0;
                     if (client.calls != expectedCalls || client.payloads != expectedPayloads || client.graphCalls != 0) {
                         throw new AssertionError("Unexpected storage cost: " + route + "/" + cold + ": "
                                 + client.calls + "/" + client.payloads + "/" + client.graphCalls);

@@ -127,6 +127,8 @@ import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
  * <p>
  * Current document-based models use their synchronously maintained direct document. Event-sourced and historical
  * loads use the model-stream protocol and reconstruct every selected stream at one pinned {@code stateIndex}.
+ * Standalone current alias reads may reuse an exact cached event-sourced revision after validating the original
+ * lookup's head in storage. Alias hints do not replace storage validation or establish new cache-tracker coverage.
  */
 public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         implements ModelRepository, ModelAncestorResolver, ModelTypeResolver, ModelGraphResolver {
@@ -284,6 +286,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         this::refreshCurrentModels, owningApplication::get);
         if (modelCacheTracker != null) {
             client.beforeShutdown(() -> {
+                replayCursor.clearAliasCandidates();
                 modelCacheTracker.close();
                 ((ModelCache) modelCache).releaseShared();
             });

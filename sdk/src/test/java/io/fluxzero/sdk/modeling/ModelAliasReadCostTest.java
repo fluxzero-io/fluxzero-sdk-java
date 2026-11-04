@@ -50,10 +50,10 @@ class ModelAliasReadCostTest {
     private static final Value VALUE = new Value(ID, ALIAS, 1);
     private static final Lookup EXPECTED = new Lookup(ID.toString(), VALUE);
 
-    /** Characterizes avoidable replay on current main, not a required cost for future implementations. */
+    /** Warm aliases retain fresh identity validation while reusing an exact canonical revision. */
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void literalAliasReplaysEvenWhenItsCanonicalModelIsWarm(boolean synchronous) {
+    void literalAliasReusesItsWarmCanonicalModel(boolean synchronous) {
         var client = new ObservedClient();
         var fixture = new ObservedFixture(client, synchronous)
                 .givenCommands(new PutValue(ID, ALIAS, 1))
@@ -77,12 +77,43 @@ class ModelAliasReadCostTest {
         for (int repeat = 0; repeat < 2; repeat++) {
             client.reads.clear();
             read(fixture, ALIAS);
-            assertReplay(client, ALIAS);
+            assertHeadOnly(client, ALIAS);
 
             client.reads.clear();
             read(fixture, ID.toString());
             assertEquals(0, client.reads.size(), "Alias reads must not evict the warm canonical value");
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void coldAliasKeepsOneRequestAndUsesTheNextReadForFencedCanonicalAdmission(boolean synchronous) {
+        var client = new ObservedClient();
+        var fixture = new ObservedFixture(client, synchronous)
+                .givenCommands(new PutValue(ID, ALIAS, 1))
+                .given(fc -> {
+                    awaitCacheTracking(fc);
+                    awaitTrackedThrough(client.polls, fc.apply(ignored -> Fluxzero.loadCurrentGraph(ID).stateIndex()));
+                    clearCacheAndAwait(fc);
+                });
+        for (int attempt = 0; attempt < 4; attempt++) {
+            client.reads.clear();
+            read(fixture, ALIAS);
+            if (attempt < 2) { assertReplay(client, ALIAS); }
+            else { assertHeadOnly(client, ALIAS); }
+        }
+        client.reads.clear();
+        read(fixture, ID.toString());
+        assertEquals(0, client.reads.size());
+    }
+
+    private static void assertHeadOnly(ObservedClient client, String key) {
+        assertEquals(1, client.reads.size());
+        Read read = client.reads.getFirst();
+        assertEquals(List.of(key), read.request().getRequests().stream().map(request -> request.getModelId()).toList());
+        assertTrue(read.request().getRequests().stream().allMatch(request -> request.getMaxSize() == 0));
+        assertEquals(0, read.result().getPayloadCount());
+        assertEquals(0L, read.result().getBytes());
     }
 
     private static void read(TestFixture fixture, String key) {
