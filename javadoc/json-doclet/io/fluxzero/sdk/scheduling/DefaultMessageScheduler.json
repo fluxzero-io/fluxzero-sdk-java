@@ -27,14 +27,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "commandDispatchInterceptor",
-    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.commandDispatchInterceptor",
-    "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "deadlineSlots",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.deadlineSlots",
     "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DefaultMessageScheduler.DeadlineSlot>",
@@ -47,6 +39,14 @@
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.defaultGuarantee",
     "type" : "io.fluxzero.common.Guarantee",
     "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deferredCommandDispatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.deferredCommandDispatchInterceptor",
+    "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -153,7 +153,7 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "commandDispatchInterceptor",
+      "name" : "deferredCommandDispatchInterceptor",
       "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
       "varArgs" : false,
       "annotations" : [ ]
