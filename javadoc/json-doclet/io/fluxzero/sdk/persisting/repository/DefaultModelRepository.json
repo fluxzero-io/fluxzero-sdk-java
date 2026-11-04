@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " Default repository for independently stored models.\n <p>\n Current document-based models use their synchronously maintained direct document. Event-sourced and historical\n loads use the model-stream protocol and reconstruct every selected stream at one pinned {@code stateIndex}.\n",
+  "documentation" : " Default repository for independently stored models.\n <p>\n Current document-based models use their synchronously maintained direct document. Event-sourced and historical\n loads use the model-stream protocol and reconstruct every selected stream at one pinned {@code stateIndex}.\n Standalone current alias reads may reuse an exact cached event-sourced revision after validating the original\n lookup's head in storage. Alias hints do not replace storage validation or establish new cache-tracker coverage.\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.persisting.repository.ModelRepository>",
   "interfaces" : [ "io.fluxzero.sdk.persisting.repository.ModelAncestorResolver", "io.fluxzero.sdk.persisting.repository.ModelGraphResolver", "io.fluxzero.sdk.persisting.repository.ModelRepository", "io.fluxzero.sdk.persisting.repository.ModelTypeResolver" ],
