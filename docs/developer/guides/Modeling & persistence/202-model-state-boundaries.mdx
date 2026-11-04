@@ -172,6 +172,11 @@ boundary observation asynchronously and maintains one tracking loop per cache tr
 not create additional loops or reset its cursor. A transient initial failure leaves current loads on the ordinary
 store-validation path and allows a later load to retry initialization.
 
+Standalone current alias reads revalidate the original lookup against storage, including primary-ID precedence.
+For cached EVENT_SOURCED Models, an exact matching canonical revision can supply the value without fetching its
+events again. Alias changes and cache eviction still require storage validation; disabling Model caching excludes
+this reuse.
+
 An unchanged cached parent does not prove that its child relationships are current. Eligible single-target writes
 with built-in RETRY can reuse a cached event-sourced parent without an extra store read. If deletion or another
 transactional dependency later needs a fresh boundary, the SDK first verifies the parent's exact revision; a changed

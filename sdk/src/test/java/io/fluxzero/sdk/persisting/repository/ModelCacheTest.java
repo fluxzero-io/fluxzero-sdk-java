@@ -38,6 +38,30 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ModelCacheTest {
     @Test
+    void delayedPhysicalClearFencesValuesPublishedBeforeItsNotificationCompletes() {
+        var notifications = new ConcurrentLinkedQueue<Runnable>();
+        var physical = new SoftReferenceCache(100, notifications::add, null);
+        var cache = new ModelCache(physical);
+        try {
+            cache.put("id", "old");
+            physical.clear();
+            assertEquals(1, notifications.size());
+            try (var token = cache.beginRead("id")) {
+                assertNotNull(cache.publish(token, "read-during-clear", 10));
+                assertEquals("read-during-clear", cache.get("id"));
+            }
+            notifications.remove().run();
+            assertNull(cache.get("id"), "A delayed clear fences an earlier publication");
+            try (var token = cache.beginRead("id")) {
+                assertNotNull(cache.publish(token, "read-after-clear", 10));
+                assertEquals("read-after-clear", cache.get("id"));
+            }
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
     void delayedRemovalNotificationFencesAReadThatStartedAfterPhysicalRemoval() {
         var notifications = new ConcurrentLinkedQueue<Runnable>();
         ModelCache cache = new ModelCache(new SoftReferenceCache(100, notifications::add, null));
