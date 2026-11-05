@@ -57,6 +57,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 
 import io.fluxzero.sdk.scheduling.DeadlineMetadata;
+import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -924,8 +925,15 @@ final class ModelReplayCursor {
 
     CommitAttempt contextWithHeadProbe(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
                                        ModelCacheTracker cacheTracker, boolean requireBoundary, HeadProbe probe) {
-        return contextAtBoundary(resolution, boundary, Map.of(), null, cacheTracker,
-                                 requireBoundary, false, false, probe, true);
+        for (int attempt = 0; attempt < MAX_DOCUMENT_REBASE_ATTEMPTS; attempt++) {
+            try {
+                return contextAtBoundary(resolution, boundary, Map.of(), null, cacheTracker,
+                        requireBoundary, false, false, probe, true);
+            } catch (DocumentPreparationMovedException failure) {
+                if (boundary.historical() || attempt + 1 == MAX_DOCUMENT_REBASE_ATTEMPTS) { throw failure; }
+            }
+        }
+        throw new IllegalStateException("Unreachable abstract document context retry state");
     }
 
     private CommitAttempt contextAtBoundary(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
@@ -933,8 +941,19 @@ final class ModelReplayCursor {
                                              Function<String, Entity<?>> pendingAncestor, ModelCacheTracker cacheTracker,
                                              boolean requireBoundary, boolean migration, boolean forceStorageBoundary,
                                              HeadProbe probe) {
-        return contextAtBoundary(resolution, boundary, stagedValues, pendingAncestor, cacheTracker,
-                                 requireBoundary, migration, forceStorageBoundary, probe, false);
+        for (int attempt = 0; attempt < MAX_DOCUMENT_REBASE_ATTEMPTS; attempt++) {
+            try {
+                return contextAtBoundary(resolution, boundary, stagedValues, pendingAncestor, cacheTracker,
+                        requireBoundary, migration, forceStorageBoundary, probe, false);
+            } catch (DocumentPreparationMovedException failure) {
+                // A concrete DOCUMENT type can be discovered by an abstract current read. Select all types again
+                // when its materialized value has moved; historical and mutation callers retain their own policy.
+                if (forceStorageBoundary || boundary.historical() || attempt + 1 == MAX_DOCUMENT_REBASE_ATTEMPTS) {
+                    throw failure;
+                }
+            }
+        }
+        throw new IllegalStateException("Unreachable abstract document context retry state");
     }
 
     private CommitAttempt contextAtBoundary(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
@@ -962,6 +981,25 @@ final class ModelReplayCursor {
             ancestorStateIndex = ancestors.stateIndex();
             ancestorReads = ancestors.reads();
             boundary = ModelReadBoundary.at(ancestorStateIndex);
+        }
+
+        boolean cacheAtReadBoundary = !boundary.historical();
+        LoadResult resolvedTypes = null;
+        Map<String, ModelCache.ReadToken> resolvedTypeReads = null;
+        try {
+        if (requiresStoredReadTypes(resolution.models())) {
+            List<String> ids = resolution.models().stream().map(MutationPlan.ResolvedModel::modelId).toList();
+            if (cacheAtReadBoundary && modelCache instanceof ModelCache guarded) {
+                // The concrete configuration may enable caching even when its declared contract does not.
+                resolvedTypeReads = guarded.beginReads(ids);
+            }
+            LoadResult heads = loadHeads(ids, boundary, false, probe);
+            resolution = resolution.withResolvedModels(resolveStoredReadTypes(resolution.models(), heads.heads()));
+            boundary = boundary.resolved(heads.stateIndex());
+            resolvedTypes = heads;
+            // Type selection and reconstruction must observe the same revision, including alias ownership.
+            // Cascading assertion selection retains its declared contract in ModelReducer.CascadeChecks.
+            forceStorageBoundary = true;
         }
 
         List<MutationPlan.ResolvedModel> replayTargets = new ArrayList<>();
@@ -1003,7 +1041,8 @@ final class ModelReplayCursor {
         // A document's own revision is not the namespace snapshot: unrelated dependencies may be newer, and a
         // missing target has no revision at all. Observe all heads together without turning current document loads
         // into historical replay (DOCUMENT may still publish events that this application cannot deserialize).
-        LoadResult currentDocumentHeads = forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
+        LoadResult currentDocumentHeads = resolvedTypes != null && !historicalBoundary && !documentTargets.isEmpty()
+                ? resolvedTypes : forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
                 && replayTargets.isEmpty() && !documentTargets.isEmpty()
                 ? loadHeads(documentTargets.stream().map(MutationPlan.ResolvedModel::modelId).toList(), boundary)
                 : null;
@@ -1040,7 +1079,10 @@ final class ModelReplayCursor {
                         && modelCache instanceof ModelCache
                         && EntityMetadata.of(only.modelType()).hasAliases()
                         && EntityMetadata.of(only.modelType()).rootConfiguration().orElseThrow().cached();
-                ReconstructionBatch batch = aliasRead ? reconstructAliasRead(only, boundary, probe)
+                ReconstructionBatch batch = resolvedTypes != null
+                        ? session().reconstructResolved(replayTargets, ReplayWindow.complete(boundary), cacheAtReadBoundary,
+                                probe, resolvedTypes.heads(), resolvedTypeReads)
+                        : aliasRead ? reconstructAliasRead(only, boundary, probe)
                         : session().reconstruct(replayTargets, ReplayWindow.complete(boundary), !boundary.historical(), probe);
                 stateIndex = batch.stateIndex();
                 loaded.putAll(batch.entities());
@@ -1073,7 +1115,8 @@ final class ModelReplayCursor {
             EntityMetadata metadata = EntityMetadata.validate(
                     target.modelType());
             ModelCache.ReadToken readToken = documentCacheBoundary != null && modelCache instanceof ModelCache guarded
-                    ? guarded.beginRead(target.modelId()) : null;
+                    ? resolvedTypeReads == null ? guarded.beginRead(target.modelId())
+                            : resolvedTypeReads.get(target.modelId()) : null;
             try {
             DocumentVersion document = documentReader.load(
                     target.modelId(), target.modelType(), migration);
@@ -1107,7 +1150,8 @@ final class ModelReplayCursor {
                 if (!resolvedId.equals(target.modelId())) {
                     if (readToken != null) {
                         readToken.close();
-                        readToken = ((ModelCache) modelCache).beginRead(resolvedId);
+                        readToken = resolvedTypeReads == null ? ((ModelCache) modelCache).beginRead(resolvedId)
+                                : resolvedTypeReads.get(resolvedId);
                     }
                     document = documentReader.load(
                             resolvedId, target.modelType(), migration);
@@ -1134,7 +1178,7 @@ final class ModelReplayCursor {
                 String resolvedId = entity.isPresent() && entity.id() != null
                         ? entity.id().toString() : target.modelId();
                 if (modelCache instanceof ModelCache guarded) {
-                    ModelCache.Stamp stamp = readToken.forId(resolvedId)
+                    ModelCache.Stamp stamp = readToken != null && readToken.forId(resolvedId)
                             ? guarded.publish(readToken, entity, documentCacheBoundary) : null;
                     if (stamp != null) {
                         cachePublications.put(resolvedId, stamp);
@@ -1230,6 +1274,42 @@ final class ModelReplayCursor {
         }
         return CommitAttempt.create(stateIndex, resolution, loaded).withAncestorReads(ancestorReads)
                 .withAliasResolutions(aliasReads == null ? Map.of() : aliasReads);
+        } finally {
+            if (resolvedTypeReads != null) {
+                resolvedTypeReads.values().forEach(ModelCache.ReadToken::close);
+            }
+        }
+    }
+
+    private static boolean requiresStoredReadTypes(List<MutationPlan.ResolvedModel> targets) {
+        for (int i = 0; i < targets.size(); i++) {
+            if (requiresStoredReadType(targets.get(i))) { return true; }
+        }
+        return false;
+    }
+
+    private List<MutationPlan.ResolvedModel> resolveStoredReadTypes(
+            List<MutationPlan.ResolvedModel> targets, Map<String, ModelHeadState> heads) {
+        List<MutationPlan.ResolvedModel> result = new ArrayList<>(targets.size());
+        for (MutationPlan.ResolvedModel target : targets) {
+            ModelHeadState head = heads.get(target.modelId());
+            if (head != null && requiresStoredReadType(target)) {
+                Class<?> storedType = modelType(head.getModelType(), head.getModelId());
+                if (!target.modelType().isAssignableFrom(storedType)) {
+                    throw new EventSourcingException("Model '%s' has stored type %s instead of %s"
+                            .formatted(head.getModelId(), storedType.getName(), target.modelType().getName()));
+                }
+                target = new MutationPlan.ResolvedModel(target.modelId(), storedType,
+                        target.access(), target.sourceProperties());
+            }
+            result.add(target);
+        }
+        return result;
+    }
+
+    private static boolean requiresStoredReadType(MutationPlan.ResolvedModel target) {
+        return !target.access().writes() && Modifier.isAbstract(target.modelType().getModifiers())
+                && EntityMetadata.of(target.modelType()).rootConfiguration().orElseThrow().eventSourced();
     }
 
     private static final class DocumentPreparationMovedException extends EventSourcingException {
@@ -2296,6 +2376,51 @@ final class ModelReplayCursor {
         private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
                                                  boolean cacheAtBoundary, HeadProbe probe, String aliasCandidate,
                                                  Map<String, ModelHeadState> expectedHeads) {
+            return reconstruct(targets, window, cacheAtBoundary, probe, aliasCandidate, expectedHeads, null);
+        }
+
+        private ReconstructionBatch reconstructResolved(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                         boolean cacheAtBoundary, HeadProbe probe,
+                                                         Map<String, ModelHeadState> heads,
+                                                         Map<String, ModelCache.ReadToken> readTokens) {
+            boolean aliased = false;
+            for (MutationPlan.ResolvedModel target : targets) {
+                ModelHeadState head = heads.get(target.modelId());
+                if (head != null && !target.modelId().equals(head.getModelId())) {
+                    aliased = true;
+                    break;
+                }
+            }
+            if (!aliased) {
+                return reconstruct(targets, window, cacheAtBoundary, probe, null, heads, readTokens);
+            }
+            List<MutationPlan.ResolvedModel> canonicalTargets = new ArrayList<>(targets.size());
+            Map<String, ModelHeadState> canonicalHeads = new LinkedHashMap<>();
+            for (MutationPlan.ResolvedModel target : targets) {
+                ModelHeadState head = heads.get(target.modelId());
+                String id = head == null ? target.modelId() : head.getModelId();
+                if (canonicalHeads.containsKey(id)) {
+                    throw new EventSourcingException("Multiple requested model IDs resolve to " + id);
+                }
+                canonicalHeads.put(id, head);
+                canonicalTargets.add(new MutationPlan.ResolvedModel(id, target.modelType(),
+                        target.access(), target.sourceProperties()));
+            }
+            // Alias ownership is current metadata. Once selected, load the canonical stream at the pinned boundary.
+            // Keep the original read fences: an owner discovered after I/O cannot receive a new publication token.
+            ReconstructionBatch loaded = reconstruct(canonicalTargets, window, cacheAtBoundary, probe,
+                    null, canonicalHeads, readTokens);
+            Map<String, Entity<?>> requested = new LinkedHashMap<>();
+            for (int i = 0; i < targets.size(); i++) {
+                requested.put(targets.get(i).modelId(), loaded.entities().get(canonicalTargets.get(i).modelId()));
+            }
+            return new ReconstructionBatch(loaded.stateIndex(), requested, loaded.cachePublications());
+        }
+
+        private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                 boolean cacheAtBoundary, HeadProbe probe, String aliasCandidate,
+                                                 Map<String, ModelHeadState> expectedHeads,
+                                                 Map<String, ModelCache.ReadToken> suppliedReadTokens) {
             if (targets.isEmpty()) {
                 long stateBoundary = ModelReplayCursor.this.load(
                         Map.of(), window.boundary(),
@@ -2303,8 +2428,8 @@ final class ModelReplayCursor {
                         }).stateIndex();
                 return new ReconstructionBatch(stateBoundary, Map.of(), Map.of());
             }
-            Map<String, ModelCache.ReadToken> readTokens = Map.of();
-            if (deferredCacheUpdates == null && modelCache instanceof ModelCache guarded
+            Map<String, ModelCache.ReadToken> readTokens = suppliedReadTokens == null ? Map.of() : suppliedReadTokens;
+            if (suppliedReadTokens == null && deferredCacheUpdates == null && modelCache instanceof ModelCache guarded
                 && cacheAtBoundary && !window.prefix()) {
                 MutationPlan.ResolvedModel first = targets.getFirst();
                 if (targets.size() == 1) {
@@ -2423,7 +2548,9 @@ final class ModelReplayCursor {
             }
             return new ReconstructionBatch(loaded.stateIndex(), result, publications);
             } finally {
-                readTokens.values().forEach(ModelCache.ReadToken::close);
+                if (suppliedReadTokens == null) {
+                    readTokens.values().forEach(ModelCache.ReadToken::close);
+                }
             }
         }
 
@@ -2706,8 +2833,15 @@ final class ModelReplayCursor {
                             ModelReadBoundary.at(readStateIndex))
                     : ReplayWindow.commitPrefix(
                             readStateIndex, commitId, substep);
-            ReconstructionBatch loaded = reconstruct(
-                    missing, window, false);
+            ReconstructionBatch loaded;
+            if (requiresStoredReadTypes(missing)) {
+                LoadResult heads = loadHeads(missing.stream().map(MutationPlan.ResolvedModel::modelId).toList(),
+                        window.boundary());
+                loaded = reconstructResolved(resolveStoredReadTypes(missing, heads.heads()), window, false,
+                        null, heads.heads(), null);
+            } else {
+                loaded = reconstruct(missing, window, false);
+            }
             if (substep == 0
                 && loaded.stateIndex() != readStateIndex) {
                 throw new EventSourcingException(

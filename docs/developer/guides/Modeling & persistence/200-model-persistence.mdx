@@ -446,6 +446,10 @@ its Project without repeating the rule on CompleteTask. A separate LineItem with
 that check too. The Project's own changes are checked as well: closing an open Project succeeds, changing it again
 fails. Use a functional exception for a business refusal and keep its customer-facing message free of IDs.
 
+An event-sourced parent may also be declared through an identified `@Model` interface or abstract class. Fluxzero
+reconstructs its compatible concrete Model and applies the cascading assertions selected by the declared parent
+contract. Additional assertions on the concrete implementation do not broaden that parent contract.
+
 ### Select payloads and retain injection
 
 A no-arg method covers all effective mutation payloads. Add a typed payload parameter to select that payload family,

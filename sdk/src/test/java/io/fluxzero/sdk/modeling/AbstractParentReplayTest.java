@@ -23,6 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -129,6 +130,61 @@ class AbstractParentReplayTest {
 
     interface ChildMutation {}
 
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void interfaceOnlyAssertionRetainsItsDeclaredScope(boolean async, boolean closed) {
+        checks.set(0);
+        fixture = async ? TestFixture.createAsync() : TestFixture.create();
+        var command = new CreateContractChild("child", "contract-owner");
+        var result = fixture.givenCommands(new CreateContractOwner("contract-owner", closed)).whenCommand(command);
+        if (closed) {
+            result.expectExceptionalResult(CLOSED).expectNoEvents().expectThat(fc -> {
+                assertTrue(Fluxzero.loadCurrentGraph("child", ContractChild.class).isEmpty());
+                assertEquals(0, fc.eventStore().getEvents("child").count());
+            });
+        } else {
+            result.expectSuccessfulResult().expectNoErrors().expectEvents(command).expectThat(fc -> {
+                assertEquals(new ContractChild("child", "contract-owner"),
+                        Fluxzero.loadModel("child", ContractChild.class).get());
+                assertEquals(1, fc.eventStore().getEvents("child").count());
+            });
+        }
+        assertEquals(1, checks.get());
+    }
+
+    @Model(cached = false)
+    interface InterfaceOnlyOwner {
+        @EntityId String id();
+
+        @AssertLegal(cascade = true)
+        void authorize(ChildMutation mutation);
+    }
+
+    @Model(cached = false)
+    record ContractOwner(@EntityId String id, boolean closed) implements InterfaceOnlyOwner {
+        @Override
+        public void authorize(ChildMutation mutation) {
+            checks.incrementAndGet();
+            if (closed) { throw CLOSED; }
+        }
+
+        @AssertLegal(cascade = true)
+        void concreteOnly(ChildMutation mutation) {
+            throw new IllegalStateException("An interface parent must retain its declared assertion scope");
+        }
+    }
+
+    @Model(cached = false)
+    record ContractChild(@EntityId String id, @Parent(InterfaceOnlyOwner.class) String ownerId) {}
+
+    record CreateContractOwner(String id, boolean closed) {
+        @Apply ContractOwner apply() { return new ContractOwner(id, closed); }
+    }
+
+    record CreateContractChild(String id, String ownerId) implements ChildMutation {
+        @Apply ContractChild apply() { return new ContractChild(id, ownerId); }
+    }
+
     @Model(cached = false)
     interface OwnerContract {
         @EntityId Id<? extends OwnerContract> ownerId();
@@ -138,7 +194,7 @@ class AbstractParentReplayTest {
     }
 
     // Disabling caches forces the parent check to reconstruct the previously committed owner.
-    @Model(cached = false)
+    @Model(name = "abstract-parent-replay-owner", cached = false)
     record Owner(@EntityId OwnerId ownerId, boolean closed) implements OwnerContract {
         @Override
         @AssertLegal(cascade = true)

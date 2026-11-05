@@ -150,6 +150,8 @@
                             <includes>
                                 <include>**/test/**</include>
                                 <include>**/META-INF/**</include>
+                                <!-- Shared storage contracts use the repository cache lifecycle barriers. -->
+                                <include>io/fluxzero/sdk/persisting/repository/ModelCacheTestSupport.class</include>
                             </includes>
                             <excludes>
                                 <exclude>**/fluxzero.properties</exclude>

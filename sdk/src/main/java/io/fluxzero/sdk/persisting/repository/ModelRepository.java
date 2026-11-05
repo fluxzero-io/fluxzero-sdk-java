@@ -213,6 +213,10 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     /**
      * Loads a model by primary ID or current alias and expected type. A primary model ID always takes precedence over
      * an alias with the same value.
+     * <p>
+     * For an event-sourced interface or abstract {@code @Model} contract, reconstruction resolves the compatible
+     * concrete stored Model type at the read boundary. Its persistence and snapshot configuration apply, and the
+     * returned entity exposes that concrete type. An incompatible stored type fails before replay.
      *
      * @param modelId   persisted model key or current alias; never decorated with model type metadata
      * @param modelType expected model type, or {@link Object} when it should be resolved from storage

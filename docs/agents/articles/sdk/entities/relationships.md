@@ -20,6 +20,10 @@ default cascade ownership. Being displayed below or deleted with the parent does
 - Updating `projectId` moves the task.
 - The parent and siblings do not need to load for a task-only change.
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
+- An identified event-sourced `@Model` interface or abstract class can be the declared parent contract. Reads resolve
+  its compatible concrete stored type at the same read boundary before choosing persistence, snapshots and replay
+  handlers. Cascading assertion selection still uses the declared parent contract, including interface-only
+  assertions; concrete-only assertions do not expand that scope. Unknown or incompatible stored types fail.
 - For one polymorphic typed relation, use `@Parent(types = {Project.class, Folder.class}, ...) Id<?> parentId`; the
   concrete typed ID selects one statically declared parent type. Use separate properties for distinct relation roles.
 - `@Parent(propagateSearch = false)` excludes that edge and its subtree from ancestor search Graphs and document
