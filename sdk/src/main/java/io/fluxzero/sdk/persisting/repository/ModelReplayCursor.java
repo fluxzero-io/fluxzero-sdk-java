@@ -2376,13 +2376,21 @@ final class ModelReplayCursor {
         private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
                                                  boolean cacheAtBoundary, HeadProbe probe, String aliasCandidate,
                                                  Map<String, ModelHeadState> expectedHeads) {
-            return reconstruct(targets, window, cacheAtBoundary, probe, aliasCandidate, expectedHeads, null);
+            return reconstruct(targets, window, cacheAtBoundary, probe, aliasCandidate, expectedHeads, null, null);
         }
 
         private ReconstructionBatch reconstructResolved(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
                                                          boolean cacheAtBoundary, HeadProbe probe,
                                                          Map<String, ModelHeadState> heads,
                                                          Map<String, ModelCache.ReadToken> readTokens) {
+            return reconstructResolved(targets, window, cacheAtBoundary, probe, heads, readTokens, null);
+        }
+
+        private ReconstructionBatch reconstructResolved(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                         boolean cacheAtBoundary, HeadProbe probe,
+                                                         Map<String, ModelHeadState> heads,
+                                                         Map<String, ModelCache.ReadToken> readTokens,
+                                                         Map<ModelKey, Entity<?>> preparedBases) {
             boolean aliased = false;
             for (MutationPlan.ResolvedModel target : targets) {
                 ModelHeadState head = heads.get(target.modelId());
@@ -2392,7 +2400,7 @@ final class ModelReplayCursor {
                 }
             }
             if (!aliased) {
-                return reconstruct(targets, window, cacheAtBoundary, probe, null, heads, readTokens);
+                return reconstruct(targets, window, cacheAtBoundary, probe, null, heads, readTokens, preparedBases);
             }
             List<MutationPlan.ResolvedModel> canonicalTargets = new ArrayList<>(targets.size());
             Map<String, ModelHeadState> canonicalHeads = new LinkedHashMap<>();
@@ -2409,7 +2417,7 @@ final class ModelReplayCursor {
             // Alias ownership is current metadata. Once selected, load the canonical stream at the pinned boundary.
             // Keep the original read fences: an owner discovered after I/O cannot receive a new publication token.
             ReconstructionBatch loaded = reconstruct(canonicalTargets, window, cacheAtBoundary, probe,
-                    null, canonicalHeads, readTokens);
+                    null, canonicalHeads, readTokens, preparedBases);
             Map<String, Entity<?>> requested = new LinkedHashMap<>();
             for (int i = 0; i < targets.size(); i++) {
                 requested.put(targets.get(i).modelId(), loaded.entities().get(canonicalTargets.get(i).modelId()));
@@ -2420,7 +2428,8 @@ final class ModelReplayCursor {
         private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
                                                  boolean cacheAtBoundary, HeadProbe probe, String aliasCandidate,
                                                  Map<String, ModelHeadState> expectedHeads,
-                                                 Map<String, ModelCache.ReadToken> suppliedReadTokens) {
+                                                 Map<String, ModelCache.ReadToken> suppliedReadTokens,
+                                                 Map<ModelKey, Entity<?>> preparedBases) {
             if (targets.isEmpty()) {
                 long stateBoundary = ModelReplayCursor.this.load(
                         Map.of(), window.boundary(),
@@ -2453,16 +2462,37 @@ final class ModelReplayCursor {
             LinkedHashMap<String, MutableReconstruction> states =
                     new LinkedHashMap<>(targets.size());
             LinkedHashMap<String, Long> cursors = new LinkedHashMap<>(targets.size());
+            boolean resolveSnapshotOwners = false;
             for (MutationPlan.ResolvedModel target : targets) {
-                Entity<?> base = reconstructionBase(
-                        target, window.baseStateIndex(),
-                        window.allowCurrentCache());
+                ModelKey key = preparedBases == null ? null : new ModelKey(target.modelId(), target.modelType());
+                Entity<?> base = preparedBases == null ? null : preparedBases.get(key);
+                // Reuse both selected bases and misses from before the owner probe, without another search.
+                if (preparedBases == null || !preparedBases.containsKey(key)
+                        || base != null && window.baseStateIndex() != null && stateIndex(base) > window.baseStateIndex()) {
+                    base = reconstructionBase(target, window.baseStateIndex(), window.allowCurrentCache());
+                }
+                if (base == null && expectedHeads == null && snapshotStore != null && !primaryOnly
+                        && deferredCacheUpdates == null && !target.access().writes()
+                        && !window.boundary().historical()) {
+                    EntityMetadata metadata = EntityMetadata.of(target.modelType());
+                    resolveSnapshotOwners |= metadata.rootConfiguration().orElseThrow().snapshotPeriod() > 0
+                            && metadata.hasAliases();
+                }
                 states.put(
                         target.modelId(),
                         new MutableReconstruction(target, base));
                 cursors.put(
                         target.modelId(),
                         base == null ? -1L : base.sequenceNumber());
+            }
+            if (resolveSnapshotOwners) {
+                LoadResult heads = loadHeads(targets.stream().map(MutationPlan.ResolvedModel::modelId).toList(),
+                        window.boundary(), false, probe);
+                ReplayWindow pinned = ReplayWindow.complete(window.boundary().resolved(heads.stateIndex()));
+                Map<ModelKey, Entity<?>> bases = new LinkedHashMap<>();
+                states.values().forEach(state -> bases.put(
+                        new ModelKey(state.target.modelId(), state.target.modelType()), state.base));
+                return reconstructResolved(targets, pinned, cacheAtBoundary, probe, heads.heads(), readTokens, bases);
             }
             ModelReplayCursor.LoadResult loaded =
                     ModelReplayCursor.this.load(

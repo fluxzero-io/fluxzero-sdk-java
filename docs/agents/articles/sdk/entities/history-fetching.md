@@ -7,6 +7,12 @@ Snapshots trade extra writes/storage for shorter cold replay. Configure them onl
 histories. They are an optimization, not a replacement for the event history needed for arbitrary historical views.
 A cache entry is likewise not durable historical storage.
 
+For a snapshot-enabled Model with aliases, a current lookup without a usable base resolves the owner and one read
+boundary before searching that owner's snapshots. Only the remaining suffix is replayed; a newer snapshot cannot
+advance the selected boundary, and a snapshot cannot resurrect erased history. An ambiguous primary ID without a
+snapshot also pays that metadata request. Primary snapshot hits and Models without snapshots retain their read path.
+Count snapshot searches separately from event calls when comparing cold alias costs.
+
 Reconstruction pages events and can prefetch a bounded following page while applying the current page. Paging does
 not change event order or application semantics. Avoid materializing an entire `revisions()` stream for a history
 screen: select a boundary or bound the number of revisions presented.

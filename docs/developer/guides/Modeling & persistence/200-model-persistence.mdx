@@ -396,6 +396,11 @@ snapshot, and a non-positive `snapshotPeriod` still disables periodic snapshots.
 future snapshots; it cannot restore snapshots already removed. Physical Model erasure still deletes snapshots.
 Storage grows with the number and size of snapshots, so choose the snapshot period deliberately.
 
+Current alias reads can use the owner's snapshots too. When a snapshot-enabled Model lookup has no cached value or snapshot,
+Fluxzero resolves its current owner and read boundary before selecting a canonical snapshot and replaying the suffix.
+This adds a metadata request even when the lookup turns out to be a primary ID with no snapshot. A primary snapshot
+hit keeps its existing read path. Include metadata requests and snapshot searches when measuring cold-read costs.
+
 Snapshots are an optimization. The model stream remains authoritative for event-sourced loading unless publication was
 explicitly configured to omit required history. Fluxzero does not retain a full direct document in every Model commit:
 the direct search collection contains the current document, while `maxSnapshotCount` controls snapshot cleanup for
