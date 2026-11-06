@@ -1379,6 +1379,8 @@ class DefaultModelRepositoryTest {
         SnapshotAccountId id = new SnapshotAccountId("snapshotted");
         LocalClient localClient = LocalClient.newInstance(null);
         EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
+        // Keep the separate-read cursor contract as an older-peer compatibility control.
+        doReturn(false).when(eventStoreClient).supportsModelReconstruction(any());
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient).when(client).getEventStoreClient();
         try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()

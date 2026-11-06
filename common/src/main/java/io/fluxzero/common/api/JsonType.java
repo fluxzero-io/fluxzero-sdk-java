@@ -43,6 +43,8 @@ import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelReconstruction;
+import io.fluxzero.common.api.modeling.GetModelReconstructionResult;
 import io.fluxzero.common.api.modeling.GetModelEventsByIdentity;
 import io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads;
 import io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments;
@@ -154,6 +156,8 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = CommitModelsResult.class, name = "commitModelsResult"),
         @JsonSubTypes.Type(value = GetModelEvents.class, name = "getModelEvents"),
         @JsonSubTypes.Type(value = GetModelEventsByIdentity.class, name = "getModelEventsByIdentity"),
+        @JsonSubTypes.Type(value = GetModelReconstruction.class, name = "getModelReconstruction"),
+        @JsonSubTypes.Type(value = GetModelReconstructionResult.class, name = "getModelReconstructionResult"),
         @JsonSubTypes.Type(value = CommitModelsWithIdentityReads.class, name = "commitModelsWithIdentityReads"),
         @JsonSubTypes.Type(value = CommitModelsWithLiveMigrationDocuments.class, name = "commitModelsWithLiveMigrationDocuments"),
         @JsonSubTypes.Type(value = GetModelEventsResult.class, name = "getModelEventsResult"),

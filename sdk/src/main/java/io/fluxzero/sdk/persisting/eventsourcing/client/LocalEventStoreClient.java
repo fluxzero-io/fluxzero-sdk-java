@@ -43,6 +43,11 @@ public class LocalEventStoreClient extends LocalTrackingClient implements EventS
     }
 
     @Override
+    public boolean supportsModelReconstruction(io.fluxzero.sdk.persisting.search.client.SearchClient source) {
+        return getClass() == LocalEventStoreClient.class && getMessageStore().supportsModelReconstruction(source);
+    }
+
+    @Override
     @Delegate
     public InMemoryEventStore getMessageStore() {
         return (InMemoryEventStore) super.getMessageStore();

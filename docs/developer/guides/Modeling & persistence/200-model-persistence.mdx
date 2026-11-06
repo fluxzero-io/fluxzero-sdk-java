@@ -396,10 +396,17 @@ snapshot, and a non-positive `snapshotPeriod` still disables periodic snapshots.
 future snapshots; it cannot restore snapshots already removed. Physical Model erasure still deletes snapshots.
 Storage grows with the number and size of snapshots, so choose the snapshot period deliberately.
 
-Current alias reads can use the owner's snapshots too. When a snapshot-enabled Model lookup has no cached value or snapshot,
-Fluxzero resolves its current owner and read boundary before selecting a canonical snapshot and replaying the suffix.
-This adds a metadata request even when the lookup turns out to be a primary ID with no snapshot. A primary snapshot
-hit keeps its existing read path. Include metadata requests and snapshot searches when measuring cold-read costs.
+Current alias reads can use the owner's snapshots too. For a cold, single-Model current read with a known concrete type,
+a capable Runtime returns the canonical head, an applicable snapshot and the first event page in one request.
+An older snapshot is sufficient: a snapshot written during the read may be missed, and events fill the remaining suffix
+to the selected read boundary. Missing snapshots use the same request and start replay from the beginning.
+
+SDK and Runtime can be upgraded in either order: older SDKs retain their existing operations against the new Runtime,
+and a newer SDK uses the combined operation only when the selected Runtime supports it. Older Runtimes and custom
+snapshot stores retain separate snapshot and event reads. On that path, resolving a cold alias
+can add a metadata request and a second snapshot search. Batch and historical reads keep their existing selection rules.
+Measure network requests separately from SQL: the combined response still requires multiple internal storage reads,
+including head validation after snapshot selection. Warm cache hits do not perform snapshot discovery.
 
 Snapshots are an optimization. The model stream remains authoritative for event-sourced loading unless publication was
 explicitly configured to omit required history. Fluxzero does not retain a full direct document in every Model commit:

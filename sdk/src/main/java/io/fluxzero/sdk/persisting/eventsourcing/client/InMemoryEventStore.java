@@ -314,6 +314,36 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private java.util.function.Function<io.fluxzero.common.api.modeling.ReindexModel, Runnable> modelReindexer;
     private Object modelReindexLock;
+    private volatile ModelSnapshotReader modelSnapshotReader;
+
+    private record ModelSnapshotReader(io.fluxzero.sdk.persisting.search.client.SearchClient source,
+            java.util.function.Function<io.fluxzero.common.api.search.SearchDocuments,
+                    io.fluxzero.common.api.search.SerializedDocument> read) {}
+
+    /** Binds snapshot selection to this store's owned document materialization. */
+    public synchronized void setModelSnapshotReader(io.fluxzero.sdk.persisting.search.client.SearchClient source,
+            java.util.function.Function<io.fluxzero.common.api.search.SearchDocuments,
+            io.fluxzero.common.api.search.SerializedDocument> reader) {
+        Objects.requireNonNull(source);
+        Objects.requireNonNull(reader);
+        if (modelSnapshotReader != null && modelSnapshotReader.source() != source) {
+            throw new IllegalStateException("Cannot replace the bound Model snapshot store");
+        }
+        modelSnapshotReader = new ModelSnapshotReader(source, reader);
+    }
+
+    @Override public boolean supportsModelReconstruction(io.fluxzero.sdk.persisting.search.client.SearchClient source) {
+        var binding = modelSnapshotReader;
+        return getClass() == InMemoryEventStore.class && binding != null && source == binding.source();
+    }
+
+    @Override public io.fluxzero.common.api.modeling.GetModelReconstructionResult getModelReconstruction(
+            io.fluxzero.common.api.modeling.GetModelReconstruction request) {
+        var snapshots = modelSnapshotReader;
+        if (snapshots == null) { throw new UnsupportedOperationException("No Model snapshot reader is configured"); }
+        // Each head/event read owns its existing lock. Snapshot writers need not be blocked by this composite read.
+        return io.fluxzero.common.api.modeling.ModelReconstructionLoader.load(request, this::getModelEvents, snapshots.read());
+    }
 
     /** Binds guarded reindex writes to the local canonical search store. */
     public synchronized void setModelReindexer(Object searchLock,

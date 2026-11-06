@@ -108,6 +108,15 @@ public final class WebSocketCapabilities {
                 });
     }
 
+    /** Peer support for one read returning a Model snapshot and its event suffix. */
+    public static final String MODEL_RECONSTRUCTION_VERSION_HEADER = "Fluxzero-Model-Reconstruction-Version";
+
+    public static boolean supportsModelReconstruction(Map<String, List<String>> headers) {
+        return headers != null && headers.entrySet().stream()
+                .filter(e -> MODEL_RECONSTRUCTION_VERSION_HEADER.equalsIgnoreCase(e.getKey()))
+                .filter(e -> e.getValue() != null).flatMap(e -> e.getValue().stream()).anyMatch("1"::equals);
+    }
+
     private WebSocketCapabilities() {
     }
 

@@ -389,6 +389,8 @@ public abstract class ModelSnapshotContract {
             client = mock(Client.class, delegatesTo(storage));
             EventStoreClient events = storage.getEventStoreClient();
             EventStoreClient observed = mock(EventStoreClient.class, delegatesTo(events));
+            // Preserve the existing separate-read contract as the compatibility control.
+            doReturn(false).when(observed).supportsModelReconstruction(any());
             doAnswer(invocation -> {
                 GetModelEventsResult response = events.getModelEvents(invocation.getArgument(0));
                 responses.add(response);

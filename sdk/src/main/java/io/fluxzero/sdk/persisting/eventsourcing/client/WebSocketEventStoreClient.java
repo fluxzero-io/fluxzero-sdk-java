@@ -14,6 +14,13 @@
 
 package io.fluxzero.sdk.persisting.eventsourcing.client;
 
+import io.fluxzero.sdk.common.websocket.WebsocketSession;
+import io.fluxzero.sdk.common.websocket.ServiceUrlBuilder;
+import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.sdk.persisting.search.client.SearchClient;
+import io.fluxzero.common.api.modeling.GetModelReconstruction;
+import io.fluxzero.common.api.modeling.GetModelReconstructionResult;
+import io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestResult;
@@ -107,6 +114,7 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
             1, Integer.getInteger("fluxzero.readyModelCommitBatchSize", 256));
 
     private final int fetchBatchSize;
+    private final URI snapshotEndpoint;
     private final long maxFetchBytes;
 
     @Override
@@ -177,6 +185,10 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                                      boolean sendMetrics) {
         super(endPointUri, client, sendMetrics, client.getClientConfig().getEventSourcingSessions());
         this.fetchBatchSize = fetchBatchSize;
+        var config = client.getClientConfig();
+        this.snapshotEndpoint = endPointUri.equals(URI.create(
+                ServiceUrlBuilder.eventSourcingUrl(config)))
+                ? URI.create(ServiceUrlBuilder.searchUrl(config)) : null;
         this.maxFetchBytes = client.getClientConfig().getAggregateHistoryMaxFetchBytes();
     }
 
@@ -190,17 +202,28 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
     }
 
     @Override
+    protected RequestResult localResponseForSession(Request request,
+            WebsocketSession session) {
+        if (request instanceof GetModelReconstruction
+                && !WebSocketCapabilities.supportsModelReconstruction(
+                        session.getHandshakeResponseHeaders())) {
+            return GetModelReconstructionResult.unsupportedPeer(request.getRequestId());
+        }
+        return super.localResponseForSession(request, session);
+    }
+
+    @Override
     protected io.fluxzero.common.api.Request adaptRequestForSession(
-            io.fluxzero.common.api.Request request, io.fluxzero.sdk.common.websocket.WebsocketSession session) {
+            io.fluxzero.common.api.Request request, WebsocketSession session) {
         if ((request instanceof io.fluxzero.common.api.modeling.GetModelEventsByIdentity
              || request instanceof io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads)
-            && !io.fluxzero.common.websocket.WebSocketCapabilities.supportsModelIdentitySelection(
+            && !WebSocketCapabilities.supportsModelIdentitySelection(
                     session.getHandshakeResponseHeaders())) {
             throw new UnsupportedOperationException(
                     "This Runtime does not support explicit Model identity selection; upgrade the Runtime before enabling alias mutation targets");
         }
         if (request instanceof io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments
-            && !io.fluxzero.common.websocket.WebSocketCapabilities.supportsLiveModelMigration(
+            && !WebSocketCapabilities.supportsLiveModelMigration(
                     session.getHandshakeResponseHeaders())) {
             throw new UnsupportedOperationException(
                     "This Runtime does not support live Model migration documents; upgrade the Runtime before starting replay");
@@ -465,6 +488,20 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
             }
         }
         return restored == null ? results : restored;
+    }
+
+    @Override
+    public boolean supportsModelReconstruction(SearchClient source) {
+        return getClass() == WebSocketEventStoreClient.class && snapshotEndpoint != null && source instanceof WebSocketSearchClient search
+                && search.isModelSnapshotSource(snapshotEndpoint) && sessionsForCapabilities().stream().allMatch(session ->
+                WebSocketCapabilities.supportsModelReconstruction(
+                        session.getHandshakeResponseHeaders()));
+    }
+
+    @Override
+    public GetModelReconstructionResult getModelReconstruction(
+            GetModelReconstruction request) {
+        return sendAndWait(request);
     }
 
     @Override
