@@ -30,11 +30,15 @@ import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 
+import com.sun.management.ThreadMXBean;
+
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Diagnostic for the cold independent-model reconstruction path.
+ * Use several hundred iterations for tail-latency comparisons; the default is only a short smoke run.
  */
 public class ModelReconstructionBenchmark {
     private static final int EVENT_COUNT =
@@ -49,22 +53,34 @@ public class ModelReconstructionBenchmark {
                 .disableShutdownHook()
                 .build(LocalClient.newInstance(null))) {
             prepare(fluxzero, id);
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < Integer.getInteger("warmups", 2); i++) {
                 load(fluxzero, id);
             }
+            ThreadMXBean allocation = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+            if (!allocation.isThreadAllocatedMemorySupported()) {
+                throw new IllegalStateException("Thread allocation measurement is not supported");
+            }
+            allocation.setThreadAllocatedMemoryEnabled(true);
+            long bytes = 0;
+            long[] samples = new long[ITERATIONS];
             long start = System.nanoTime();
             for (int i = 0; i < ITERATIONS; i++) {
+                long beforeBytes = allocation.getCurrentThreadAllocatedBytes();
+                long readStart = System.nanoTime();
                 load(fluxzero, id);
+                samples[i] = System.nanoTime() - readStart;
+                bytes += allocation.getCurrentThreadAllocatedBytes() - beforeBytes;
             }
             long nanos = System.nanoTime() - start;
+            java.util.Arrays.sort(samples);
             double seconds = nanos / 1_000_000_000d;
             long replayedEvents = (long) EVENT_COUNT * ITERATIONS;
-            System.out.printf(
-                    "model reconstruction: %,d events/load, %d loads, %.1f ms/load, "
-                    + "%,.0f events/s%n",
+            System.out.printf(java.util.Locale.ROOT,
+                    "model reconstruction: %,d events/load, %d loads, %.1f ms/load, p99=%.1f ms, "
+                    + "%,.0f events/s, callerBytes=%.1f%n",
                     EVENT_COUNT, ITERATIONS,
-                    nanos / 1_000_000d / ITERATIONS,
-                    replayedEvents / seconds);
+                    nanos / 1_000_000d / ITERATIONS, samples[(int) (ITERATIONS * .99)] / 1_000_000d,
+                    replayedEvents / seconds, bytes / (double) ITERATIONS);
         }
     }
 

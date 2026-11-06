@@ -121,12 +121,14 @@ public class ModelAliasReadBenchmark {
                 jit = ManagementFactory.getCompilationMXBean().getTotalCompilationTime() - jit;
                 gc = gcCount() - gc;
                 if (round >= 0) {
+                    long readNanos = 0;
+                    for (long sample : nanos) { readNanos += sample; }
                     Arrays.sort(nanos);
                     System.out.printf(Locale.ROOT,
-                            "RESULT route=%s cold=%s history=%d round=%d medianNs=%d p95Ns=%d callerBytes=%.1f "
+                            "RESULT route=%s cold=%s history=%d round=%d medianNs=%d p95Ns=%d p99Ns=%d readOpsPerSecond=%.1f callerBytes=%.1f "
                             + "calls=%.1f payloads=%.1f payloadBytes=%.1f jitMs=%d gc=%d%n",
                             route, cold, history, round, nanos[count / 2], nanos[(int) (count * .95)],
-                            allocated / (double) count, calls / (double) count, payloads / (double) count,
+                            nanos[(int) (count * .99)], count * 1_000_000_000d / readNanos, allocated / (double) count, calls / (double) count, payloads / (double) count,
                             bytes / (double) count, jit, gc);
                 }
             }

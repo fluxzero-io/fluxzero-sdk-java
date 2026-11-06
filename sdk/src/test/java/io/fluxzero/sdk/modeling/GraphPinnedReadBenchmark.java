@@ -64,21 +64,25 @@ public class GraphPinnedReadBenchmark {
             for (int round = -1; round < rounds; round++) {
                 long nanos = 0, bytes = 0, eventCalls = 0, payloads = 0, eventBytes = 0, graphCalls = 0;
                 int operations = round < 0 ? warmups : iterations;
+                long[] samples = new long[operations];
                 for (int i = 0; i < operations; i++) {
                     if (cold) { app.cache().clear(); }
                     client.reset();
                     long allocatedBefore = allocation.getThreadAllocatedBytes(thread);
                     long start = System.nanoTime();
                     read(app, ids, boundary, pinned, history);
-                    nanos += System.nanoTime() - start;
+                    samples[i] = System.nanoTime() - start;
+                    nanos += samples[i];
                     bytes += allocation.getThreadAllocatedBytes(thread) - allocatedBefore;
                     eventCalls += client.eventCalls.get(); payloads += client.payloads.get();
                     eventBytes += client.bytes.get(); graphCalls += client.graphCalls.get();
                 }
                 if (round >= 0) {
-                    System.out.printf(Locale.ROOT, "RESULT round=%d us=%.3f callerBytes=%.1f eventCalls=%.1f payloads=%.1f "
+                    java.util.Arrays.sort(samples);
+                    System.out.printf(Locale.ROOT, "RESULT round=%d us=%.3f p99Us=%.3f readOpsPerSecond=%.1f callerBytes=%.1f eventCalls=%.1f payloads=%.1f "
                                       + "eventBytes=%.1f graphCalls=%.1f cacheEntries=%d%n", round,
-                                      nanos / (operations * 1000d), bytes / (double) operations,
+                                      nanos / (operations * 1000d), samples[(int) (operations * .99)] / 1000d,
+                                      operations * 1_000_000_000d / nanos, bytes / (double) operations,
                                       eventCalls / (double) operations, payloads / (double) operations,
                                       eventBytes / (double) operations, graphCalls / (double) operations, app.cache().size());
                 }
