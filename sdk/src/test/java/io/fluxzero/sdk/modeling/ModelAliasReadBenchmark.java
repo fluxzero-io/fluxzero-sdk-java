@@ -106,10 +106,12 @@ public class ModelAliasReadBenchmark {
                     if (round >= 0) { nanos[i] = elapsed; }
                     allocated += allocation.getThreadAllocatedBytes(thread) - beforeBytes;
                     if (!expected.equals(actual)) { throw new AssertionError("Wrong value for " + route); }
+                    boolean replay = cold || route == Route.MODEL_ALIAS && variant == Variant.BASELINE;
+                    // Default replay pages contain at most 128 memberships; retain full-history cost assertions.
+                    long pages = (history + 127L) / 128L;
                     long expectedCalls = !cold && route == Route.MODEL_PRIMARY ? 0
-                            : cold && route == Route.GRAPH_IDENTITY_ALIAS ? 2 : 1;
-                    long expectedPayloads = cold || route == Route.MODEL_ALIAS && variant == Variant.BASELINE
-                            ? history : 0;
+                            : replay ? pages + (cold && route == Route.GRAPH_IDENTITY_ALIAS ? 1 : 0) : 1;
+                    long expectedPayloads = replay ? history : 0;
                     if (client.calls != expectedCalls || client.payloads != expectedPayloads || client.graphCalls != 0) {
                         throw new AssertionError("Unexpected storage cost: " + route + "/" + cold + ": "
                                 + client.calls + "/" + client.payloads + "/" + client.graphCalls);
