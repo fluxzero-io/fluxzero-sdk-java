@@ -260,9 +260,18 @@ class DefaultGenericGatewayResponseMappingTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void onlyCaughtSerializerExceptionsAreLogged(boolean completed) {
+    void onlyCaughtSerializerExceptionsAreLogged(boolean completed) throws InterruptedException {
         Logger logger = (Logger) LoggerFactory.getLogger(DefaultGenericGateway.class);
-        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        Thread owner = Thread.currentThread();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>() {
+            @Override
+            protected void append(ILoggingEvent event) {
+                // Both completion modes below map on this thread; other gateways share the same class logger.
+                if (Thread.currentThread() == owner) {
+                    super.append(event);
+                }
+            }
+        };
         appender.start();
         logger.addAppender(appender);
         try {
@@ -291,6 +300,9 @@ class DefaultGenericGatewayResponseMappingTest {
                     if (invalidStatus) {
                         assertInstanceOf(NumberFormatException.class, cause);
                     }
+                    Thread unrelated = Thread.ofPlatform().start(() ->
+                            logger.warn("Failed to deserialize result from an unrelated gateway"));
+                    unrelated.join();
                     assertEquals(scenario == 1 ? 1 : 0, appender.list.stream().filter(
                             e -> e.getMessage().startsWith("Failed to deserialize result")).count());
                 } finally {

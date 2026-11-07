@@ -44,6 +44,11 @@ import java.util.function.Function;
 public class TimestampParameterResolver implements ParameterResolver<Object> {
 
     @Override
+    public boolean isContextParameter(Parameter parameter) {
+        return getClass() == TimestampParameterResolver.class;
+    }
+
+    @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
         if (Instant.class.isAssignableFrom(p.getType())) {
             return m -> {

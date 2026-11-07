@@ -50,6 +50,11 @@ public class MessageParameterResolver
     };
 
     @Override
+    public boolean isContextParameter(Parameter parameter) {
+        return getClass() == MessageParameterResolver.class;
+    }
+
+    @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return resolve(p.getType());
     }

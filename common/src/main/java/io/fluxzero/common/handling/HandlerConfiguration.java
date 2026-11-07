@@ -28,6 +28,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import static java.util.Optional.ofNullable;
 
@@ -93,6 +94,10 @@ public class HandlerConfiguration<M> {
      */
     @Default
     MethodInvocationValidator<? super M> methodInvocationValidator = MethodInvocationValidator.noOp();
+
+    /** Opt-in capture of the actual parameter resolver roles for selected methods. Disabled on ordinary paths. */
+    @Default
+    Predicate<Executable> describeParameterRoles = ignored -> false;
 
     /**
      * Determines whether the given method is eligible to handle messages according to this configuration.
