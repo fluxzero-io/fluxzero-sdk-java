@@ -274,6 +274,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelSnapshotReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelSnapshotReader",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelSnapshotReader",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "modelStateIndex",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelStateIndex",
     "type" : "long",
@@ -935,6 +943,25 @@
     "parameters" : [ {
       "name" : "request",
       "type" : "io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getModelReconstruction",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getModelReconstruction",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelReconstruction",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1668,6 +1695,27 @@
     "varArgs" : false,
     "documentation" : "Installs the LocalClient scheduler writer; effects are applied in the accepted Model commit. "
   }, {
+    "name" : "setModelSnapshotReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setModelSnapshotReader",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reader",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.search.SearchDocuments,io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Binds snapshot selection to this store's owned document materialization. "
+  }, {
     "name" : "setScheduleDeletionMonitor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setScheduleDeletionMonitor",
     "returnType" : "void",
@@ -1711,6 +1759,25 @@
     }, {
       "name" : "guarantee",
       "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsModelReconstruction",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#supportsModelReconstruction",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1917,6 +1984,12 @@
   }, {
     "name" : "ModelGraphProjectionWork",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWork",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelSnapshotReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelSnapshotReader",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]

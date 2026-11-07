@@ -1,0 +1,115 @@
+{
+  "name" : "GetModelReconstruction",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstruction",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Loads one Model's canonical head, an optional snapshot and the first page after that snapshot in one response.\n A concurrently published snapshot may be missed. The chosen snapshot and all returned events must fit the\n resolved read boundary. Subsequent pages use the returned canonical identity and boundary with GetModelEvents.\n This distinct wire operation requires the Model reconstruction capability; ordinary event reads are unchanged.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "boundary",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstruction.boundary",
+    "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstruction.maxBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Event payload byte budget, with the same progress rule as GetModelEvents; snapshot bytes are additional. ",
+    "constantValue" : null
+  }, {
+    "name" : "maxSize",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstruction.maxSize",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Maximum event memberships in the first page, excluding the snapshot. ",
+    "constantValue" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstruction.modelId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "primaryOnly",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstruction.primaryOnly",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Whether alias fallback is forbidden. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetModelReconstruction",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstruction#GetModelReconstruction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"modelId\",\"boundary\",\"maxSize\",\"maxBytes\",\"primaryOnly\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "primaryOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstruction#toMetric",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelEvents.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,149 @@
+{
+  "name" : "ModelReconstructionLoader",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReconstructionLoader",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Storage-neutral orchestration for a reconstruction read. Snapshot selection may use a separate storage snapshot:\n it is an optional acceleration seed, bounded by the selected Model revision. Event reads remain authoritative.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ModelReconstructionLoader",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReconstructionLoader#ModelReconstructionLoader",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "facet",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReconstructionLoader#facet",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fits",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReconstructionLoader#fits",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "head",
+      "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Checks the canonical seed metadata against an authoritative, reconstructible Model head. "
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReconstructionLoader#load",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelReconstruction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.modeling.GetModelEvents,io.fluxzero.common.api.modeling.GetModelEventsResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshots",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.search.SearchDocuments,io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Selects an optional canonical snapshot and a bounded first event page from the same namespace.\n Each event callback must honor the supplied selector; the snapshot callback may miss concurrent writes.\n A selected revision that becomes unavailable during the read fails instead of using a snapshot alone.\n"
+  }, {
+    "name" : "sequence",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReconstructionLoader#sequence",
+    "returnType" : "long",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads the snapshot's per-Model sequence facet. "
+  }, {
+    "name" : "snapshotQuery",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReconstructionLoader#snapshotQuery",
+    "returnType" : "io.fluxzero.common.api.search.SearchDocuments",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Selects the newest eligible retained snapshot; an older snapshot or absence is also a valid seed. "
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReconstructionLoader#stateIndex",
+    "returnType" : "long",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads the snapshot's namespace-wide state facet. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

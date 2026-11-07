@@ -50,6 +50,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWork",
     "kind" : "record"
   }, {
+    "file" : "InMemoryEventStore.ModelSnapshotReader.json",
+    "name" : "InMemoryEventStore.ModelSnapshotReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelSnapshotReader",
+    "kind" : "record"
+  }, {
     "file" : "InMemoryEventStore.ModelStreamHead.json",
     "name" : "InMemoryEventStore.ModelStreamHead",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelStreamHead",

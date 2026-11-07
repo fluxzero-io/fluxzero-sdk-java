@@ -257,6 +257,25 @@
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.EventSourcingEndpoint#handle",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelReconstruction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.EventSourcingEndpoint#handle",
     "returnType" : "io.fluxzero.common.api.modeling.GetRelationshipsResult",
     "modifiers" : [ ],
     "annotations" : [ {

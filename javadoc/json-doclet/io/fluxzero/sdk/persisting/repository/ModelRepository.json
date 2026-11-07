@@ -449,7 +449,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads a model by primary ID or current alias and expected type. A primary model ID always takes precedence over\n an alias with the same value.\n\n @param modelId   persisted model key or current alias; never decorated with model type metadata\n @param modelType expected model type, or {@link Object} when it should be resolved from storage\n"
+    "documentation" : " Loads a model by primary ID or current alias and expected type. A primary model ID always takes precedence over\n an alias with the same value.\n <p>\n For an event-sourced interface or abstract {@code @Model} contract, reconstruction resolves the compatible\n concrete stored Model type at the read boundary. Its persistence and snapshot configuration apply, and the\n returned entity exposes that concrete type. An incompatible stored type fails before replay.\n\n @param modelId   persisted model key or current alias; never decorated with model type metadata\n @param modelType expected model type, or {@link Object} when it should be resolved from storage\n"
   }, {
     "name" : "loadAll",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadAll",

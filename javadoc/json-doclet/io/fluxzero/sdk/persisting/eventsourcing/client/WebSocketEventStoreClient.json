@@ -33,6 +33,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "snapshotEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient.snapshotEndpoint",
+    "type" : "java.net.URI",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "WebSocketEventStoreClient",
@@ -502,6 +510,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getModelReconstruction",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#getModelReconstruction",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelReconstruction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getRelationships",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#getRelationships",
     "returnType" : "java.util.List<io.fluxzero.common.api.modeling.Relationship>",
@@ -533,6 +560,30 @@
     "parameters" : [ {
       "name" : "results",
       "type" : "java.util.List<io.fluxzero.common.api.RequestResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "localResponseForSession",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#localResponseForSession",
+    "returnType" : "io.fluxzero.common.api.RequestResult",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -744,6 +795,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Stores events for a specific aggregate, with control over store-only mode and delivery guarantee.\n"
+  }, {
+    "name" : "supportsModelReconstruction",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#supportsModelReconstruction",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "trackModelUpdates",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#trackModelUpdates",

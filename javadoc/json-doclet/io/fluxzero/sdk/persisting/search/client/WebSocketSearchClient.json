@@ -9,7 +9,15 @@
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",
   "interfaces" : [ "io.fluxzero.sdk.persisting.search.client.SearchClient" ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "endpointUri",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient.endpointUri",
+    "type" : "java.net.URI",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "WebSocketSearchClient",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#WebSocketSearchClient",
@@ -532,6 +540,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "isModelSnapshotSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#isModelSnapshotSource",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "expectedEndpoint",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Verifies the standard search binding before an event client may select snapshots on its behalf. "
   }, {
     "name" : "move",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#move",

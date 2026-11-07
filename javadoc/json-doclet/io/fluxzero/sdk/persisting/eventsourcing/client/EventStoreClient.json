@@ -270,6 +270,22 @@
     "varArgs" : false,
     "documentation" : " Returns the current high-watermark and backlog for one materialized graph projection.\n"
   }, {
+    "name" : "getModelReconstruction",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#getModelReconstruction",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelReconstruction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads one canonical Model seed and first event page, without executing application code remotely. "
+  }, {
     "name" : "getRelationships",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#getRelationships",
     "returnType" : "java.util.List<io.fluxzero.common.api.modeling.Relationship>",
@@ -422,6 +438,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Stores events for a given aggregate with an explicit guarantee.\n\n @param aggregateId The aggregate ID.\n @param events      Events to store.\n @param storeOnly   If {@code true}, events will not be published.\n @param guarantee   The guarantee level for this operation.\n @return A future representing completion of the store operation.\n"
+  }, {
+    "name" : "supportsModelReconstruction",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#supportsModelReconstruction",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "snapshotSource",
+      "type" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this client can read snapshots from the supplied search binding together with Model events.\n Custom bindings default to separate reads; implementations must prove that the source is colocated. "
   }, {
     "name" : "trackModelUpdates",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#trackModelUpdates",

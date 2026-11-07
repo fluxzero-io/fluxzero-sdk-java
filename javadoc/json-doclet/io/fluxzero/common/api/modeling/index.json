@@ -165,6 +165,16 @@
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraphResult$Metric",
     "kind" : "class"
   }, {
+    "file" : "GetModelReconstruction.json",
+    "name" : "GetModelReconstruction",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstruction",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelReconstructionResult.json",
+    "name" : "GetModelReconstructionResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult",
+    "kind" : "class"
+  }, {
     "file" : "GetRelationships.json",
     "name" : "GetRelationships",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationships",
@@ -364,6 +374,11 @@
     "name" : "ModelReadBoundary",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
     "kind" : "record"
+  }, {
+    "file" : "ModelReconstructionLoader.json",
+    "name" : "ModelReconstructionLoader",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReconstructionLoader",
+    "kind" : "class"
   }, {
     "file" : "ModelRelationship.json",
     "name" : "ModelRelationship",

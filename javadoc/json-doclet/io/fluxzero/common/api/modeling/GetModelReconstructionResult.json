@@ -1,0 +1,179 @@
+{
+  "name" : "GetModelReconstructionResult",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : "A serialized reconstruction seed and one canonical event stream at its pinned namespace boundary. ",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "events",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult.events",
+    "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Null only for a local unsupported-peer response, before anything is transmitted. ",
+    "constantValue" : null
+  }, {
+    "name" : "locallyUnsupported",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult.locallyUnsupported",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "snapshot",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult.snapshot",
+    "type" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Null when no eligible snapshot is available. Deserialization remains the SDK's responsibility. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetModelReconstructionResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult#GetModelReconstructionResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requestId\",\"snapshot\",\"events\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "GetModelReconstructionResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult#GetModelReconstructionResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "locallyUnsupported",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult#getTimestamp",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isSupported",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult#isSupported",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult#toMetric",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unsupportedPeer",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult#unsupportedPeer",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelReconstructionResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Local-only fallback marker: never send this result over the wire. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
