@@ -22,6 +22,7 @@ import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 
@@ -1546,6 +1547,8 @@ public final class ModelReducer {
         }
         DeserializingMessage emitted = emittedMessage(
                 source, output, preserveSourceIdentity);
+        var creationTime = source.getContext(DefaultModelRepository.Commit.EventCreationTime.class).orElse(null);
+        if (creationTime != null) { emitted = creationTime.forEvaluation(emitted); }
         boolean changedType =
                 !emitted.getPayloadClass().equals(source.getPayloadClass());
         InterceptionPhase nextPhase = changedType

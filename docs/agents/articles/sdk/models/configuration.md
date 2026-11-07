@@ -75,8 +75,11 @@ and replay checkpoints are rejected on DOCUMENT-only Models.
 Model events derived from commands or schedules receive their own identity, deterministically tied to the commit and
 protocol substep. Preparation, redelivery and conflict reevaluation must not generate fresh IDs for that same step.
 The logical update inside evaluation remains unchanged, including same-type `@InterceptApply` replacements. Existing
-EVENT inputs keep their identities; replay does not rewrite historical data. The event timestamp remains the applied
-update's logical time, not wall-clock publication time. `$modelCommitId` carries commit causality (the incoming command
+EVENT inputs keep their identities; replay does not rewrite historical data. New derived and internal events use the
+application clock at the start of live Model evaluation, independently of the command timestamp. That creation time is
+retained through in-process retries/rebase and used for related documents and snapshots. Transport retries resend the
+prepared envelope; a process restart still relies on durable commit deduplication, not a process-local timestamp cache.
+Incoming source/target, request ID and log index do not carry over to a new event. `$modelCommitId` carries commit causality (the incoming command
 ID for automatic handling); use metadata rather than equal message IDs to join a command and event.
 
 In Kotlin, annotation arrays use `[ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT]` and nested annotations

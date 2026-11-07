@@ -499,6 +499,12 @@ final class ModelPipeline {
             ModelCommitBatchingClient.ModelCommitBatch transport,
             int transportSlot,
             Mode mode) {
+        private ExecutionRequest {
+            if ((mode == Mode.LIVE || mode == Mode.AUTOMATIC)
+                && message.getMessageType() != io.fluxzero.common.MessageType.EVENT) {
+                message = Commit.EventCreationTime.now().forEvaluation(message);
+            }
+        }
     }
 
     private enum Mode {
@@ -711,9 +717,8 @@ final class ModelPipeline {
                                         && !original.hasCascadedDeletion()
                                         && evaluation.cascadeRootIds().isEmpty()
                                                 ? repositoryCommit.prepareRebased(commitId, original, next)
-                                                : repositoryCommit.prepare(
-                                                        commitId, next, conflictPolicy,
-                                                        original.commit().isMigration());
+                                                : repositoryCommit.prepareRetry(
+                                                        commitId, original, next, conflictPolicy);
                                 return commit(
                                         repositoryCommit, commitId, next, conflictPolicy,
                                         original, nextPrepared, retry,

@@ -12,18 +12,22 @@
  */
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -92,15 +96,17 @@ class ModelPublicationContractTest {
     void automaticCommandPublishesAnIndependentEventIdentity(boolean async) {
         Message command = new Message(new Create("identity"), Metadata.of("business", "value"),
                                       "command-identity", Instant.parse("2026-01-01T12:00:00Z"));
-        fixture(async, Sourced.class).whenCommand(command)
+        Instant eventTime = Instant.parse("2026-11-07T13:00:00Z");
+        fixture(async, Sourced.class).atFixedTime(eventTime).whenCommand(command)
                 .expectOnlyEvents((Predicate<Message>) event -> event.getPayload().equals(command.getPayload())
                         && !event.getMessageId().equals(command.getMessageId())
-                        && event.getTimestamp().equals(command.getTimestamp()))
+                        && event.getTimestamp().equals(eventTime))
                 .expectSuccessfulResult().expectNoErrors()
                 .expectThat(fc -> {
                     var event = fc.eventStore().getEvents("identity").findFirst().orElseThrow();
                     assertNotEquals(command.getMessageId(), event.getMessageId());
-                    assertEquals(command.getTimestamp(), event.getTimestamp());
+                    assertEquals(eventTime, event.getTimestamp());
+                    assertEquals(command.getTimestamp(), Instant.parse("2026-01-01T12:00:00Z"));
                     assertEquals("value", event.getMetadata().get("business"));
                     assertEquals(command.getMessageId(), event.getMetadata().get(ModelEventMetadata.COMMIT_ID));
                     String eventId = event.getMessageId();
@@ -108,6 +114,36 @@ class ModelPublicationContractTest {
                     assertEquals(new Sourced("identity", 1), Fluxzero.loadModel("identity", Sourced.class).get());
                     assertEquals(eventId, fc.eventStore().getEvents("identity").findFirst().orElseThrow().getMessageId());
                 });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void appliedTimeMatchesEventTimeDuringReconstruction(boolean async) {
+        Instant now = Instant.parse("2026-11-07T13:00:00Z");
+        Message command = new Message(new Create("timed"), Metadata.empty(), "old-command", Instant.EPOCH);
+        fixture(async, Timed.class).atFixedTime(now).whenCommand(command)
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(fc -> {
+                    Timed expected = new Timed("timed", now, now, now);
+                    assertEquals(expected, Fluxzero.loadModel("timed", Timed.class).get());
+                    ((DefaultModelRepository) fc.modelRepository()).invalidateModels(List.of("timed"));
+                    assertEquals(expected, Fluxzero.loadModel("timed", Timed.class).get());
+                    assertEquals(Instant.EPOCH, command.getTimestamp());
+                });
+    }
+
+    @Model(searchable = false)
+    record Timed(@EntityId String id, Instant timestamp, Instant clockTime, Instant messageTime) {
+        @InterceptApply
+        static DeserializingMessage intercept(Create event) {
+            return new DeserializingMessage(
+                    new Message(event, Metadata.empty(), "replacement", Instant.EPOCH),
+                    MessageType.COMMAND, null);
+        }
+
+        @Apply static Timed create(Create event, Instant timestamp, Clock clock, Message message) {
+            return new Timed(event.id(), timestamp, clock.instant(), message.getTimestamp());
+        }
     }
 
     private TestFixture fixture(boolean async, Class<?> type) {
