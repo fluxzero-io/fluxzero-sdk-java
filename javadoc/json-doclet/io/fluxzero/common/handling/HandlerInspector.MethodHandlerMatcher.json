@@ -37,6 +37,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "describeParameterRoles",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher.describeParameterRoles",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "emptyResult",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher.emptyResult",
     "type" : "java.util.Optional<java.lang.Object>",
@@ -496,6 +504,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "createDescribedInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#createDescribedInvoker",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolved",
+      "type" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher.DescribedParameters<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createDynamicParameterInvoker",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#createDynamicParameterInvoker",
     "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
@@ -646,6 +680,37 @@
     }, {
       "name" : "m",
       "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "describe",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#describe",
+    "returnType" : "java.util.function.Function<? super M,java.lang.Object>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolver",
+      "type" : "io.fluxzero.common.handling.ParameterResolver<? super M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "function",
+      "type" : "java.util.function.Function<? super M,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.util.Set<java.lang.reflect.Parameter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1151,6 +1216,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveDescribedParameters",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#resolveDescribedParameters",
+    "returnType" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher.DescribedParameters<M>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resolveDynamicParameterResolver",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#resolveDynamicParameterResolver",
     "returnType" : "java.util.function.Function<? super M,java.lang.Object>",
@@ -1214,6 +1300,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveKeyedParameterResolver",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#resolveKeyedParameterResolver",
+    "returnType" : "java.util.function.Function<? super M,java.lang.Object>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "m",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterIndex",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.util.Set<java.lang.reflect.Parameter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resolveLegacyParameterResolver",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#resolveLegacyParameterResolver",
     "returnType" : "java.util.function.Function<? super M,java.lang.Object>",
@@ -1228,6 +1340,32 @@
     }, {
       "name" : "parameterIndex",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveLegacyParameterResolver",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#resolveLegacyParameterResolver",
+    "returnType" : "java.util.function.Function<? super M,java.lang.Object>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "m",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterIndex",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "java.util.Set<java.lang.reflect.Parameter>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1264,6 +1402,12 @@
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$BoundHandlerMethodPlan",
     "kind" : "class",
     "modifiers" : [ "private" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DescribedParameters",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$DescribedParameters",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   }, {
     "name" : "InputPlanCacheKey",

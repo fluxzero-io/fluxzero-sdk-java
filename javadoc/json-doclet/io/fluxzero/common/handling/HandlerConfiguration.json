@@ -23,6 +23,17 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "describeParameterRoles",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration.describeParameterRoles",
+    "type" : "java.util.function.Predicate<java.lang.reflect.Executable>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : "Opt-in capture of the actual parameter resolver roles for selected methods. Disabled on ordinary paths. ",
+    "constantValue" : null
+  }, {
     "name" : "handlerFilter",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration.handlerFilter",
     "type" : "io.fluxzero.common.handling.HandlerFilter",

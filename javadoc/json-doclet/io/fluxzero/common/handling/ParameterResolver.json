@@ -26,6 +26,22 @@
     "varArgs" : false,
     "documentation" : " Indicates whether this resolver contributes to determining handler method specificity when multiple handler\n candidates are available.\n <p>\n If {@code true}, the resolver will participate in determining the most specific handler for a message. This is\n relevant when the system must choose between overlapping handler signatures, e.g. for a resolver of a message's\n payload.\n\n @return {@code true} if this resolver influences specificity decisions, {@code false} otherwise\n"
   }, {
+    "name" : "isContextParameter",
+    "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver#isContextParameter",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether a successfully resolved parameter supplies invocation context rather than a payload or Model binding.\n This is independent of handler specificity. Complete Graph-change subscriptions may accept such context without\n changing their Model boundary. Dynamic match and rejection rules still apply. Custom context resolvers can opt\n in; the default preserves ordinary payload/binding selection for existing resolvers.\n\n @param parameter the parameter successfully claimed by this resolver\n @return whether this binding is contextual\n"
+  }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver#matches",
     "returnType" : "boolean",

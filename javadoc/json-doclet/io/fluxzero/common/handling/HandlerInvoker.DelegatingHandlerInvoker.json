@@ -47,6 +47,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getContextParameters",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$DelegatingHandlerInvoker#getContextParameters",
+    "returnType" : "java.util.Set<java.lang.reflect.Parameter>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getMethod",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$DelegatingHandlerInvoker#getMethod",
     "returnType" : "java.lang.reflect.Executable",

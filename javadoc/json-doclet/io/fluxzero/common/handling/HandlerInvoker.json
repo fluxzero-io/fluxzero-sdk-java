@@ -55,6 +55,17 @@
     "varArgs" : false,
     "documentation" : " Indicates whether the handler method has a return value.\n <p>\n This is based on the method's signature: if it returns {@code void}, this returns {@code false};\n otherwise, it returns {@code true}.\n </p>\n\n @return {@code true} if the method returns a value; {@code false} if it is {@code void}\n"
   }, {
+    "name" : "getContextParameters",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#getContextParameters",
+    "returnType" : "java.util.Set<java.lang.reflect.Parameter>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Parameters supplied by context resolvers for this invocation, or null when roles were not captured.\n Capturing roles never resolves a parameter again or evaluates its value for classification.\n"
+  }, {
     "name" : "getMethod",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#getMethod",
     "returnType" : "java.lang.reflect.Executable",

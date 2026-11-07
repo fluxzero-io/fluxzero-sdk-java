@@ -51,6 +51,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isContextParameter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MetadataParameterResolver#isContextParameter",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isNoMatchPayloadClassKey",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MetadataParameterResolver#isNoMatchPayloadClassKey",
     "returnType" : "boolean",

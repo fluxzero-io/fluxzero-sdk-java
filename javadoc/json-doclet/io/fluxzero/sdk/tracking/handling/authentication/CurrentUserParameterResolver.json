@@ -22,6 +22,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "isContextParameter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.CurrentUserParameterResolver#isContextParameter",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "prepare",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.CurrentUserParameterResolver#prepare",
     "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",

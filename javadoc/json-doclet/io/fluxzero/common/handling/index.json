@@ -70,6 +70,11 @@
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$BoundHandlerMethodPlan",
     "kind" : "class"
   }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.DescribedParameters.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.DescribedParameters",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$DescribedParameters",
+    "kind" : "record"
+  }, {
     "file" : "HandlerInspector.MethodHandlerMatcher.InputPlanCacheKey.json",
     "name" : "HandlerInspector.MethodHandlerMatcher.InputPlanCacheKey",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey",

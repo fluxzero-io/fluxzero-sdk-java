@@ -137,6 +137,48 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "contextHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#contextHandlers",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator.GraphHandler>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "candidates",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator.GraphHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "describesParameters",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#describesParameters",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this method needs resolver-role capture for complete Graph-change selection. "
+  }, {
     "name" : "excludedFromPayloadSelection",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#excludedFromPayloadSelection",
     "returnType" : "boolean",
@@ -167,6 +209,11 @@
     }, {
       "name" : "messageType",
       "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "describedRoles",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -284,6 +331,37 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "selectGraphInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#selectGraphInvoker",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graphHandlers",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator.GraphHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "subscriptionParameters",
+      "type" : "java.util.Set<java.lang.reflect.Parameter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "selectPayloadHandler",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#selectPayloadHandler",
     "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
@@ -303,6 +381,22 @@
     }, {
       "name" : "exclusions",
       "type" : "java.util.Set<java.lang.reflect.Parameter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "structuralGraphParameter",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#structuralGraphParameter",
+    "returnType" : "java.lang.reflect.Parameter",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -419,6 +513,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Wraps event and notification handlers that observe complete graph changes with optional Message/Metadata context. "
+  }, {
+    "name" : "wrapGraphChanges",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#wrapGraphChanges",
+    "returnType" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolverSource",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Expands Graph subscriptions using the factory's undecorated resolver source for parameter classification.\n User decorators remain responsible for selection and invocation, and need not expose resolver-role metadata.\n A null source retains the legacy Graph/Message/Metadata signatures for custom handlers.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
