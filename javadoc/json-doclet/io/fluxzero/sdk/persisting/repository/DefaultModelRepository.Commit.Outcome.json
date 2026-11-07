@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "eventCreationTime",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome.eventCreationTime",
+    "type" : "java.time.Instant",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "existingEvent",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome.existingEvent",
     "type" : "boolean",
@@ -71,6 +79,11 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "eventCreationTime",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -104,6 +117,11 @@
     }, {
       "name" : "existingEvent",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventCreationTime",
+      "type" : "java.time.Instant",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

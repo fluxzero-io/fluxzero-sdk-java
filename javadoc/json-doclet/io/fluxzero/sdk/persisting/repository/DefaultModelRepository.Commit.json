@@ -355,6 +355,11 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "eventCreationTime",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -616,6 +621,37 @@
     "varArgs" : false,
     "documentation" : " Prepares an ACCEPT rebase with the original commit shape, delivery guarantee, duplicate flag, and\n migration policy. Empty originals and incompatible shapes are rejected.\n"
   }, {
+    "name" : "prepareRetry",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#prepareRetry",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "original",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "evaluation",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "policy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Prepares a conflict retry while retaining the original event creation time and migration policy. "
+  }, {
     "name" : "prepareUpdated",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#prepareUpdated",
     "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
@@ -773,6 +809,11 @@
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "eventTime",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -802,6 +843,11 @@
     }, {
       "name" : "substep",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventTime",
+      "type" : "java.time.Instant",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -871,6 +917,11 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "eventTime",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -905,6 +956,11 @@
     }, {
       "name" : "migration",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventTime",
+      "type" : "java.time.Instant",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1003,6 +1059,18 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "EvaluationMessage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EvaluationMessage",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "EventCreationTime",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "GraphProjectionCommit",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$GraphProjectionCommit",
     "kind" : "record",

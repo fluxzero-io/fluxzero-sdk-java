@@ -1,0 +1,122 @@
+{
+  "name" : "EventCreationTime",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Internal lifecycle time shared by live evaluation and its independently created event envelopes. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime.value",
+    "type" : "java.time.Instant",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "EventCreationTime",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime#EventCreationTime",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forEvaluation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime#forEvaluation",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Retains source data and handling context without changing the incoming envelope. "
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "now",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime#now",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.EventCreationTime",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Captures the application clock at millisecond precision. "
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime#value",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "value",
+    "type" : "java.time.Instant",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

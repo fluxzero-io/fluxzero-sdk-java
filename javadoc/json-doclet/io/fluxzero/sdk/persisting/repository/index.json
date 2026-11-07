@@ -45,6 +45,16 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit",
     "kind" : "class"
   }, {
+    "file" : "DefaultModelRepository.Commit.EvaluationMessage.json",
+    "name" : "DefaultModelRepository.Commit.EvaluationMessage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EvaluationMessage",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultModelRepository.Commit.EventCreationTime.json",
+    "name" : "DefaultModelRepository.Commit.EventCreationTime",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$EventCreationTime",
+    "kind" : "record"
+  }, {
     "file" : "DefaultModelRepository.Commit.GraphProjectionCommit.json",
     "name" : "DefaultModelRepository.Commit.GraphProjectionCommit",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$GraphProjectionCommit",
