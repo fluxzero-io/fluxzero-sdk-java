@@ -104,7 +104,9 @@ public class Message implements HasMessage {
     String messageId;
 
     /**
-     * The creation timestamp of the message, in UTC. Defaults to the current time, truncated to milliseconds.
+     * The logical creation timestamp of the message, in UTC. Defaults to the current time, truncated to milliseconds.
+     * Derived Model events retain the applied update's timestamp even though they have a distinct message ID.
+     * This is not a unique publication timestamp or a substitute for the log index.
      */
     Instant timestamp;
 

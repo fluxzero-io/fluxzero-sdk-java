@@ -1266,6 +1266,12 @@ class DefaultModelRepositoryCommitTest {
 
     private void assertRetryPreparationContext(boolean accepting, boolean completedEvaluation, boolean asynchronous)
             throws Exception {
+        assertRetryPreparationContext(accepting, completedEvaluation, asynchronous, MessageType.EVENT);
+        assertRetryPreparationContext(accepting, completedEvaluation, asynchronous, MessageType.COMMAND);
+    }
+
+    private void assertRetryPreparationContext(boolean accepting, boolean completedEvaluation, boolean asynchronous,
+                                               MessageType messageType) throws Exception {
         Thread caller = Thread.currentThread();
         Fluxzero expected = mock(Fluxzero.class);
         Fluxzero callbackContext = mock(Fluxzero.class);
@@ -1307,8 +1313,8 @@ class DefaultModelRepositoryCommitTest {
                 interceptor, "client", contextSerializer, GraphProjectionCompletion.ASYNC);
         ContextModel stale = new ContextModel("context-model", "stale");
         ContextModel merged = new ContextModel("context-model", "merged");
-        var original = contextEvaluation(41L, null, stale);
-        var rebased = contextEvaluation(51L, stale, merged);
+        var original = contextEvaluation(41L, null, stale, messageType);
+        var rebased = contextEvaluation(51L, stale, merged, messageType);
         CompletableFuture<CommitModelsResult> first = new CompletableFuture<>();
         CompletableFuture<CommitAttempt> deferredEvaluation = new CompletableFuture<>();
         CountDownLatch evaluated = new CountDownLatch(1);
@@ -1361,6 +1367,17 @@ class DefaultModelRepositoryCommitTest {
             Fluxzero.instance.remove();
         }
         assertEquals(2, attempts.get());
+        ArgumentCaptor<CommitModels> captured = ArgumentCaptor.forClass(CommitModels.class);
+        verify(client, times(2)).commitModels(captured.capture());
+        String firstEventId = captured.getAllValues().getFirst().getSubsteps().getFirst().getEvent().getMessageId();
+        String retriedEventId = captured.getAllValues().getLast().getSubsteps().getFirst().getEvent().getMessageId();
+        if (messageType == MessageType.COMMAND) {
+            assertNotEquals(original.steps().getFirst().message().getMessageId(), firstEventId);
+            assertEquals(firstEventId, retriedEventId);
+        } else {
+            assertEquals(original.steps().getFirst().message().getMessageId(), firstEventId);
+            assertEquals(rebased.steps().getFirst().message().getMessageId(), retriedEventId);
+        }
         for (String phase : List.of("event", "document", "snapshot")) {
             assertEquals(2L,
                          contextChecks.stream().filter(phase::equals).count(), phase);
@@ -1369,9 +1386,54 @@ class DefaultModelRepositoryCommitTest {
 
     private static CommitAttempt contextEvaluation(long boundary, ContextModel before, ContextModel after)
             throws Exception {
+        return contextEvaluation(boundary, before, after, MessageType.COMMAND);
+    }
+
+    private static CommitAttempt contextEvaluation(long boundary, ContextModel before, ContextModel after,
+                                                    MessageType messageType) throws Exception {
+        var message = new DeserializingMessage(new Message(new UpdateContextModel()), messageType, null);
         return evaluation(boundary, List.of(after.id()), Map.of(after.id(), ContextModel.class),
-                List.of(substep(new UpdateContextModel(), transition(after.id(), ContextModel.class, before, after,
-                        UpdateContextModel.class, "apply", ContextModel.class))), Map.of(after.id(), after));
+                List.of(new TestStep(message, List.of(transition(after.id(), ContextModel.class, before, after,
+                        UpdateContextModel.class, "apply", ContextModel.class)))), Map.of(after.id(), after));
+    }
+
+    @Test
+    void eventIdentityIsStablePerCommitSubstepWithoutMutatingEvaluation() throws Exception {
+        ContextModel model = new ContextModel("identity", "value");
+        CommitAttempt original = contextEvaluation(41L, null, model);
+        var step = original.steps().getFirst();
+        var twoSteps = CommitAttempt.fromSteps(41L, List.of(model.id()), Map.of(model.id(), ContextModel.class),
+                                              List.of(step, step));
+        var first = protocol.prepare("identity-commit", twoSteps).commit();
+        var repeated = protocol.prepare("identity-commit", twoSteps).commit();
+        String firstId = first.getSubsteps().getFirst().getEvent().getMessageId();
+        String secondId = first.getSubsteps().getLast().getEvent().getMessageId();
+        assertNotEquals(firstId, secondId);
+        assertNotEquals(step.message().getMessageId(), firstId);
+        assertEquals(firstId, repeated.getSubsteps().getFirst().getEvent().getMessageId());
+        assertEquals(secondId, repeated.getSubsteps().getLast().getEvent().getMessageId());
+        assertNotEquals(firstId, protocol.prepare("another-commit", original).commit()
+                .getSubsteps().getFirst().getEvent().getMessageId());
+        assertSame(step.message(), original.steps().getFirst().message());
+    }
+
+    @Test
+    void existingEventRetainsIdentityTimestampAndIndex() throws Exception {
+        ContextModel model = new ContextModel("existing", "value");
+        var original = contextEvaluation(41L, null, model);
+        var source = new Message(new UpdateContextModel(), Metadata.empty(), "existing-event", Instant.EPOCH);
+        var serialized = source.serialize(serializer);
+        serialized.setIndex(123L);
+        var event = serializer.deserializeMessage(serialized, MessageType.EVENT);
+        var evaluation = CommitAttempt.fromSteps(41L, List.of(model.id()), Map.of(model.id(), ContextModel.class),
+                List.of(new CommitAttempt.Step(event, original.steps().getFirst().changes())));
+        var prepared = protocol.prepare(source.getMessageId(), evaluation, ModelConflictPolicy.ACCEPT, true).commit();
+        ModelCommitValidator.validate(prepared);
+        var stored = prepared.getSubsteps().getFirst();
+        assertEquals(source.getMessageId(), stored.getEvent().getMessageId());
+        assertEquals(0L, stored.getEvent().getTimestamp());
+        assertEquals(123L, stored.getEvent().getIndex());
+        assertFalse(stored.isPublishEvent());
     }
 
     @Test

@@ -72,6 +72,13 @@ Persistence does not control event storage or publication. Those remain owned by
 `publicationStrategy` and per-apply overrides. Event-sourcing-only options such as `ignoreUnknownEvents`, snapshots
 and replay checkpoints are rejected on DOCUMENT-only Models.
 
+Model events derived from commands or schedules receive their own identity, deterministically tied to the commit and
+protocol substep. Preparation, redelivery and conflict reevaluation must not generate fresh IDs for that same step.
+The logical update inside evaluation remains unchanged, including same-type `@InterceptApply` replacements. Existing
+EVENT inputs keep their identities; replay does not rewrite historical data. The event timestamp remains the applied
+update's logical time, not wall-clock publication time. `$modelCommitId` carries commit causality (the incoming command
+ID for automatic handling); use metadata rather than equal message IDs to join a command and event.
+
 In Kotlin, annotation arrays use `[ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT]` and nested annotations
 omit `@`, for example `searchSettings = SearchSettings(includeDescendants = false)`.
 
