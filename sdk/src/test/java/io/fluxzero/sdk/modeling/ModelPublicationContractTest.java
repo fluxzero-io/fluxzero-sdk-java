@@ -12,7 +12,10 @@
  */
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
@@ -20,7 +23,9 @@ import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -79,6 +84,29 @@ class ModelPublicationContractTest {
                     ((DefaultModelRepository) fc.modelRepository()).invalidateModels(List.of("source"));
                     assertEquals(new Sourced("source", 1), Fluxzero.loadModel("source", Sourced.class).get());
                     assertEquals(1, fc.eventStore().getEvents("source").count());
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void automaticCommandPublishesAnIndependentEventIdentity(boolean async) {
+        Message command = new Message(new Create("identity"), Metadata.of("business", "value"),
+                                      "command-identity", Instant.parse("2026-01-01T12:00:00Z"));
+        fixture(async, Sourced.class).whenCommand(command)
+                .expectOnlyEvents((Predicate<Message>) event -> event.getPayload().equals(command.getPayload())
+                        && !event.getMessageId().equals(command.getMessageId())
+                        && event.getTimestamp().equals(command.getTimestamp()))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(fc -> {
+                    var event = fc.eventStore().getEvents("identity").findFirst().orElseThrow();
+                    assertNotEquals(command.getMessageId(), event.getMessageId());
+                    assertEquals(command.getTimestamp(), event.getTimestamp());
+                    assertEquals("value", event.getMetadata().get("business"));
+                    assertEquals(command.getMessageId(), event.getMetadata().get(ModelEventMetadata.COMMIT_ID));
+                    String eventId = event.getMessageId();
+                    ((DefaultModelRepository) fc.modelRepository()).invalidateModels(List.of("identity"));
+                    assertEquals(new Sourced("identity", 1), Fluxzero.loadModel("identity", Sourced.class).get());
+                    assertEquals(eventId, fc.eventStore().getEvents("identity").findFirst().orElseThrow().getMessageId());
                 });
     }
 

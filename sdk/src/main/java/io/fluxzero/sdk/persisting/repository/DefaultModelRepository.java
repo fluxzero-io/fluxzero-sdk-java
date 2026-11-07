@@ -2867,10 +2867,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
              * data is shared: transport/tracking fields intentionally stay behind on the
              * command and event dispatch interceptors still receive an independent message.
              */
+            // Crossing from a handled command (or schedule) into an event creates a new identity.
+            // Commit/substep identity survives preparation, conflict reevaluation and redelivery; a fresh
+            // random ID here would not. Keep the logical update untouched for evaluation and interceptors.
+            String eventId = !internalLifecycleEvent && message.getMessageType() != EVENT
+                    ? commitId + "$model-event-" + substep : logicalMessage.getMessageId();
             SerializedMessage candidate = new SerializedMessage(
                     source.getData(),
                     logicalMessage.getMetadata(),
-                    logicalMessage.getMessageId(),
+                    eventId,
                     logicalMessage.getTimestamp().toEpochMilli());
             Long existingEventIndex = existingEventIndex(message);
             if (existingEventIndex != null) {

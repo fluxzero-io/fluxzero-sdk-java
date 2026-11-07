@@ -63,6 +63,12 @@ import java.lang.annotation.Target;
  * {@link #publicationStrategy()}, and per-apply overrides. Internal component documents used for Graph composition are
  * likewise orthogonal and never change the selected load path.
  *
+ * <p>
+ * An event derived from a command has its own message ID, stable for the same commit substep across retries and
+ * conflict reevaluation. Its timestamp retains the applied update's logical time, not the publication time.
+ * The {@code $modelCommitId} metadata links it to the originating commit (the command ID for automatic handling).
+ * Applying an existing event retains its ID and timestamp, including during replay.
+ *
  * <h2>Example</h2>
  * <pre>{@code
  * @Model
