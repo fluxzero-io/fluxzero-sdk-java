@@ -2498,7 +2498,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 ModelConflictPolicy conflictPolicy,
                 boolean migration,
                 boolean existingEvent) {
-            return doPrepare(commitId, evaluation, conflictPolicy, migration, existingEvent);
+            return doPrepare(commitId, evaluation, conflictPolicy, migration, existingEvent,
+                             evaluation.steps().isEmpty() ? EventCreationTime.now().value()
+                                     : evaluation.steps().getFirst().message().getContext(EventCreationTime.class)
+                                             .orElseGet(EventCreationTime::now).value());
         }
 
         private Outcome doPrepare(
@@ -2506,7 +2509,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 CommitAttempt evaluation,
                 ModelConflictPolicy conflictPolicy,
                 boolean migration,
-                boolean existingEvent) {
+                boolean existingEvent,
+                Instant eventCreationTime) {
             Objects.requireNonNull(commitId, "commitId");
             if (commitId.isBlank()) {
                 throw new IllegalArgumentException("Model commit ID must not be blank");
@@ -2564,6 +2568,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     continue;
                 }
                 boolean direct = step.directMutation();
+                Instant eventTime = message.getMessageType() != EVENT
+                                    || transitions.stream().anyMatch(Change::cascadedDeletion)
+                        ? eventCreationTime : message.getTimestamp();
                 List<Change> committedTransitions = direct
                         ? transitions.stream().map(transition -> transition.withEffects(
                                 transition.storeEvent(), false, transition.updateState())).toList()
@@ -2574,13 +2581,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     && !ordinaryEventIds.contains(message.getMessageId())) {
                     SerializedMessage publication = serialize(
                             message, commitId, protocolSteps.size(), false,
-                            routingTarget(graphPublished, List.of()));
+                            routingTarget(graphPublished, List.of()), eventTime);
                     publication.setSource(source);
                     publication = BinaryWire.prepareEnvelope(publication);
                     Change anchor = graphPublished.getFirst();
                     ModelCommitTarget publicationTarget = target(
                             anchor.withEffects(false, true, false), message,
-                            anchor.beforeSequenceNumber(), false, migration)
+                            anchor.beforeSequenceNumber(), false, migration, eventTime)
                             .toBuilder().expectedSequenceNumber(null).build();
                     protocolSteps.add(new ModelCommitStep(
                             publication, true, List.of(publicationTarget)));
@@ -2599,21 +2606,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                         || committedTransitions.stream().anyMatch(Change::storeEvent);
                 SerializedMessage event = !eventRequired ? null
                         : direct ? serializeDirectModelUpdate(
-                                message, committedTransitions, commitId, protocolSteps.size())
+                                message, committedTransitions, commitId, protocolSteps.size(), eventCreationTime)
                         : serialize(
                                 message, commitId, protocolSteps.size(),
                                 transitions.stream().anyMatch(Change::cascadedDeletion),
-                                routingTarget(transitions, graphPublished));
+                                routingTarget(transitions, graphPublished), eventTime);
                 if (event != null) {
                     event.setSource(source);
                     event = BinaryWire.prepareEnvelope(event);
                 }
+                Instant stateTime = event == null ? message.getTimestamp() : Instant.ofEpochMilli(event.getTimestamp());
                 List<ModelCommitTarget> targets = new ArrayList<>(committedTransitions.size());
                 for (Change transition : committedTransitions) {
                     ModelCommitTarget target = target(
                             transition, message, nextSequences,
                             cascadeRoots.contains(transition.modelId()),
-                            migration);
+                            migration, stateTime);
                     targets.add(target);
                     hasDocumentProjections |= target.getDocumentProjection() != null;
                     preparedChanges.put(target, transition);
@@ -2663,7 +2671,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
             boolean possibleDuplicate = possibleDuplicate(evaluation, preparedChanges.values());
             if (protocolSteps.isEmpty()) {
-                return new Outcome(null, preparedChanges, existingEvent);
+                return new Outcome(null, preparedChanges, existingEvent, eventCreationTime);
             }
             CommitModels commit = new CommitModels(
                     commitId, evaluation.readStateIndex(), evaluation.readModelIds(conflictPolicy),
@@ -2690,7 +2698,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (migration) {
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit);
             }
-            return new Outcome(commit, preparedChanges, existingEvent);
+            return new Outcome(commit, preparedChanges, existingEvent, eventCreationTime);
         }
 
         /**
@@ -2709,6 +2717,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return prepareUpdated(commitId, original, evaluation, original.commit().getConflictPolicy());
         }
 
+        /** Prepares a conflict retry while retaining the original event creation time and migration policy. */
+        public Outcome prepareRetry(String commitId, Outcome original, CommitAttempt evaluation,
+                                    ModelConflictPolicy policy) {
+            return doPrepare(commitId, evaluation, policy, original.commit().isMigration(),
+                             original.existingEvent, original.eventCreationTime);
+        }
+
         private Outcome prepareUpdated(String commitId, Outcome original, CommitAttempt evaluation,
                                        ModelConflictPolicy policy) {
             if (original.commit() == null) {
@@ -2717,7 +2732,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
             Outcome rebased = doPrepare(
                     commitId, evaluation, policy,
-                    original.commit().isMigration(), original.existingEvent);
+                    original.commit().isMigration(), original.existingEvent, original.eventCreationTime);
             requireSameShape(original, rebased);
             CommitModels candidate = rebased.commit();
             CommitModels commit = new CommitModels(
@@ -2746,7 +2761,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (candidate instanceof io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments) {
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit);
             }
-            return new Outcome(commit, rebased.changes, original.existingEvent);
+            return new Outcome(commit, rebased.changes, original.existingEvent, original.eventCreationTime);
         }
 
         private static void requireSameShape(
@@ -2796,12 +2811,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 DeserializingMessage message,
                 Map<String, Long> nextSequences,
                 boolean cascadeDelete,
-                boolean migration) {
+                boolean migration,
+                Instant eventTime) {
             return target(
                     transition,
                     message,
                     nextSequence(transition, nextSequences),
-                    cascadeDelete, migration);
+                    cascadeDelete, migration, eventTime);
         }
 
         private ModelCommitTarget target(
@@ -2809,7 +2825,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 DeserializingMessage message,
                 long nextSequence,
                 boolean cascadeDelete,
-                boolean migration) {
+                boolean migration,
+                Instant eventTime) {
             Metadata modelMetadata = DeadlineMetadata.strip(message.getMetadata());
             if (transition.deadlines() != null) {
                 modelMetadata = DeadlineMetadata.with(modelMetadata, transition.modelId(), transition.deadlines());
@@ -2819,7 +2836,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         || migration)
                     ? directDocument(
                             transition,
-                            message.getTimestamp(), modelMetadata, false)
+                            eventTime, modelMetadata, false)
                     : null;
             ModelDocumentMutation projection = null;
             RelationshipUpdate relationships = transition.updateState()
@@ -2827,7 +2844,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     : RelationshipUpdate.UNCHANGED;
             ModelSnapshotMutation snapshot = snapshot(
                     transition, nextSequence,
-                    message.getTimestamp(), modelMetadata);
+                    eventTime, modelMetadata);
             List<String> aliases = transition.updateState()
                     ? transition.metadata().aliases(transition.after())
                     : null;
@@ -2855,7 +2872,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 String commitId,
                 int substep,
                 boolean internalLifecycleEvent,
-                String routingTarget) {
+                String routingTarget,
+                Instant eventTime) {
             SerializedMessage source = message.getSerializedObject(serializer);
             io.fluxzero.sdk.common.Message logicalMessage =
                     message.toMessage();
@@ -2876,7 +2894,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     source.getData(),
                     logicalMessage.getMetadata(),
                     eventId,
-                    logicalMessage.getTimestamp().toEpochMilli());
+                    eventTime.toEpochMilli());
             Long existingEventIndex = existingEventIndex(message);
             if (existingEventIndex != null) {
                 candidate.setIndex(existingEventIndex);
@@ -2933,7 +2951,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 DeserializingMessage sourceMessage,
                 List<Change> transitions,
                 String commitId,
-                int substep) {
+                int substep,
+                Instant eventTime) {
             List<DirectModelUpdate.Target> targets = transitions.stream()
                     .filter(transition -> transition.storeEvent())
                     .map(transition -> new DirectModelUpdate.Target(
@@ -2952,9 +2971,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             new DirectModelUpdate(targets),
                             logical.getMetadata(),
                             logical.getMessageId() + "$direct-model-update",
-                            logical.getTimestamp()),
+                            eventTime),
                     EVENT, null, serializer);
-            return serialize(direct, commitId, substep, true, null);
+            return serialize(direct, commitId, substep, true, null, eventTime);
         }
 
         private static boolean possibleDuplicate(
@@ -3070,6 +3089,54 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     .orElse(null);
         }
 
+        /** Internal lifecycle time shared by live evaluation and its independently created event envelopes. */
+        public record EventCreationTime(Instant value) {
+            /** Captures the application clock at millisecond precision. */
+            public static EventCreationTime now() {
+                return new EventCreationTime(Instant.ofEpochMilli(Fluxzero.currentTime().toEpochMilli()));
+            }
+
+            /** Retains source data and handling context without changing the incoming envelope. */
+            public DeserializingMessage forEvaluation(DeserializingMessage source) {
+                return new EvaluationMessage(source, this);
+            }
+        }
+
+        private static final class EvaluationMessage extends DeserializingMessage {
+            private final EventCreationTime creationTime;
+            private io.fluxzero.sdk.common.Message logical;
+
+            private EvaluationMessage(DeserializingMessage source, EventCreationTime creationTime) {
+                super(source);
+                this.creationTime = creationTime;
+                putContext(EventCreationTime.class, creationTime);
+            }
+
+            @Override
+            public Instant getTimestamp() { return creationTime.value(); }
+
+            @Override
+            public io.fluxzero.sdk.common.Message toMessage() {
+                if (logical == null) { logical = super.toMessage().withTimestamp(getTimestamp()); }
+                return logical;
+            }
+
+            @Override
+            public DeserializingMessage withMetadata(Metadata metadata) {
+                return creationTime.forEvaluation(super.withMetadata(metadata));
+            }
+
+            @Override
+            public DeserializingMessage withPayload(Object payload) {
+                return creationTime.forEvaluation(super.withPayload(payload));
+            }
+
+            @Override
+            public DeserializingMessage withMessage(io.fluxzero.sdk.common.Message message) {
+                return creationTime.forEvaluation(super.withMessage(message));
+            }
+        }
+
         /** The one repository-owned carrier from prepared request through authoritative accepted result. */
         public static final class Outcome {
             private final CommitModels commit;
@@ -3077,12 +3144,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             private final CommitModelsResult result;
             private final List<CommittedRevision> revisions;
             private final boolean existingEvent;
+            private final Instant eventCreationTime;
 
             private Outcome(
                     CommitModels commit,
                     Map<ModelCommitTarget, Change> changes,
-                    boolean existingEvent) {
-                this(commit, changes, null, List.of(), existingEvent);
+                    boolean existingEvent,
+                    Instant eventCreationTime) {
+                this(commit, changes, null, List.of(), existingEvent, eventCreationTime);
             }
 
             private Outcome(
@@ -3090,12 +3159,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     Map<ModelCommitTarget, Change> changes,
                     CommitModelsResult result,
                     List<CommittedRevision> revisions,
-                    boolean existingEvent) {
+                    boolean existingEvent,
+                    Instant eventCreationTime) {
                 this.commit = commit;
                 this.changes = new IdentityHashMap<>(Objects.requireNonNull(changes));
                 this.result = result;
                 this.revisions = revisions;
                 this.existingEvent = existingEvent;
+                this.eventCreationTime = eventCreationTime;
             }
 
             /**
@@ -3156,7 +3227,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 }
                 return new Outcome(
-                        commit, changes, accepted, List.copyOf(revisions), existingEvent);
+                        commit, changes, accepted, List.copyOf(revisions), existingEvent, eventCreationTime);
             }
 
             List<CommittedRevision> revisions() {

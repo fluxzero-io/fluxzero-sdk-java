@@ -52,6 +52,8 @@ import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1274,6 +1276,8 @@ class DefaultModelRepositoryCommitTest {
                                                MessageType messageType) throws Exception {
         Thread caller = Thread.currentThread();
         Fluxzero expected = mock(Fluxzero.class);
+        Instant eventTime = Instant.parse("2026-11-07T13:00:00Z");
+        when(expected.clock()).thenReturn(Clock.fixed(eventTime, ZoneOffset.UTC));
         Fluxzero callbackContext = mock(Fluxzero.class);
         List<String> contextChecks = new CopyOnWriteArrayList<>();
         JacksonSerializer contextSerializer = new JacksonSerializer() {
@@ -1321,8 +1325,11 @@ class DefaultModelRepositoryCommitTest {
         AtomicInteger attempts = new AtomicInteger();
         when(client.commitModels(any())).thenAnswer(invocation -> {
             assertSame(expected, Fluxzero.instance.get(), "submission context");
-            return attempts.getAndIncrement() == 0 ? first
-                    : CompletableFuture.completedFuture(result(invocation.getArgument(0)));
+            if (attempts.getAndIncrement() == 0) {
+                when(expected.clock()).thenReturn(Clock.fixed(eventTime.plusSeconds(60), ZoneOffset.UTC));
+                return first;
+            }
+            return CompletableFuture.completedFuture(result(invocation.getArgument(0)));
         });
         ModelPipeline.RetryEvaluator evaluator = (response, attempt) -> {
             assertSame(expected, Fluxzero.instance.get(), "evaluation context");
@@ -1374,6 +1381,12 @@ class DefaultModelRepositoryCommitTest {
         if (messageType == MessageType.COMMAND) {
             assertNotEquals(original.steps().getFirst().message().getMessageId(), firstEventId);
             assertEquals(firstEventId, retriedEventId);
+            for (CommitModels request : captured.getAllValues()) {
+                var step = request.getSubsteps().getFirst();
+                assertEquals(eventTime.toEpochMilli(), step.getEvent().getTimestamp());
+                assertEquals(eventTime.toEpochMilli(), step.getTargets().getFirst().getSnapshot().getTimestamp());
+                assertEquals(eventTime.toEpochMilli(), step.getTargets().getFirst().getDocument().getDocument().getTimestamp());
+            }
         } else {
             assertEquals(original.steps().getFirst().message().getMessageId(), firstEventId);
             assertEquals(rebased.steps().getFirst().message().getMessageId(), retriedEventId);
@@ -1415,6 +1428,52 @@ class DefaultModelRepositoryCommitTest {
         assertNotEquals(firstId, protocol.prepare("another-commit", original).commit()
                 .getSubsteps().getFirst().getEvent().getMessageId());
         assertSame(step.message(), original.steps().getFirst().message());
+    }
+
+    @Test
+    void derivedEnvelopesUseCreationTimeWithoutIncomingTransportFields() throws Exception {
+        Fluxzero instance = mock(Fluxzero.class);
+        Instant now = Instant.parse("2026-11-07T13:00:00Z");
+        when(instance.clock()).thenReturn(Clock.fixed(now, ZoneOffset.UTC));
+        Fluxzero.instance.set(instance);
+        try {
+            ContextModel model = new ContextModel("envelope", "value");
+            var original = contextEvaluation(41L, null, model);
+            for (MessageType type : List.of(MessageType.COMMAND, MessageType.SCHEDULE)) {
+                var input = new Message(new UpdateContextModel(), Metadata.of("business", "value"),
+                                        "incoming", Instant.EPOCH).serialize(serializer);
+                input.setSource("incoming-client");
+                input.setTarget("incoming-target");
+                input.setRequestId(123);
+                input.setIndex(456L);
+                var message = serializer.deserializeMessage(input, type);
+                for (boolean direct : List.of(false, true)) {
+                    var changes = direct ? List.of(Change.applied(model.id(), ContextModel.class, -1L,
+                            null, null, model, null, current -> current, false)) : original.steps().getFirst().changes();
+                    var evaluation = CommitAttempt.fromSteps(41L, List.of(model.id()), Map.of(model.id(), ContextModel.class),
+                            List.of(new CommitAttempt.Step(message, changes)));
+                    var commit = protocol.prepare("incoming", evaluation).commit();
+                    for (var step : commit.getSubsteps()) {
+                        var event = step.getEvent();
+                        assertNotEquals(input.getMessageId(), event.getMessageId());
+                        assertEquals(now.toEpochMilli(), event.getTimestamp());
+                        assertEquals("client-1", event.getSource());
+                        assertNull(event.getTarget());
+                        assertNull(event.getRequestId());
+                        assertNull(event.getIndex());
+                        if (step.getTargets().getFirst().isUpdateState()) {
+                            assertEquals(now.toEpochMilli(), step.getTargets().getFirst().getSnapshot().getTimestamp());
+                            assertEquals(now.toEpochMilli(), step.getTargets().getFirst().getDocument().getDocument().getTimestamp());
+                        }
+                    }
+                    assertEquals(0L, input.getTimestamp());
+                    assertEquals("incoming-client", input.getSource());
+                    assertEquals(456L, input.getIndex());
+                }
+            }
+        } finally {
+            Fluxzero.instance.remove();
+        }
     }
 
     @Test

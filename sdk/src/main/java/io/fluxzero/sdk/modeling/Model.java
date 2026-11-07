@@ -65,7 +65,8 @@ import java.lang.annotation.Target;
  *
  * <p>
  * An event derived from a command has its own message ID, stable for the same commit substep across retries and
- * conflict reevaluation. Its timestamp retains the applied update's logical time, not the publication time.
+ * conflict reevaluation. Its creation timestamp comes from the application clock when live Model evaluation begins,
+ * independently of the command timestamp, and is retained throughout retries and conflict reevaluation.
  * The {@code $modelCommitId} metadata links it to the originating commit (the command ID for automatic handling).
  * Applying an existing event retains its ID and timestamp, including during replay.
  *

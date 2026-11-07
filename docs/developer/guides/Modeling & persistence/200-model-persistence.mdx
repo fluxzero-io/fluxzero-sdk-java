@@ -238,10 +238,11 @@ to reconstruct that state. Fluxzero rejects create, update and logical-delete tr
 `PUBLISH_ONLY` or `eventPublication = NEVER` before commit. A publication-only no-op remains valid, and a
 document-based model can still change without storing the event because its current document is the load source.
 
-A command and its resulting Model event have distinct message IDs. The event retains the applied update's timestamp:
-it describes the logical change time, not when the event was published. Use metadata to relate the event to its cause;
-`$modelCommitId` identifies the originating commit, which is the command ID for automatic handling. Retrying the same
-commit substep keeps the event ID stable. Reconstructing a Model from existing events preserves their IDs and timestamps.
+A command and its resulting Model event have independent envelopes: the event has its own message ID and creation
+time from the application clock when live Model evaluation begins. It does not inherit the command timestamp or
+transport fields. Retrying that commit retains the event ID and creation time; associated snapshots and documents use
+the event time too. Use metadata to relate the event to its cause: `$modelCommitId` identifies the originating commit,
+which is the command ID for automatic handling. Reconstructing a Model from existing events preserves their IDs and timestamps.
 
 For an event targeting several models, each stream receives a lightweight membership. The full payload remains inline
 for ordinary small target sets; large multi-target payloads may be stored once and shared. Hard deletion removes only
