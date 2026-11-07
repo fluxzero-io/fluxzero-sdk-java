@@ -103,7 +103,7 @@
     "type" : "java.time.Instant",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " The creation timestamp of the message, in UTC. Defaults to the current time, truncated to milliseconds.\n",
+    "documentation" : " The logical creation timestamp of the message, in UTC. Defaults to the current time, truncated to milliseconds.\n Derived Model events retain the applied update's timestamp even though they have a distinct message ID.\n This is not a unique publication timestamp or a substitute for the log index.\n",
     "constantValue" : null
   } ],
   "constructors" : [ {
