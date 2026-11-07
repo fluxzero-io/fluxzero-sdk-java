@@ -52,6 +52,7 @@ public class ModelCascadePreparationBenchmark {
                 long nanos = 0, bytes = 0, graphRoots = 0, graphRequests = 0, streams = 0, events = 0, eventBytes = 0;
                 long metadataModels = 0, metadataEdges = 0, metadataBytes = 0;
                 int count = round < 0 ? warmups : iterations;
+                long[] samples = new long[count];
                 for (int i = 0; i < count; i++) {
                     String suffix = round + "-" + i;
                     Complete command = new Complete("scratch-" + suffix, "root", "receipt-" + suffix, false);
@@ -72,7 +73,8 @@ public class ModelCascadePreparationBenchmark {
                     long allocatedBefore = allocation == null ? 0 : allocation.getThreadAllocatedBytes(thread);
                     long start = System.nanoTime();
                     commit(fc, guarded ? new DeleteBranch(command.scratchId()) : command);
-                    nanos += System.nanoTime() - start;
+                    samples[i] = System.nanoTime() - start;
+                    nanos += samples[i];
                     bytes += allocation == null ? 0 : allocation.getThreadAllocatedBytes(thread) - allocatedBefore;
                     graphRoots += client.graphRoots.size(); streams += client.eventStreams.size();
                     graphRequests += client.graphRequests.size();
@@ -85,10 +87,12 @@ public class ModelCascadePreparationBenchmark {
                     if (!guarded) { commit(fc, new DeleteReceipt(command.receiptId())); }
                 }
                 if (round >= 0) {
-                    System.out.printf("round=%d us/op=%.1f caller-bytes/op=%.0f graph-roots/op=%.1f "
+                    java.util.Arrays.sort(samples);
+                    System.out.printf(java.util.Locale.ROOT, "round=%d us/op=%.1f p99-us/op=%.1f ops/second=%.1f caller-bytes/op=%.0f graph-roots/op=%.1f "
                                       + "graph-requests/op=%.1f stream-reads/op=%.1f events/op=%.1f event-bytes/op=%.1f "
                                       + "metadata-models/op=%.1f metadata-edges/op=%.1f metadata-bytes/op=%.1f commits/op=1%n",
-                                      round, nanos / (count * 1000d), bytes / (double) count,
+                                      round, nanos / (count * 1000d), samples[(int) (count * .99)] / 1000d,
+                                      count * 1_000_000_000d / nanos, bytes / (double) count,
                                       graphRoots / (double) count, graphRequests / (double) count, streams / (double) count,
                                       events / (double) count, eventBytes / (double) count,
                                       metadataModels / (double) count, metadataEdges / (double) count, metadataBytes / (double) count);

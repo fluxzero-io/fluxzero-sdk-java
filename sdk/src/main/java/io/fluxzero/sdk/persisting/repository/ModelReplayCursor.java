@@ -16,6 +16,8 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.modeling.GetModelReconstruction;
+import io.fluxzero.common.api.modeling.ModelReconstructionLoader;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
@@ -57,6 +59,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 
 import io.fluxzero.sdk.scheduling.DeadlineMetadata;
+import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -370,9 +373,24 @@ final class ModelReplayCursor {
         Objects.requireNonNull(lastSequenceNumbers, "lastSequenceNumbers");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(pageConsumer, "pageConsumer");
-        LinkedHashMap<String, Long> validatedCursors = validateCursors(lastSequenceNumbers);
-        List<String> ids = List.copyOf(validatedCursors.keySet());
-        if (ids.isEmpty()) {
+        return loadValidated(validateCursors(lastSequenceNumbers), boundary, pageConsumer,
+                             headsOnly, requireCompleteHistory, probe);
+    }
+
+    private LoadResult loadOwnedCursors(LinkedHashMap<String, Long> cursors, ModelReadBoundary boundary,
+                                        Consumer<ValidatedPage> pageConsumer, HeadProbe probe) {
+        Objects.requireNonNull(boundary, "boundary");
+        Objects.requireNonNull(pageConsumer, "pageConsumer");
+        cursors.forEach(ModelReplayCursor::validateCursor);
+        return loadValidated(cursors, boundary, pageConsumer, false, true, probe);
+    }
+
+    // May mutate this private validated map; its owner must not reuse it after this call.
+    // External load callers always supply a defensive copy.
+    private LoadResult loadValidated(LinkedHashMap<String, Long> validatedCursors, ModelReadBoundary boundary,
+                                     Consumer<ValidatedPage> pageConsumer, boolean headsOnly,
+                                     boolean requireCompleteHistory, HeadProbe probe) {
+        if (validatedCursors.isEmpty()) {
             GetModelEventsResult response = getModelEvents(
                     new GetModelEvents(
                             List.of(), boundary,
@@ -388,9 +406,10 @@ final class ModelReplayCursor {
         int maxStreamsPerChunk = headsOnly
                 ? settings.maxStreamsPerRequest()
                 : Math.min(settings.maxStreamsPerRequest(), settings.maxMembershipsPerRequest());
-        if (ids.size() <= maxStreamsPerChunk) {
+        if (validatedCursors.size() <= maxStreamsPerChunk) {
             return loadChunk(validatedCursors, boundary, pageConsumer, headsOnly, requireCompleteHistory, probe);
         }
+        List<String> ids = List.copyOf(validatedCursors.keySet());
         ModelReadBoundary pinned = boundary;
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         for (int offset = 0; offset < ids.size(); offset += maxStreamsPerChunk) {
@@ -431,7 +450,7 @@ final class ModelReplayCursor {
         List<String> ids = validateIds(modelIds);
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
         ids.forEach(id -> cursors.put(id, -1L));
-        return load(
+        return loadValidated(
                 cursors, boundary, ignored -> {
                 }, true, requireCompleteHistory, probe);
     }
@@ -451,8 +470,7 @@ final class ModelReplayCursor {
 
         while (pageRequest != null) {
             GetModelEventsResult response = prefetched == null
-                    ? readPage(pageRequest, probe)
-                    : await(prefetched);
+                    ? readPage(pageRequest, probe) : await(prefetched);
             long responseStateIndex = validateBoundary(
                     response, pinned.stateIndex());
             pinned = ModelReadBoundary.state(responseStateIndex, false);
@@ -489,17 +507,33 @@ final class ModelReplayCursor {
                 Objects.requireNonNull(pinned.stateIndex()), heads);
     }
 
-    /** Invocation-local metadata, never an alias cache: evidence is usable only at the returned boundary. */
+    /** Invocation-local head evidence or a supplied first page, usable only at the returned boundary. */
     static final class HeadProbe {
         final String id;
         private LoadResult result;
+        private GetModelEventsResult initialPage;
 
         HeadProbe(String id) { this.id = id; }
+
+        HeadProbe(GetModelEventsResult initialPage) {
+            this.id = "";
+            this.initialPage = initialPage;
+        }
     }
 
     private GetModelEventsResult readPage(PageRequest page, HeadProbe probe) {
+        if (probe == null) { return requestBatcher.get(page.request()); }
+        return readProbedPage(page, probe);
+    }
+
+    private GetModelEventsResult readProbedPage(PageRequest page, HeadProbe probe) {
+        if (probe.initialPage != null) {
+            GetModelEventsResult response = probe.initialPage;
+            probe.initialPage = null;
+            return response;
+        }
         GetModelEvents request = page.request();
-        if (probe == null || probe.id.isBlank() || probe.result != null || page.active().contains(probe.id)
+        if (probe.id.isBlank() || probe.result != null || page.active().contains(probe.id)
             || request.getRequests().size() >= settings.maxStreamsPerRequest()) {
             return requestBatcher.get(request);
         }
@@ -585,16 +619,19 @@ final class ModelReplayCursor {
         for (Map.Entry<String, Long> entry : lastSequenceNumbers.entrySet()) {
             String modelId = entry.getKey();
             Long sequenceNumber = entry.getValue();
-            if (modelId == null || modelId.isBlank()) {
-                throw new IllegalArgumentException("Model ID must not be blank");
-            }
-            if (sequenceNumber == null || sequenceNumber < -1L) {
-                throw new IllegalArgumentException(
-                        "Last model sequence number must be at least -1 for " + modelId);
-            }
+            validateCursor(modelId, sequenceNumber);
             result.put(modelId, sequenceNumber);
         }
         return result;
+    }
+
+    private static void validateCursor(String modelId, Long sequenceNumber) {
+        if (modelId == null || modelId.isBlank()) {
+            throw new IllegalArgumentException("Model ID must not be blank");
+        }
+        if (sequenceNumber == null || sequenceNumber < -1L) {
+            throw new IllegalArgumentException("Last model sequence number must be at least -1 for " + modelId);
+        }
     }
 
     private static long validateBoundary(GetModelEventsResult response, Long expected) {
@@ -924,8 +961,15 @@ final class ModelReplayCursor {
 
     CommitAttempt contextWithHeadProbe(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
                                        ModelCacheTracker cacheTracker, boolean requireBoundary, HeadProbe probe) {
-        return contextAtBoundary(resolution, boundary, Map.of(), null, cacheTracker,
-                                 requireBoundary, false, false, probe, true);
+        for (int attempt = 0; attempt < MAX_DOCUMENT_REBASE_ATTEMPTS; attempt++) {
+            try {
+                return contextAtBoundary(resolution, boundary, Map.of(), null, cacheTracker,
+                        requireBoundary, false, false, probe, true);
+            } catch (DocumentPreparationMovedException failure) {
+                if (boundary.historical() || attempt + 1 == MAX_DOCUMENT_REBASE_ATTEMPTS) { throw failure; }
+            }
+        }
+        throw new IllegalStateException("Unreachable abstract document context retry state");
     }
 
     private CommitAttempt contextAtBoundary(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
@@ -933,8 +977,19 @@ final class ModelReplayCursor {
                                              Function<String, Entity<?>> pendingAncestor, ModelCacheTracker cacheTracker,
                                              boolean requireBoundary, boolean migration, boolean forceStorageBoundary,
                                              HeadProbe probe) {
-        return contextAtBoundary(resolution, boundary, stagedValues, pendingAncestor, cacheTracker,
-                                 requireBoundary, migration, forceStorageBoundary, probe, false);
+        for (int attempt = 0; attempt < MAX_DOCUMENT_REBASE_ATTEMPTS; attempt++) {
+            try {
+                return contextAtBoundary(resolution, boundary, stagedValues, pendingAncestor, cacheTracker,
+                        requireBoundary, migration, forceStorageBoundary, probe, false);
+            } catch (DocumentPreparationMovedException failure) {
+                // A concrete DOCUMENT type can be discovered by an abstract current read. Select all types again
+                // when its materialized value has moved; historical and mutation callers retain their own policy.
+                if (forceStorageBoundary || boundary.historical() || attempt + 1 == MAX_DOCUMENT_REBASE_ATTEMPTS) {
+                    throw failure;
+                }
+            }
+        }
+        throw new IllegalStateException("Unreachable abstract document context retry state");
     }
 
     private CommitAttempt contextAtBoundary(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
@@ -962,6 +1017,25 @@ final class ModelReplayCursor {
             ancestorStateIndex = ancestors.stateIndex();
             ancestorReads = ancestors.reads();
             boundary = ModelReadBoundary.at(ancestorStateIndex);
+        }
+
+        boolean cacheAtReadBoundary = !boundary.historical();
+        LoadResult resolvedTypes = null;
+        Map<String, ModelCache.ReadToken> resolvedTypeReads = null;
+        try {
+        if (requiresStoredReadTypes(resolution.models())) {
+            List<String> ids = resolution.models().stream().map(MutationPlan.ResolvedModel::modelId).toList();
+            if (cacheAtReadBoundary && modelCache instanceof ModelCache guarded) {
+                // The concrete configuration may enable caching even when its declared contract does not.
+                resolvedTypeReads = guarded.beginReads(ids);
+            }
+            LoadResult heads = loadHeads(ids, boundary, false, probe);
+            resolution = resolution.withResolvedModels(resolveStoredReadTypes(resolution.models(), heads.heads()));
+            boundary = boundary.resolved(heads.stateIndex());
+            resolvedTypes = heads;
+            // Type selection and reconstruction must observe the same revision, including alias ownership.
+            // Cascading assertion selection retains its declared contract in ModelReducer.CascadeChecks.
+            forceStorageBoundary = true;
         }
 
         List<MutationPlan.ResolvedModel> replayTargets = new ArrayList<>();
@@ -1003,7 +1077,8 @@ final class ModelReplayCursor {
         // A document's own revision is not the namespace snapshot: unrelated dependencies may be newer, and a
         // missing target has no revision at all. Observe all heads together without turning current document loads
         // into historical replay (DOCUMENT may still publish events that this application cannot deserialize).
-        LoadResult currentDocumentHeads = forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
+        LoadResult currentDocumentHeads = resolvedTypes != null && !historicalBoundary && !documentTargets.isEmpty()
+                ? resolvedTypes : forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
                 && replayTargets.isEmpty() && !documentTargets.isEmpty()
                 ? loadHeads(documentTargets.stream().map(MutationPlan.ResolvedModel::modelId).toList(), boundary)
                 : null;
@@ -1040,7 +1115,10 @@ final class ModelReplayCursor {
                         && modelCache instanceof ModelCache
                         && EntityMetadata.of(only.modelType()).hasAliases()
                         && EntityMetadata.of(only.modelType()).rootConfiguration().orElseThrow().cached();
-                ReconstructionBatch batch = aliasRead ? reconstructAliasRead(only, boundary, probe)
+                ReconstructionBatch batch = resolvedTypes != null
+                        ? session().reconstructResolved(replayTargets, ReplayWindow.complete(boundary), cacheAtReadBoundary,
+                                probe, resolvedTypes.heads(), resolvedTypeReads)
+                        : aliasRead ? reconstructAliasRead(only, boundary, probe)
                         : session().reconstruct(replayTargets, ReplayWindow.complete(boundary), !boundary.historical(), probe);
                 stateIndex = batch.stateIndex();
                 loaded.putAll(batch.entities());
@@ -1073,7 +1151,8 @@ final class ModelReplayCursor {
             EntityMetadata metadata = EntityMetadata.validate(
                     target.modelType());
             ModelCache.ReadToken readToken = documentCacheBoundary != null && modelCache instanceof ModelCache guarded
-                    ? guarded.beginRead(target.modelId()) : null;
+                    ? resolvedTypeReads == null ? guarded.beginRead(target.modelId())
+                            : resolvedTypeReads.get(target.modelId()) : null;
             try {
             DocumentVersion document = documentReader.load(
                     target.modelId(), target.modelType(), migration);
@@ -1107,7 +1186,8 @@ final class ModelReplayCursor {
                 if (!resolvedId.equals(target.modelId())) {
                     if (readToken != null) {
                         readToken.close();
-                        readToken = ((ModelCache) modelCache).beginRead(resolvedId);
+                        readToken = resolvedTypeReads == null ? ((ModelCache) modelCache).beginRead(resolvedId)
+                                : resolvedTypeReads.get(resolvedId);
                     }
                     document = documentReader.load(
                             resolvedId, target.modelType(), migration);
@@ -1134,7 +1214,7 @@ final class ModelReplayCursor {
                 String resolvedId = entity.isPresent() && entity.id() != null
                         ? entity.id().toString() : target.modelId();
                 if (modelCache instanceof ModelCache guarded) {
-                    ModelCache.Stamp stamp = readToken.forId(resolvedId)
+                    ModelCache.Stamp stamp = readToken != null && readToken.forId(resolvedId)
                             ? guarded.publish(readToken, entity, documentCacheBoundary) : null;
                     if (stamp != null) {
                         cachePublications.put(resolvedId, stamp);
@@ -1230,6 +1310,42 @@ final class ModelReplayCursor {
         }
         return CommitAttempt.create(stateIndex, resolution, loaded).withAncestorReads(ancestorReads)
                 .withAliasResolutions(aliasReads == null ? Map.of() : aliasReads);
+        } finally {
+            if (resolvedTypeReads != null) {
+                resolvedTypeReads.values().forEach(ModelCache.ReadToken::close);
+            }
+        }
+    }
+
+    private static boolean requiresStoredReadTypes(List<MutationPlan.ResolvedModel> targets) {
+        for (int i = 0; i < targets.size(); i++) {
+            if (requiresStoredReadType(targets.get(i))) { return true; }
+        }
+        return false;
+    }
+
+    private List<MutationPlan.ResolvedModel> resolveStoredReadTypes(
+            List<MutationPlan.ResolvedModel> targets, Map<String, ModelHeadState> heads) {
+        List<MutationPlan.ResolvedModel> result = new ArrayList<>(targets.size());
+        for (MutationPlan.ResolvedModel target : targets) {
+            ModelHeadState head = heads.get(target.modelId());
+            if (head != null && requiresStoredReadType(target)) {
+                Class<?> storedType = modelType(head.getModelType(), head.getModelId());
+                if (!target.modelType().isAssignableFrom(storedType)) {
+                    throw new EventSourcingException("Model '%s' has stored type %s instead of %s"
+                            .formatted(head.getModelId(), storedType.getName(), target.modelType().getName()));
+                }
+                target = new MutationPlan.ResolvedModel(target.modelId(), storedType,
+                        target.access(), target.sourceProperties());
+            }
+            result.add(target);
+        }
+        return result;
+    }
+
+    private static boolean requiresStoredReadType(MutationPlan.ResolvedModel target) {
+        return !target.access().writes() && Modifier.isAbstract(target.modelType().getModifiers())
+                && EntityMetadata.of(target.modelType()).rootConfiguration().orElseThrow().eventSourced();
     }
 
     private static final class DocumentPreparationMovedException extends EventSourcingException {
@@ -1335,6 +1451,9 @@ final class ModelReplayCursor {
         if (cacheTracker == null || targets.isEmpty()) {
             return null;
         }
+        if (targets.size() == 1) {
+            return currentProjection(targets.getFirst(), cacheTracker);
+        }
         LinkedHashMap<String, Entity<?>> entities = new LinkedHashMap<>();
         long latestModelStateIndex = -1L;
         long sharedValidThrough = Long.MAX_VALUE;
@@ -1354,6 +1473,16 @@ final class ModelReplayCursor {
         return latestModelStateIndex > sharedValidThrough
                 ? null
                 : new CurrentProjection(sharedValidThrough, Map.copyOf(entities));
+    }
+
+    private static CurrentProjection currentProjection(
+            MutationPlan.ResolvedModel target, ModelCacheTracker cacheTracker) {
+        ModelCacheTracker.CurrentModel current = cacheTracker.currentVersion(target.modelId(), target.modelType());
+        if (current == null || current.modelStateIndex() > current.validThrough()
+            || current.entity().isEmpty() && EntityMetadata.validate(target.modelType()).hasAliases()) {
+            return null;
+        }
+        return new CurrentProjection(current.validThrough(), Map.of(target.modelId(), current.entity()));
     }
 
     Map<String, ModelGraphResolver.Identity> boundGraphIdentities(
@@ -2296,6 +2425,92 @@ final class ModelReplayCursor {
         private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
                                                  boolean cacheAtBoundary, HeadProbe probe, String aliasCandidate,
                                                  Map<String, ModelHeadState> expectedHeads) {
+            if (expectedHeads == null && mayUseCombinedRead(targets, window, probe)) {
+                return reconstructWithSnapshot(targets, window, cacheAtBoundary, aliasCandidate);
+            }
+            return reconstruct(targets, window, cacheAtBoundary, probe, aliasCandidate, expectedHeads, null, null);
+        }
+
+        private boolean mayUseCombinedRead(List<MutationPlan.ResolvedModel> targets, ReplayWindow window, HeadProbe probe) {
+            return targets.size() == 1 && snapshotStore != null && deferredCacheUpdates == null
+                   && !window.prefix() && !window.boundary().historical() && probe == null
+                   && !targets.getFirst().access().writes()
+                   && EntityMetadata.of(targets.getFirst().modelType()).rootConfiguration().orElseThrow().snapshotPeriod() > 0;
+        }
+
+        private ReconstructionBatch reconstructWithSnapshot(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                            boolean cacheAtBoundary, String aliasCandidate) {
+            MutationPlan.ResolvedModel target = targets.getFirst();
+            Map<String, ModelCache.ReadToken> readTokens = Map.of();
+            if (modelCache instanceof ModelCache guarded && cacheAtBoundary
+                && EntityMetadata.of(target.modelType()).rootConfiguration().orElseThrow().cached()) {
+                readTokens = aliasCandidate == null ? Map.of(target.modelId(), guarded.beginRead(target.modelId()))
+                        : guarded.beginReads(List.of(target.modelId(), aliasCandidate));
+            }
+            try {
+                Entity<?> base = reconstructionBase(target, window.baseStateIndex(), window.allowCurrentCache(), false);
+                if (base == null && snapshotStore.supportsCombinedReads(eventStoreClient)) {
+                    return reconstructCombined(target, window, cacheAtBoundary, readTokens);
+                }
+                // The ordinary path selects its base under the same read fences. Avoid preparing a
+                // separate singleton map when the peer or store cannot combine these reads.
+                return reconstruct(targets, window, cacheAtBoundary, null, aliasCandidate, null, readTokens, null);
+            } finally {
+                readTokens.values().forEach(ModelCache.ReadToken::close);
+            }
+        }
+
+        private ReconstructionBatch reconstructResolved(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                         boolean cacheAtBoundary, HeadProbe probe,
+                                                         Map<String, ModelHeadState> heads,
+                                                         Map<String, ModelCache.ReadToken> readTokens) {
+            return reconstructResolved(targets, window, cacheAtBoundary, probe, heads, readTokens, null);
+        }
+
+        private ReconstructionBatch reconstructResolved(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                         boolean cacheAtBoundary, HeadProbe probe,
+                                                         Map<String, ModelHeadState> heads,
+                                                         Map<String, ModelCache.ReadToken> readTokens,
+                                                         Map<ModelKey, Entity<?>> preparedBases) {
+            boolean aliased = false;
+            for (MutationPlan.ResolvedModel target : targets) {
+                ModelHeadState head = heads.get(target.modelId());
+                if (head != null && !target.modelId().equals(head.getModelId())) {
+                    aliased = true;
+                    break;
+                }
+            }
+            if (!aliased) {
+                return reconstruct(targets, window, cacheAtBoundary, probe, null, heads, readTokens, preparedBases);
+            }
+            List<MutationPlan.ResolvedModel> canonicalTargets = new ArrayList<>(targets.size());
+            Map<String, ModelHeadState> canonicalHeads = new LinkedHashMap<>();
+            for (MutationPlan.ResolvedModel target : targets) {
+                ModelHeadState head = heads.get(target.modelId());
+                String id = head == null ? target.modelId() : head.getModelId();
+                if (canonicalHeads.containsKey(id)) {
+                    throw new EventSourcingException("Multiple requested model IDs resolve to " + id);
+                }
+                canonicalHeads.put(id, head);
+                canonicalTargets.add(new MutationPlan.ResolvedModel(id, target.modelType(),
+                        target.access(), target.sourceProperties()));
+            }
+            // Alias ownership is current metadata. Once selected, load the canonical stream at the pinned boundary.
+            // Keep the original read fences: an owner discovered after I/O cannot receive a new publication token.
+            ReconstructionBatch loaded = reconstruct(canonicalTargets, window, cacheAtBoundary, probe,
+                    null, canonicalHeads, readTokens, preparedBases);
+            Map<String, Entity<?>> requested = new LinkedHashMap<>();
+            for (int i = 0; i < targets.size(); i++) {
+                requested.put(targets.get(i).modelId(), loaded.entities().get(canonicalTargets.get(i).modelId()));
+            }
+            return new ReconstructionBatch(loaded.stateIndex(), requested, loaded.cachePublications());
+        }
+
+        private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                 boolean cacheAtBoundary, HeadProbe probe, String aliasCandidate,
+                                                 Map<String, ModelHeadState> expectedHeads,
+                                                 Map<String, ModelCache.ReadToken> suppliedReadTokens,
+                                                 Map<ModelKey, Entity<?>> preparedBases) {
             if (targets.isEmpty()) {
                 long stateBoundary = ModelReplayCursor.this.load(
                         Map.of(), window.boundary(),
@@ -2303,8 +2518,8 @@ final class ModelReplayCursor {
                         }).stateIndex();
                 return new ReconstructionBatch(stateBoundary, Map.of(), Map.of());
             }
-            Map<String, ModelCache.ReadToken> readTokens = Map.of();
-            if (deferredCacheUpdates == null && modelCache instanceof ModelCache guarded
+            Map<String, ModelCache.ReadToken> readTokens = suppliedReadTokens == null ? Map.of() : suppliedReadTokens;
+            if (suppliedReadTokens == null && deferredCacheUpdates == null && modelCache instanceof ModelCache guarded
                 && cacheAtBoundary && !window.prefix()) {
                 MutationPlan.ResolvedModel first = targets.getFirst();
                 if (targets.size() == 1) {
@@ -2325,13 +2540,24 @@ final class ModelReplayCursor {
                 }
             }
             try {
-            LinkedHashMap<String, MutableReconstruction> states =
-                    new LinkedHashMap<>(targets.size());
+            LinkedHashMap<String, MutableReconstruction> states = new LinkedHashMap<>(targets.size());
             LinkedHashMap<String, Long> cursors = new LinkedHashMap<>(targets.size());
+            boolean resolveSnapshotOwners = false;
             for (MutationPlan.ResolvedModel target : targets) {
-                Entity<?> base = reconstructionBase(
-                        target, window.baseStateIndex(),
-                        window.allowCurrentCache());
+                ModelKey key = preparedBases == null ? null : new ModelKey(target.modelId(), target.modelType());
+                Entity<?> base = preparedBases == null ? null : preparedBases.get(key);
+                // Reuse both selected bases and misses from before the owner probe, without another search.
+                if (preparedBases == null || !preparedBases.containsKey(key)
+                        || base != null && window.baseStateIndex() != null && stateIndex(base) > window.baseStateIndex()) {
+                    base = reconstructionBase(target, window.baseStateIndex(), window.allowCurrentCache());
+                }
+                if (base == null && expectedHeads == null && snapshotStore != null && !primaryOnly
+                        && deferredCacheUpdates == null && !target.access().writes()
+                        && !window.boundary().historical()) {
+                    EntityMetadata metadata = EntityMetadata.of(target.modelType());
+                    resolveSnapshotOwners |= metadata.rootConfiguration().orElseThrow().snapshotPeriod() > 0
+                            && metadata.hasAliases();
+                }
                 states.put(
                         target.modelId(),
                         new MutableReconstruction(target, base));
@@ -2339,8 +2565,17 @@ final class ModelReplayCursor {
                         target.modelId(),
                         base == null ? -1L : base.sequenceNumber());
             }
+            if (resolveSnapshotOwners) {
+                LoadResult heads = loadHeads(targets.stream().map(MutationPlan.ResolvedModel::modelId).toList(),
+                        window.boundary(), false, probe);
+                ReplayWindow pinned = ReplayWindow.complete(window.boundary().resolved(heads.stateIndex()));
+                Map<ModelKey, Entity<?>> bases = new LinkedHashMap<>();
+                states.values().forEach(state -> bases.put(
+                        new ModelKey(state.target.modelId(), state.target.modelType()), state.base));
+                return reconstructResolved(targets, pinned, cacheAtBoundary, probe, heads.heads(), readTokens, bases);
+            }
             ModelReplayCursor.LoadResult loaded =
-                    ModelReplayCursor.this.load(
+                    ModelReplayCursor.this.loadOwnedCursors(
                             cursors, window.boundary(),
                             page -> {
                                 if (expectedHeads != null) {
@@ -2352,7 +2587,7 @@ final class ModelReplayCursor {
                                     }
                                 }
                                 applyPage(page, states, window);
-                            }, false, true, probe);
+                            }, probe);
             LinkedHashMap<String, Entity<?>> cacheCandidates =
                     new LinkedHashMap<>(Math.min(16, targets.size()));
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>(targets.size());
@@ -2423,14 +2658,69 @@ final class ModelReplayCursor {
             }
             return new ReconstructionBatch(loaded.stateIndex(), result, publications);
             } finally {
-                readTokens.values().forEach(ModelCache.ReadToken::close);
+                if (suppliedReadTokens == null) {
+                    readTokens.values().forEach(ModelCache.ReadToken::close);
+                }
             }
+        }
+
+        private ReconstructionBatch reconstructCombined(MutationPlan.ResolvedModel requested, ReplayWindow window,
+                                                         boolean cacheAtBoundary,
+                                                         Map<String, ModelCache.ReadToken> readTokens) {
+            var request = new GetModelReconstruction(requested.modelId(),
+                    window.boundary(), Math.min(settings.maxMembershipsPerStream(), settings.maxMembershipsPerRequest()),
+                    settings.maxPayloadBytes(), primaryOnly);
+            var response = readAtEventBoundary(window.boundary(), () -> eventStoreClient.getModelReconstruction(request),
+                    value -> !value.isSupported() || value.getEvents().isExactBoundary());
+            if (!response.isSupported()) {
+                // A reconnect may select an older peer. No combined request was sent; select the ordinary seed now.
+                Map<ModelKey, Entity<?>> bases = Collections.singletonMap(
+                        new ModelKey(requested.modelId(), requested.modelType()),
+                        reconstructionBase(requested, window.baseStateIndex(), window.allowCurrentCache(), true));
+                return reconstruct(List.of(requested), window, cacheAtBoundary, null, null, null,
+                        readTokens, bases);
+            }
+            var page = response.getEvents();
+            validateBoundary(page, window.boundary().stateIndex());
+            if (page.getStreams().size() != 1) { throw invalid("Reconstruction read must return one Model stream"); }
+            var stream = page.getStreams().getFirst();
+            var head = stream.getHead();
+            String id = head == null ? requested.modelId() : head.getModelId();
+            if (!id.equals(stream.getModelId()) || primaryOnly && !id.equals(requested.modelId())) {
+                throw invalid("Reconstruction read returned an unexpected canonical identity");
+            }
+            if (head != null) { validateHead(id, head, page.getStateIndex(), null, true); }
+            var target = id.equals(requested.modelId()) ? requested
+                    : new MutationPlan.ResolvedModel(id, requested.modelType(), requested.access(), requested.sourceProperties());
+            Entity<?> base = null;
+            if (response.getSnapshot() != null) {
+                if (head == null || !ModelReconstructionLoader.fits(response.getSnapshot(), head)) {
+                    throw invalid("Reconstruction snapshot is outside the selected Model revision");
+                }
+                base = snapshotStore.deserialize(response.getSnapshot()).map(snapshot -> fromSnapshot(target, snapshot)).orElse(null);
+                // An unreadable seed follows the existing delete-and-replay policy, at the already selected identity/boundary.
+                if (base == null) { page = null; }
+            }
+            Map<ModelKey, Entity<?>> bases = Collections.singletonMap(new ModelKey(id, target.modelType()), base);
+            Map<String, ModelHeadState> heads = Collections.singletonMap(id, head);
+            long boundary = response.getEvents().getStateIndex();
+            ReconstructionBatch result = reconstruct(List.of(target),
+                    ReplayWindow.complete(window.boundary().resolved(boundary)), cacheAtBoundary,
+                    page == null ? null : new HeadProbe(page), null, heads, readTokens, bases);
+            return id.equals(requested.modelId()) ? result
+                    : new ReconstructionBatch(result.stateIndex(), Map.of(requested.modelId(), result.entities().get(id)),
+                                              result.cachePublications());
+        }
+
+        private Entity<?> reconstructionBase(MutationPlan.ResolvedModel target, Long maxStateIndex,
+                                             boolean allowCurrentCache) {
+            return reconstructionBase(target, maxStateIndex, allowCurrentCache, true);
         }
 
         private Entity<?> reconstructionBase(
                 MutationPlan.ResolvedModel target,
                 Long maxStateIndex,
-                boolean allowCurrentCache) {
+                boolean allowCurrentCache, boolean allowSnapshot) {
             if (maxStateIndex != null) {
                 Entity<?> known = reconstructed.get(
                         ViewKey.state(target, maxStateIndex));
@@ -2466,7 +2756,7 @@ final class ModelReplayCursor {
                 }
             }
             Entity<?> result = null;
-            if (configuration.snapshotPeriod() > 0 && snapshotStore != null
+            if (allowSnapshot && configuration.snapshotPeriod() > 0 && snapshotStore != null
                 && (maxStateIndex != null || allowCurrentCache)) {
                 result = snapshotStore.getSnapshot(
                                 target.modelId(), maxStateIndex)
@@ -2706,8 +2996,15 @@ final class ModelReplayCursor {
                             ModelReadBoundary.at(readStateIndex))
                     : ReplayWindow.commitPrefix(
                             readStateIndex, commitId, substep);
-            ReconstructionBatch loaded = reconstruct(
-                    missing, window, false);
+            ReconstructionBatch loaded;
+            if (requiresStoredReadTypes(missing)) {
+                LoadResult heads = loadHeads(missing.stream().map(MutationPlan.ResolvedModel::modelId).toList(),
+                        window.boundary());
+                loaded = reconstructResolved(resolveStoredReadTypes(missing, heads.heads()), window, false,
+                        null, heads.heads(), null);
+            } else {
+                loaded = reconstruct(missing, window, false);
+            }
             if (substep == 0
                 && loaded.stateIndex() != readStateIndex) {
                 throw new EventSourcingException(

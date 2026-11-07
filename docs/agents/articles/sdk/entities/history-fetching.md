@@ -7,6 +7,23 @@ Snapshots trade extra writes/storage for shorter cold replay. Configure them onl
 histories. They are an optimization, not a replacement for the event history needed for arbitrary historical views.
 A cache entry is likewise not durable historical storage.
 
+For a cold standalone current read of a concrete snapshot-enabled Model, capable standard clients combine canonical
+owner/head selection, an optional snapshot and the first event page in one Runtime request. A newer snapshot written
+during the read may be missed; the selected seed and suffix still fit one read boundary. A missing snapshot starts
+from sequence -1. An unreadable snapshot keeps the delete-and-replay policy at the already selected canonical identity
+and boundary. Event pages retain their count/byte limits; the single snapshot's bytes are additional.
+
+SDK and Runtime upgrades are independent: existing SDKs keep their unchanged operations against newer Runtimes.
+The Runtime advertises `Fluxzero-Model-Reconstruction-Version: 1`. Missing capability, including a reconnect onto an
+older peer before sending, uses the separate-read path with the original cache-publication fences. Custom
+DocumentStore/SearchClient/EventStoreClient bindings keep that path unless they explicitly support the combined
+semantics. Capability discovery occurs only after a cache miss. Batch, historical, prefix and already resolved Graph
+reads keep their existing paths. Count SDK roundtrips separately from internal storage calls: the combined operation
+still performs separate storage reads. A literal snapshot candidate is validated by the authoritative event read;
+otherwise the canonical owner is selected before its snapshot and pinned suffix. An initial snapshot miss may be
+reused when that same primary identity is confirmed. A logically deleted Model can use an earlier snapshot and replay
+the deletion; erased/incomplete history cannot use a snapshot to restore availability.
+
 Reconstruction pages events and can prefetch a bounded following page while applying the current page. Paging does
 not change event order or application semantics. Avoid materializing an entire `revisions()` stream for a history
 screen: select a boundary or bound the number of revisions presented.

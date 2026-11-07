@@ -45,6 +45,7 @@ import java.util.stream.Stream;
  * @see WebSocketClient
  */
 public class WebSocketSearchClient extends AbstractWebsocketClient implements SearchClient {
+    private final URI endpointUri;
 
 
     public WebSocketSearchClient(String endPointUrl, WebSocketClient client) {
@@ -57,6 +58,12 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
 
     public WebSocketSearchClient(URI endpointUri, WebSocketClient client, boolean sendMetrics) {
         super(endpointUri, client, sendMetrics, client.getClientConfig().getSearchSessions());
+        this.endpointUri = endpointUri;
+    }
+
+    /** Verifies the standard search binding before an event client may select snapshots on its behalf. */
+    public boolean isModelSnapshotSource(URI expectedEndpoint) {
+        return getClass() == WebSocketSearchClient.class && endpointUri.equals(expectedEndpoint);
     }
 
     @Override

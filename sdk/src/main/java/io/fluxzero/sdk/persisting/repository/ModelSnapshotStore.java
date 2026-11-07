@@ -56,6 +56,12 @@ final class ModelSnapshotStore {
         this.serializer = serializer;
     }
 
+    boolean supportsCombinedReads(io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient events) {
+        return documentStore.getClass() == io.fluxzero.sdk.persisting.search.DefaultDocumentStore.class
+                && events.supportsModelReconstruction(
+                        ((io.fluxzero.sdk.persisting.search.DefaultDocumentStore) documentStore).getSearchClient());
+    }
+
     Optional<Snapshot> getSnapshot(String modelId, Long maxStateIndex) {
         try {
             var search = documentStore.search(SNAPSHOT_COLLECTION)
@@ -76,7 +82,7 @@ final class ModelSnapshotStore {
         }
     }
 
-    private Optional<Snapshot> deserialize(
+    Optional<Snapshot> deserialize(
             SerializedDocument document) {
         try {
             return Optional.of(new Snapshot(

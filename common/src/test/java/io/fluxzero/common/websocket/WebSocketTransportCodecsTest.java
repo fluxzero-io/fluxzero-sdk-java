@@ -136,6 +136,24 @@ class WebSocketTransportCodecsTest {
     private final WebSocketTransportCodec binaryCodec = WebSocketTransportCodecs.binary(objectMapper, payloadCodecs);
 
     @Test
+    void reconstructsSnapshotAndSuffixAcrossEveryTransport() throws Exception {
+        var request = new io.fluxzero.common.api.modeling.GetModelReconstruction("alias",
+                ModelReadBoundary.current(), 20, 4096L, false);
+        var snapshot = new ModelSnapshotMutation(new Data<>(new byte[]{1, 2, 3}, "Root", 0, "application/json"),
+                1000L, 25, -1, null).toDocument("canonical", 24L, 30L);
+        var events = new GetModelEventsResult(2L, 32L, List.of(new ModelEventPayload(32L, new SerializedMessage(
+                new Data<>(new byte[]{4}, "Updated", 0, "application/json"), Metadata.empty(), "event", 1001L))),
+                List.of(new ModelEventStream("canonical", new ModelHeadState("canonical", "Root", 25L, 32L, true, false),
+                        List.of(new ModelEventMembership(25L, 32L, 31L, "commit", 0)))));
+        var result = new io.fluxzero.common.api.modeling.GetModelReconstructionResult(1L, snapshot, events);
+        for (var codec : List.of(jsonCodec, cborCodec, binaryCodec)) {
+            assertEquals(request, roundTrip(codec, request));
+            assertEquals(result, roundTrip(codec, result));
+            assertEquals(new ResultBatch(List.of(result)), roundTrip(codec, new ResultBatch(List.of(result))));
+        }
+    }
+
+    @Test
     void preservesCanonicalHeadsForDirectAndBatchedAliasReads() throws Exception {
         var result = new GetModelEventsResult(1L, 2L, List.of(), List.of(new ModelEventStream(
                 "alias", new ModelHeadState("canonical", "Root", 0, 2, true, false), List.of())));

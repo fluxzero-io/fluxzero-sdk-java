@@ -97,6 +97,16 @@ public interface EventStoreClient extends AutoCloseable {
         throw new UnsupportedOperationException("Independent model event loading is not supported by this event store");
     }
 
+    /** Whether this client can read snapshots from the supplied search binding together with Model events.
+     * Custom bindings default to separate reads; implementations must prove that the source is colocated. */
+    default boolean supportsModelReconstruction(io.fluxzero.sdk.persisting.search.client.SearchClient snapshotSource) { return false; }
+
+    /** Loads one canonical Model seed and first event page, without executing application code remotely. */
+    default io.fluxzero.common.api.modeling.GetModelReconstructionResult getModelReconstruction(
+            io.fluxzero.common.api.modeling.GetModelReconstruction request) {
+        throw new UnsupportedOperationException("Combined Model reconstruction reads are not supported");
+    }
+
     /**
      * Long-polls committed independent-model commit substeps after a client-controlled state cursor.
      */

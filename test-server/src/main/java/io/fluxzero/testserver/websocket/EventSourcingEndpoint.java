@@ -151,6 +151,12 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
+    io.fluxzero.common.api.modeling.GetModelReconstructionResult handle(
+            io.fluxzero.common.api.modeling.GetModelReconstruction request) {
+        return eventStore.getModelReconstruction(request);
+    }
+
+    @Handle
     GetModelEventsResult handle(
             GetModelEvents request) {
         return eventStore.getModelEvents(

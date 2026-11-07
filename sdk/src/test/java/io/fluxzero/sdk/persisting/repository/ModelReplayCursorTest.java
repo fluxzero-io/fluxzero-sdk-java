@@ -187,6 +187,41 @@ class ModelReplayCursorTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"valid", "newer-value", "empty-alias"})
+    void currentSingletonRequiresCoherentCacheEvidence(String mode) {
+        EventStoreClient client = mock(EventStoreClient.class);
+        ModelCacheTracker tracker = mock(ModelCacheTracker.class);
+        var root = ImmutableModelRoot.<AliasedCacheModel>builder().id("cached").type(AliasedCacheModel.class)
+                .value(mode.equals("empty-alias") ? null : new AliasedCacheModel("cached", "friendly"))
+                .stateIndex(mode.equals("newer-value") ? 31L : 10L).sequenceNumber(0L).build();
+        when(tracker.currentVersion("cached", AliasedCacheModel.class))
+                .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, root.stateIndex()));
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(request.getRequestId(), 42L, List.of(),
+                    List.of(new ModelEventStream("cached", null, List.of())));
+        });
+        ModelReplayCursor cursor = new ModelReplayCursor(client, mock(JacksonSerializer.class),
+                mock(EntityHelper.class), new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, null, null);
+        var target = new MutationPlan.ResolvedModel("cached", AliasedCacheModel.class,
+                MutationPlan.Access.READ_ONLY, List.of("id"));
+        var loaded = cursor.contextWithHeadProbe(new MutationPlan.Resolution(List.of(target), List.of()),
+                ModelReadBoundary.current(), tracker, false, null);
+        if (mode.equals("valid")) {
+            assertSame(root, loaded.entity("cached"));
+            assertEquals(30L, loaded.readStateIndex());
+            verifyNoInteractions(client);
+        } else {
+            assertTrue(loaded.entity("cached").isEmpty());
+            assertEquals(42L, loaded.readStateIndex());
+            verify(client).getModelEvents(any());
+        }
+    }
+
+    @Model(searchable = false)
+    record AliasedCacheModel(@EntityId String id, @io.fluxzero.sdk.modeling.Alias String alias) {}
+
+    @ParameterizedTest
     @ValueSource(longs = {10L, 20L, 30L})
     void pinnedCurrentGraphReusesCanonicalCacheProofWithoutHeadRead(long boundary) {
         EventStoreClient client = mock(EventStoreClient.class);
@@ -1455,6 +1490,29 @@ class ModelReplayCursorTest {
         });
 
         assertEquals(3, applied.get());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void preservesCallerCursorsAfterPagingOrCallbackFailure(boolean failCallback) {
+        LocalEventStoreClient client = mock(LocalEventStoreClient.class);
+        ModelHeadState head = new ModelHeadState("a", "example.A", 2L, 2L, true, false);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> pageResponse(invocation.getArgument(0), head));
+        ModelReplayCursor loader = new ModelReplayCursor(client, new ModelReplayCursor.Settings(4, 1, 1, 16L));
+        LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
+        cursors.put("a", -1L);
+        AtomicInteger applied = new AtomicInteger();
+        IllegalStateException failure = new IllegalStateException("callback failed");
+        Runnable read = () -> loader.load(cursors, ModelReadBoundary.current(), ignored -> {
+            applied.incrementAndGet();
+            if (failCallback) { throw failure; }
+        });
+
+        if (failCallback) { assertSame(failure, assertThrows(IllegalStateException.class, read::run)); }
+        else { read.run(); }
+
+        assertEquals(failCallback ? 1 : 3, applied.get());
+        assertEquals(Map.of("a", -1L), cursors);
     }
 
     @Test

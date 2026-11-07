@@ -248,6 +248,9 @@ public class LocalClient extends AbstractClient {
                 .setModelCommitMaterializer(
                         result::prepareModelCommit);
         eventStore.getMessageStore().setModelErasureMaterializer(result::eraseModels);
+        eventStore.getMessageStore().setModelSnapshotReader(result, request -> {
+            try (var hits = result.search(request, 1)) { return hits.findFirst().map(hit -> hit.getValue()).orElse(null); }
+        });
         eventStore.getMessageStore().setModelReindexer(result, result::prepareModelReindex);
         eventStore.getMessageStore()
                 .setModelGraphProjectionMaterializer(

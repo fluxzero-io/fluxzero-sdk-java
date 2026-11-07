@@ -41,6 +41,13 @@ class ModelSnapshotStoreTest {
                     mock(DocumentStore.class), serializer);
 
     @Test
+    void customDocumentStoreDoesNotProbeEventOrSearchBindings() {
+        var events = mock(io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient.class);
+        org.junit.jupiter.api.Assertions.assertFalse(subject.supportsCombinedReads(events));
+        org.mockito.Mockito.verifyNoInteractions(events);
+    }
+
+    @Test
     void readsRawModelSnapshotDocument() throws Exception {
         Instant timestamp = Instant.ofEpochMilli(1234L);
         SerializedDocument document =

@@ -64,6 +64,25 @@ import static org.mockito.Mockito.mock;
 class WebSocketEventStoreClientTest {
 
     @Test
+    void capabilityLossOnTheSelectedSessionCompletesLocally() {
+        var client = new RecordingEventStoreClient();
+        var session = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);
+        var request = new io.fluxzero.common.api.modeling.GetModelReconstruction("model",
+                ModelReadBoundary.current(), 10, 1024L, false);
+        try {
+            org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of(
+                    io.fluxzero.common.websocket.WebSocketCapabilities.MODEL_RECONSTRUCTION_VERSION_HEADER, List.of("1")));
+            org.junit.jupiter.api.Assertions.assertNull(client.localResponseForSession(request, session));
+            org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of());
+            var local = (io.fluxzero.common.api.modeling.GetModelReconstructionResult) client.localResponseForSession(request, session);
+            assertFalse(local.isSupported());
+            assertEquals(request.getRequestId(), local.getRequestId());
+            assertEquals(0L, local.getTimestamp());
+            org.junit.jupiter.api.Assertions.assertNull(local.toMetric());
+        } finally { client.close(); }
+    }
+
+    @Test
     void expandsPackedMembershipsForEveryAliasOfTheCanonicalModel() throws Exception {
         GetModelEvents request = new GetModelEvents(
                 List.of(

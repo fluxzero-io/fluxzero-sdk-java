@@ -396,6 +396,18 @@ snapshot, and a non-positive `snapshotPeriod` still disables periodic snapshots.
 future snapshots; it cannot restore snapshots already removed. Physical Model erasure still deletes snapshots.
 Storage grows with the number and size of snapshots, so choose the snapshot period deliberately.
 
+Current alias reads can use the owner's snapshots too. For a cold, single-Model current read with a known concrete type,
+a capable Runtime returns the canonical head, an applicable snapshot and the first event page in one request.
+An older snapshot is sufficient: a snapshot written during the read may be missed, and events fill the remaining suffix
+to the selected read boundary. Missing snapshots use the same request and start replay from the beginning.
+
+SDK and Runtime can be upgraded in either order: older SDKs retain their existing operations against the new Runtime,
+and a newer SDK uses the combined operation only when the selected Runtime supports it. Older Runtimes and custom
+snapshot stores retain separate snapshot and event reads. On that path, resolving a cold alias
+can add a metadata request and a second snapshot search. Batch and historical reads keep their existing selection rules.
+Measure network requests separately from SQL: the combined response still requires multiple internal storage reads,
+including head validation after snapshot selection. Warm cache hits do not perform snapshot discovery.
+
 Snapshots are an optimization. The model stream remains authoritative for event-sourced loading unless publication was
 explicitly configured to omit required history. Fluxzero does not retain a full direct document in every Model commit:
 the direct search collection contains the current document, while `maxSnapshotCount` controls snapshot cleanup for
@@ -445,6 +457,10 @@ public record CompleteTask(TaskId taskId) {
 its Project without repeating the rule on CompleteTask. A separate LineItem with `@Parent TaskId taskId` inherits
 that check too. The Project's own changes are checked as well: closing an open Project succeeds, changing it again
 fails. Use a functional exception for a business refusal and keep its customer-facing message free of IDs.
+
+An event-sourced parent may also be declared through an identified `@Model` interface or abstract class. Fluxzero
+reconstructs its compatible concrete Model and applies the cascading assertions selected by the declared parent
+contract. Additional assertions on the concrete implementation do not broaden that parent contract.
 
 ### Select payloads and retain injection
 

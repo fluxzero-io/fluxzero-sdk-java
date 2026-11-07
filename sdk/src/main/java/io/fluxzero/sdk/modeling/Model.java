@@ -163,6 +163,8 @@ public @interface Model {
     /**
      * Number of stored model events between snapshots. The default {@code 0} disables periodic snapshots.
      * Enable only to bound measured replay work; snapshots do not create a searchable current document.
+     * Capable standard clients combine a cold standalone current read's snapshot and first event page in one request.
+     * A snapshot written during that read may be missed without changing its selected reconstruction boundary.
      */
     int snapshotPeriod() default 0;
 

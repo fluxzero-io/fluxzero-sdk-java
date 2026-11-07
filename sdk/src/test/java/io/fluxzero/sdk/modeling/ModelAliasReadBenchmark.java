@@ -106,10 +106,12 @@ public class ModelAliasReadBenchmark {
                     if (round >= 0) { nanos[i] = elapsed; }
                     allocated += allocation.getThreadAllocatedBytes(thread) - beforeBytes;
                     if (!expected.equals(actual)) { throw new AssertionError("Wrong value for " + route); }
+                    boolean replay = cold || route == Route.MODEL_ALIAS && variant == Variant.BASELINE;
+                    // Default replay pages contain at most 128 memberships; retain full-history cost assertions.
+                    long pages = (history + 127L) / 128L;
                     long expectedCalls = !cold && route == Route.MODEL_PRIMARY ? 0
-                            : cold && route == Route.GRAPH_IDENTITY_ALIAS ? 2 : 1;
-                    long expectedPayloads = cold || route == Route.MODEL_ALIAS && variant == Variant.BASELINE
-                            ? history : 0;
+                            : replay ? pages + (cold && route == Route.GRAPH_IDENTITY_ALIAS ? 1 : 0) : 1;
+                    long expectedPayloads = replay ? history : 0;
                     if (client.calls != expectedCalls || client.payloads != expectedPayloads || client.graphCalls != 0) {
                         throw new AssertionError("Unexpected storage cost: " + route + "/" + cold + ": "
                                 + client.calls + "/" + client.payloads + "/" + client.graphCalls);
@@ -119,12 +121,14 @@ public class ModelAliasReadBenchmark {
                 jit = ManagementFactory.getCompilationMXBean().getTotalCompilationTime() - jit;
                 gc = gcCount() - gc;
                 if (round >= 0) {
+                    long readNanos = 0;
+                    for (long sample : nanos) { readNanos += sample; }
                     Arrays.sort(nanos);
                     System.out.printf(Locale.ROOT,
-                            "RESULT route=%s cold=%s history=%d round=%d medianNs=%d p95Ns=%d callerBytes=%.1f "
+                            "RESULT route=%s cold=%s history=%d round=%d medianNs=%d p95Ns=%d p99Ns=%d readOpsPerSecond=%.1f callerBytes=%.1f "
                             + "calls=%.1f payloads=%.1f payloadBytes=%.1f jitMs=%d gc=%d%n",
                             route, cold, history, round, nanos[count / 2], nanos[(int) (count * .95)],
-                            allocated / (double) count, calls / (double) count, payloads / (double) count,
+                            nanos[(int) (count * .99)], count * 1_000_000_000d / readNanos, allocated / (double) count, calls / (double) count, payloads / (double) count,
                             bytes / (double) count, jit, gc);
                 }
             }
