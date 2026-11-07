@@ -74,11 +74,14 @@ public class HandlerInspectorParameterResolverTest {
         assertEquals("payload", result);
     }
 
-    @Test
-    void preparedParameterResolverIsPreparedOncePerHandlerMethod() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void preparedParameterResolverIsPreparedOncePerHandlerMethod(boolean describe) {
         PreparedCountingResolver resolver = new PreparedCountingResolver();
         Handler<Message> handler = HandlerInspector.createHandler(
-                new PreparedHandler(), Handle.class, List.of(resolver));
+                new PreparedHandler(), List.of(resolver),
+                HandlerConfiguration.<Message>builder().methodAnnotation(Handle.class)
+                        .describeParameterRoles(m -> describe).build());
 
         assertEquals(1, resolver.prepareCount);
         assertEquals("first", handler.getInvoker(new Message("first")).orElseThrow().invoke());
@@ -89,11 +92,14 @@ public class HandlerInspectorParameterResolverTest {
         assertEquals(0, resolver.resolveCount);
     }
 
-    @Test
-    void keyedResolverCachesMoreThanOneHundredRecipesWithoutCachingValues() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void keyedResolverCachesMoreThanOneHundredRecipesWithoutCachingValues(boolean describe) {
         KeyedCountingResolver resolver = new KeyedCountingResolver();
         Handler<KeyedMessage> handler = HandlerInspector.createHandler(
-                new KeyedHandler(), Handle.class, List.of(resolver));
+                new KeyedHandler(), List.of(resolver),
+                HandlerConfiguration.<KeyedMessage>builder().methodAnnotation(Handle.class)
+                        .describeParameterRoles(m -> describe).build());
 
         for (int key = 0; key < 128; key++) {
             assertEquals("first-" + key, handler.getInvokerOrNull(
@@ -107,12 +113,15 @@ public class HandlerInspectorParameterResolverTest {
         assertEquals(128, resolver.resolutionCount.get());
     }
 
-    @Test
-    void keyedResolverCachesRejectionWithoutFallingThroughToLaterResolver() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void keyedResolverCachesRejectionWithoutFallingThroughToLaterResolver(boolean describe) {
         RejectingKeyedResolver rejectingResolver = new RejectingKeyedResolver();
         FallbackResolver fallbackResolver = new FallbackResolver();
         Handler<KeyedMessage> handler = HandlerInspector.createHandler(
-                new KeyedHandler(), Handle.class, List.of(rejectingResolver, fallbackResolver));
+                new KeyedHandler(), List.of(rejectingResolver, fallbackResolver),
+                HandlerConfiguration.<KeyedMessage>builder().methodAnnotation(Handle.class)
+                        .describeParameterRoles(m -> describe).build());
         KeyedMessage message = new KeyedMessage(1, "value");
 
         assertNull(handler.getInvokerOrNull(message));

@@ -32,12 +32,14 @@ import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -258,6 +260,7 @@ public class HandlerInspector {
         private final List<ParameterResolverPlan<M>>[] specificityResolverPlans;
         private final boolean onlyPreparedParameterResolvers;
         private final boolean validateMethodInvocation;
+        private final boolean describeParameterRoles;
         private boolean cacheKeyedResolvers = true;
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private final Optional<Object> emptyResult = Optional.of(void.class);
@@ -282,6 +285,7 @@ public class HandlerInspector {
             this.parameterResolverPlans = prepareParameterResolvers();
             this.specificityResolverPlans = prepareSpecificityResolverPlans();
             this.onlyPreparedParameterResolvers = onlyPreparedParameterResolvers(this.parameterResolverPlans);
+            this.describeParameterRoles = config.describeParameterRoles().test(executable);
             this.validateMethodInvocation = config.methodInvocationValidator() != MethodInvocationValidator.noOp();
             this.classForSpecificity = computeClassForSpecificity();
             this.lowestSpecificityPriority = this.parameterResolvers.stream()
@@ -313,6 +317,10 @@ public class HandlerInspector {
                 return null;
             }
 
+            if (describeParameterRoles) {
+                var resolved = resolveDescribedParameters(m);
+                return resolved == null ? null : target -> createDescribedInvoker(target, m, resolved);
+            }
             if (parameterCount == 0) {
                 return this::createNoParameterInvoker;
             }
@@ -335,6 +343,10 @@ public class HandlerInspector {
         private HandlerInvoker createInvokerOrNull(Object target, M m) {
             if (!messageFilter.test(m, executable, methodAnnotationType, targetClass)) {
                 return null;
+            }
+            if (describeParameterRoles) {
+                var resolved = resolveDescribedParameters(m);
+                return resolved == null ? null : createDescribedInvoker(target, m, resolved);
             }
             if (parameterCount == 0) {
                 return createNoParameterInvoker(target);
@@ -369,10 +381,15 @@ public class HandlerInspector {
         }
 
         private Function<? super M, Object> resolveKeyedParameterResolver(M m, int parameterIndex) {
+            return resolveKeyedParameterResolver(m, parameterIndex, null);
+        }
+
+        private Function<? super M, Object> resolveKeyedParameterResolver(M m, int parameterIndex,
+                Set<Parameter> context) {
             Parameter p = parameters[parameterIndex];
             for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
                 if (plan.preparedResolver() != null) {
-                    return plan.preparedResolver();
+                    return describe(plan.resolver(), plan.preparedResolver(), context, p);
                 }
                 ParameterResolver<? super M> r = plan.resolver();
                 KeyedParameterResolver.Resolution<M> keyedResolution = plan.resolveForKey(p, methodAnnotation, m);
@@ -380,13 +397,13 @@ public class HandlerInspector {
                     if (!keyedResolution.matched()) {
                         continue;
                     }
-                    return keyedResolution.resolver();
+                    return describe(r, keyedResolution.resolver(), context, p);
                 }
                 if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
                     Function<? super M, Object> preparedResolver = preparedParameterResolver.resolveIfPossible(
                             p, methodAnnotation, m);
                     if (preparedResolver != null) {
-                        return preparedResolver;
+                        return describe(r, preparedResolver, context, p);
                     }
                     if (r.matches(p, methodAnnotation, m)) {
                         return null;
@@ -395,24 +412,29 @@ public class HandlerInspector {
                     if (!r.test(m, p)) {
                         return null;
                     }
-                    return r.resolve(p, methodAnnotation);
+                    return describe(r, r.resolve(p, methodAnnotation), context, p);
                 }
             }
             return null;
         }
 
         private Function<? super M, Object> resolveLegacyParameterResolver(M m, int parameterIndex) {
+            return resolveLegacyParameterResolver(m, parameterIndex, null);
+        }
+
+        private Function<? super M, Object> resolveLegacyParameterResolver(M m, int parameterIndex,
+                Set<Parameter> context) {
             Parameter p = parameters[parameterIndex];
             for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
                 if (plan.preparedResolver() != null) {
-                    return plan.preparedResolver();
+                    return describe(plan.resolver(), plan.preparedResolver(), context, p);
                 }
                 ParameterResolver<? super M> resolver = plan.resolver();
                 if (resolver instanceof PreparedParameterResolver<? super M> preparedResolver) {
                     Function<? super M, Object> function = preparedResolver.resolveIfPossible(
                             p, methodAnnotation, m);
                     if (function != null) {
-                        return function;
+                        return describe(resolver, function, context, p);
                     }
                     if (resolver.matches(p, methodAnnotation, m)) {
                         return null;
@@ -421,10 +443,50 @@ public class HandlerInspector {
                     if (!resolver.test(m, p)) {
                         return null;
                     }
-                    return resolver.resolve(p, methodAnnotation);
+                    return describe(resolver, resolver.resolve(p, methodAnnotation), context, p);
                 }
             }
             return null;
+        }
+
+        private Function<? super M, Object> describe(ParameterResolver<? super M> resolver,
+                Function<? super M, Object> function,
+                Set<Parameter> context, Parameter parameter) {
+            if (context != null && function != null && resolver.isContextParameter(parameter)) {
+                context.add(parameter);
+            }
+            return function;
+        }
+
+        private record DescribedParameters<M>(Function<? super M, Object>[] functions,
+                Set<Parameter> context) {}
+
+        @SuppressWarnings("unchecked")
+        private DescribedParameters<M> resolveDescribedParameters(M message) {
+            Function<? super M, Object>[] functions = new Function[parameterCount];
+            Set<Parameter> context = new HashSet<>();
+            for (int i = 0; i < parameterCount; i++) {
+                functions[i] = cacheKeyedResolvers ? resolveKeyedParameterResolver(message, i, context)
+                        : resolveLegacyParameterResolver(message, i, context);
+                if (functions[i] == null) {
+                    return null;
+                }
+            }
+            return new DescribedParameters<>(functions, Set.copyOf(context));
+        }
+
+        private HandlerInvoker createDescribedInvoker(Object target, M message, DescribedParameters<M> resolved) {
+            return new HandlerInvoker.DelegatingHandlerInvoker(
+                    createDynamicParameterInvoker(target, message, resolved.functions())) {
+                @Override
+                public Set<Parameter> getContextParameters() {
+                    return resolved.context();
+                }
+                @Override
+                public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                    return delegate.invoke(combiner);
+                }
+            };
         }
 
         private HandlerInvoker createNoParameterInvoker(Object target) {

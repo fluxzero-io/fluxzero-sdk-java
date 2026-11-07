@@ -52,6 +52,11 @@ public class MetadataParameterResolver extends TypedParameterResolver<Object>
     }
 
     @Override
+    public boolean isContextParameter(Parameter parameter) {
+        return getClass() == MetadataParameterResolver.class;
+    }
+
+    @Override
     public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
         return getClass() == MetadataParameterResolver.class ? Metadata.class.isAssignableFrom(parameter.getType())
                 : mayApply(parameter.getDeclaringExecutable(), targetClass);

@@ -24,8 +24,10 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 
@@ -152,6 +154,14 @@ public interface HandlerInvoker extends HandlerDescriptor {
     Class<?> getTargetClass();
 
     /**
+     * Parameters supplied by context resolvers for this invocation, or null when roles were not captured.
+     * Capturing roles never resolves a parameter again or evaluates its value for classification.
+     */
+    default Set<Parameter> getContextParameters() {
+        return null;
+    }
+
+    /**
      * The {@link Executable} representing the handler method (can be a static or instance {@link Method} or
      * {@link Constructor}).
      *
@@ -243,6 +253,11 @@ public interface HandlerInvoker extends HandlerDescriptor {
     @AllArgsConstructor
     abstract class DelegatingHandlerInvoker implements HandlerInvoker {
         protected final HandlerInvoker delegate;
+
+        @Override
+        public Set<Parameter> getContextParameters() {
+            return delegate.getContextParameters();
+        }
 
         @Override
         public boolean requiresBatchSegmentOrder() {

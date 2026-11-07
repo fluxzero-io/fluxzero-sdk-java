@@ -88,6 +88,19 @@ public interface ParameterResolver<M> {
     }
 
     /**
+     * Whether a successfully resolved parameter supplies invocation context rather than a payload or Model binding.
+     * This is independent of handler specificity. Complete Graph-change subscriptions may accept such context without
+     * changing their Model boundary. Dynamic match and rejection rules still apply. Custom context resolvers can opt
+     * in; the default preserves ordinary payload/binding selection for existing resolvers.
+     *
+     * @param parameter the parameter successfully claimed by this resolver
+     * @return whether this binding is contextual
+     */
+    default boolean isContextParameter(Parameter parameter) {
+        return false;
+    }
+
+    /**
      * Indicates whether this resolver contributes to determining handler method specificity when multiple handler
      * candidates are available.
      * <p>

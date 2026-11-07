@@ -47,6 +47,11 @@ public class UserParameterResolver extends TypedParameterResolver<Object>
     }
 
     @Override
+    public boolean isContextParameter(Parameter parameter) {
+        return getClass() == UserParameterResolver.class;
+    }
+
+    @Override
     public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
         return getClass() == UserParameterResolver.class ? User.class.isAssignableFrom(parameter.getType())
                 : mayApply(parameter.getDeclaringExecutable(), targetClass);

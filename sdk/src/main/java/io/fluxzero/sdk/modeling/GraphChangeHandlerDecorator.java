@@ -75,79 +75,156 @@ public final class GraphChangeHandlerDecorator {
     public static Handler<DeserializingMessage> wrapGraphChanges(
             Handler<DeserializingMessage> handler,
             MessageType messageType) {
-        List<GraphHandler> graphHandlers = graphChangeHandlers(
-                handler.getTargetClass(), messageType);
+        return wrapGraphChanges(handler, messageType, null);
+    }
+
+    /**
+     * Expands Graph subscriptions using the factory's undecorated resolver source for parameter classification.
+     * User decorators remain responsible for selection and invocation, and need not expose resolver-role metadata.
+     * A null source retains the legacy Graph/Message/Metadata signatures for custom handlers.
+     */
+    public static Handler<DeserializingMessage> wrapGraphChanges(
+            Handler<DeserializingMessage> handler, MessageType messageType,
+            Handler<DeserializingMessage> resolverSource) {
+        boolean describedRoles = resolverSource != null;
+        List<GraphHandler> graphHandlers = graphChangeHandlers(handler.getTargetClass(), messageType, describedRoles);
+        boolean dynamicRoles = describedRoles && graphHandlers.stream()
+                .anyMatch(h -> h.contextParameters() != null);
         if (graphHandlers.isEmpty()) {
             return handler;
         }
         Set<Parameter> subscriptionParameters = graphHandlers.stream().map(GraphHandler::parameter)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (dynamicRoles) {
+            return new Handler.DelegatingHandler<>(handler) {
+                @Override
+                public ConsumerFilter getConsumerFilter() {
+                    return delegate.getConsumerFilter();
+                }
+
+                @Override
+                public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                    return Optional.ofNullable(getInvokerOrNull(message));
+                }
+
+                @Override
+                @SneakyThrows
+                public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                    List<GraphHandler> applicable = contextHandlers(resolverSource, message, graphHandlers);
+                    Set<Parameter> exclusions = applicable.stream().map(GraphHandler::parameter)
+                            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                    return selectGraphInvoker(handler, message, applicable, exclusions);
+                }
+            };
+        }
         return new Handler.DelegatingHandler<>(handler) {
             @Override
             public ConsumerFilter getConsumerFilter() {
-                // Graph argument expansion retains the original payload and the delegate's annotation filters.
                 return delegate.getConsumerFilter();
             }
 
             @Override
-            public Optional<HandlerInvoker> getInvoker(
-                    DeserializingMessage message) {
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
                 return Optional.ofNullable(getInvokerOrNull(message));
             }
 
             @Override
             @SneakyThrows
-            public HandlerInvoker getInvokerOrNull(
-                    DeserializingMessage message) {
-                HandlerInvoker selected = selectPayloadHandler(handler, message, subscriptionParameters);
-                Parameter parameter = selected == null ? null : graphParameter(selected.getMethod());
-                if (parameter == null && selected != null) {
-                    return selected;
-                }
-                if (!modelChange(message)) {
-                    return null;
-                }
-                HandlerInvoker representative = representativeInvoker(
-                        handler, message, graphHandlers);
-                if (representative == null) {
-                    return null;
-                }
-                return new HandlerInvoker.DelegatingHandlerInvoker(representative) {
-                    @Override
-                    @SneakyThrows
-                    public Object invoke(
-                            BiFunction<Object, Object, Object> combiner) {
-                        Object result = null;
-                        boolean first = true;
-                        LinkedHashSet<GraphKey> handled = new LinkedHashSet<>();
-                        for (GraphHandler graphHandler : graphHandlers) {
-                            for (Graph<?> graph : changedGraphs(
-                                    message, graphHandler.modelType())) {
-                                if (!handled.add(new GraphKey(
-                                        graph.id().toString(), graph.type(), graph.stateIndex()))) {
-                                    continue;
-                                }
-                                HandlerInvoker invoker = withGraph(
-                                        graphHandler.parameter(), graph, true,
-                                        () -> handler.getInvokerOrNull(message));
-                                if (invoker == null
-                                    || !graphHandler.executable().equals(invoker.getMethod())) {
-                                    throw new IllegalStateException(
-                                            "Could not select graph-change handler %s for %s"
-                                                    .formatted(graphHandler.executable(), graph.type()));
-                                }
-                                Object next = withGraph(
-                                        graphHandler.parameter(), graph, false,
-                                        () -> invoker.invoke(combiner));
-                                result = first ? next : combiner.apply(result, next);
-                                first = false;
-                            }
-                        }
-                        return result;
-                    }
-                };
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                return selectGraphInvoker(handler, message, graphHandlers, subscriptionParameters);
             }
         };
+    }
+
+    private static HandlerInvoker selectGraphInvoker(
+            Handler<DeserializingMessage> handler, DeserializingMessage message,
+            List<GraphHandler> graphHandlers, Set<Parameter> subscriptionParameters) throws Exception {
+        HandlerInvoker selected = selectPayloadHandler(handler, message, subscriptionParameters);
+        Parameter parameter = selected == null ? null : graphParameter(selected.getMethod());
+        if (parameter == null && selected != null) {
+            return selected;
+        }
+        if (!modelChange(message)) {
+            return null;
+        }
+        HandlerInvoker representative = representativeInvoker(
+                handler, message, graphHandlers);
+        if (representative == null) {
+            return null;
+        }
+        return new HandlerInvoker.DelegatingHandlerInvoker(representative) {
+            @Override
+            @SneakyThrows
+            public Object invoke(
+                    BiFunction<Object, Object, Object> combiner) {
+                Object result = null;
+                boolean first = true;
+                LinkedHashSet<GraphKey> handled = new LinkedHashSet<>();
+                for (GraphHandler graphHandler : graphHandlers) {
+                    for (Graph<?> graph : changedGraphs(
+                            message, graphHandler.modelType())) {
+                        if (!handled.add(new GraphKey(
+                                graph.id().toString(), graph.type(), graph.stateIndex()))) {
+                            continue;
+                        }
+                        HandlerInvoker invoker = withGraph(
+                                graphHandler.parameter(), graph, true,
+                                () -> handler.getInvokerOrNull(message));
+                        if (invoker == null
+                            || !graphHandler.executable().equals(invoker.getMethod())) {
+                            throw new IllegalStateException(
+                                    "Could not select graph-change handler %s for %s"
+                                            .formatted(graphHandler.executable(), graph.type()));
+                        }
+                        Object next = withGraph(
+                                graphHandler.parameter(), graph, false,
+                                () -> invoker.invoke(combiner));
+                        result = first ? next : combiner.apply(result, next);
+                        first = false;
+                    }
+                }
+                return result;
+            }
+        };
+    }
+
+    private static List<GraphHandler> contextHandlers(Handler<DeserializingMessage> handler,
+            DeserializingMessage message, List<GraphHandler> candidates) throws Exception {
+        List<GraphHandler> result = new ArrayList<>();
+        for (GraphHandler candidate : candidates) {
+            if (candidate.contextParameters() == null) {
+                result.add(candidate);
+                continue;
+            }
+            HandlerInvoker invoker = withGraph(candidate.parameter(), null, true,
+                    () -> handler.getInvokerOrNull(message));
+            if (invoker != null && candidate.executable().equals(invoker.getMethod())) {
+                Set<Parameter> context = invoker.getContextParameters();
+                if (context != null && context.containsAll(candidate.contextParameters())) {
+                    result.add(candidate);
+                }
+            }
+        }
+        return result;
+    }
+
+    /** Whether this method needs resolver-role capture for complete Graph-change selection. */
+    public static boolean describesParameters(Executable method) {
+        return graphParameter(method) == null && structuralGraphParameter(method) != null;
+    }
+
+    private static Parameter structuralGraphParameter(Executable method) {
+        Parameter graph = null;
+        for (Parameter parameter : method.getParameters()) {
+            var model = EntityMetadata.inspectModelParameter(parameter).orElse(null);
+            if (model != null) {
+                if (!model.graphWrapped() || model.associationProperty() != null || graph != null) {
+                    return null;
+                }
+                graph = parameter;
+            }
+        }
+        return graph;
     }
 
     private static HandlerInvoker selectPayloadHandler(
@@ -189,7 +266,7 @@ public final class GraphChangeHandlerDecorator {
 
     private static List<GraphHandler> graphChangeHandlers(
             Class<?> targetType,
-            MessageType messageType) {
+            MessageType messageType, boolean describedRoles) {
         if (messageType != MessageType.EVENT
             && messageType != MessageType.NOTIFICATION) {
             return List.of();
@@ -200,13 +277,16 @@ public final class GraphChangeHandlerDecorator {
                 .filter(method -> ReflectionUtils.getMethodAnnotation(
                         method, annotation).isPresent())
                 .map(method -> {
-                    Parameter parameter = graphParameter(method);
+                    Parameter parameter = describedRoles ? structuralGraphParameter(method) : graphParameter(method);
                     if (parameter == null) {
                         return null;
                     }
                     Class<?> modelType = EntityMetadata.inspectModelParameter(
                             parameter).orElseThrow().modelType();
-                    return new GraphHandler(method, parameter, modelType);
+                    return new GraphHandler(method, parameter, modelType,
+                            describedRoles && describesParameters(method)
+                                    ? java.util.Arrays.stream(method.getParameters())
+                                            .filter(p -> !p.equals(parameter)).toList() : null);
                 })
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(
@@ -450,7 +530,8 @@ public final class GraphChangeHandlerDecorator {
     private record GraphHandler(
             Executable executable,
             Parameter parameter,
-            Class<?> modelType) {
+            Class<?> modelType,
+            List<Parameter> contextParameters) {
     }
 
     private record GraphKey(

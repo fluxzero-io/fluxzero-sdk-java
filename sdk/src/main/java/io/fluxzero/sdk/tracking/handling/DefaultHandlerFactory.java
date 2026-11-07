@@ -173,15 +173,17 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 .map(a -> HandlerConfiguration.<DeserializingMessage>builder().methodAnnotation(a)
                         .handlerFilter(handlerFilter).messageFilter(handlerFilter instanceof LocalDispatchFilter split
                                 ? split.restrict(messageFilter) : messageFilter)
-                        .methodInvocationValidator(methodInvocationValidator).build())
+                        .methodInvocationValidator(methodInvocationValidator)
+                        .describeParameterRoles(method -> (messageType == MessageType.EVENT
+                                || messageType == MessageType.NOTIFICATION)
+                                && GraphChangeHandlerDecorator.describesParameters(method)).build())
                 .filter(config -> isHandler(targetClass, config))
                 .map(config -> buildHandler(target, config))
                 .map(handler -> messageType.isRequest()
                         ? new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation).wrap(handler)
                         : handler)
-                .map(handlerDecorator::wrap)
                 .map(handler -> GraphChangeHandlerDecorator.wrapGraphChanges(
-                        handler, messageType));
+                        handlerDecorator.wrap(handler), messageType, handler));
         return result.isPresent() || fallbackFactory == null
                 ? result
                 : fallbackFactory.createHandler(

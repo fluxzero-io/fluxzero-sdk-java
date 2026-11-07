@@ -31,6 +31,11 @@ public class CurrentUserParameterResolver extends TypedParameterResolver<Object>
     }
 
     @Override
+    public boolean isContextParameter(Parameter parameter) {
+        return getClass() == CurrentUserParameterResolver.class;
+    }
+
+    @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> User.getCurrent();
     }

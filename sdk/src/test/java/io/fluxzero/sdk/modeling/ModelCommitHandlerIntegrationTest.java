@@ -711,6 +711,123 @@ class ModelCommitHandlerIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
+    void jsonPayloadGraphBindingDoesNotExpandToPreviousRoots(boolean async) {
+        FamilyRootId first = new FamilyRootId("payload-first");
+        FamilyRootId second = new FamilyRootId("payload-second");
+        FamilyChildId child = new FamilyChildId("payload-child");
+        List<String> observed = new CopyOnWriteArrayList<>();
+        TestFixture fixture = TestFixture.create();
+        if (async) {
+            fixture = fixture.async();
+        }
+        fixture.registerHandlers(new Object() {
+                    @HandleEvent(allowedClasses = MoveFamilyChild.class)
+                    @HandleNotification(allowedClasses = MoveFamilyChild.class)
+                    void on(Graph<FamilyRoot> graph, com.fasterxml.jackson.databind.JsonNode payload) {
+                        org.junit.jupiter.api.Assertions.assertNotNull(payload);
+                        observed.add(graph.id().toString());
+                    }
+                })
+                .givenCommands(new CreateFamilyRoot(first, "first"), new CreateFamilyRoot(second, "second"),
+                               new CreateFamilyChild(child, first, "child"))
+                .whenCommand(new MoveFamilyChild(child, second))
+                .expectNoErrors()
+                .expectThat(ignored -> assertEquals(List.of(second.toString(), second.toString()), observed));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void graphEnvelopeContextRetainsCompleteMoves(boolean async) {
+        FamilyRootId firstRootId = new FamilyRootId("context-first");
+        FamilyRootId secondRootId = new FamilyRootId("context-second");
+        FamilyChildId childId = new FamilyChildId("context-child");
+        List<List<Graph<FamilyRoot>>> observations = java.util.stream.IntStream.range(0, 12)
+                .mapToObj(ignored -> (List<Graph<FamilyRoot>>) new CopyOnWriteArrayList<Graph<FamilyRoot>>())
+                .toList();
+        TestFixture fixture = TestFixture.create();
+        if (async) {
+            fixture = fixture.async();
+        }
+        fixture.registerHandlers(
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Graph<FamilyRoot> graph, DeserializingMessage message, Metadata metadata) {
+                                recordGraphContext(observations.get(0), graph, message.toMessage(), metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Graph<FamilyRoot> graph, DeserializingMessage message, Metadata metadata) {
+                                recordGraphContext(observations.get(6), graph, message.toMessage(), metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(DeserializingMessage message, Graph<FamilyRoot> graph, Metadata metadata) {
+                                recordGraphContext(observations.get(1), graph, message.toMessage(), metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(DeserializingMessage message, Graph<FamilyRoot> graph, Metadata metadata) {
+                                recordGraphContext(observations.get(7), graph, message.toMessage(), metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(DeserializingMessage message, Metadata metadata, Graph<FamilyRoot> graph) {
+                                recordGraphContext(observations.get(2), graph, message.toMessage(), metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(DeserializingMessage message, Metadata metadata, Graph<FamilyRoot> graph) {
+                                recordGraphContext(observations.get(8), graph, message.toMessage(), metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Graph<FamilyRoot> graph, Metadata metadata, DeserializingMessage message) {
+                                recordGraphContext(observations.get(3), graph, message.toMessage(), metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Graph<FamilyRoot> graph, Metadata metadata, DeserializingMessage message) {
+                                recordGraphContext(observations.get(9), graph, message.toMessage(), metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Metadata metadata, Graph<FamilyRoot> graph, DeserializingMessage message) {
+                                recordGraphContext(observations.get(4), graph, message.toMessage(), metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Metadata metadata, Graph<FamilyRoot> graph, DeserializingMessage message) {
+                                recordGraphContext(observations.get(10), graph, message.toMessage(), metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Metadata metadata, DeserializingMessage message, Graph<FamilyRoot> graph) {
+                                recordGraphContext(observations.get(5), graph, message.toMessage(), metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Metadata metadata, DeserializingMessage message, Graph<FamilyRoot> graph) {
+                                recordGraphContext(observations.get(11), graph, message.toMessage(), metadata);
+                            }
+                        })
+                .givenCommands(new CreateFamilyRoot(firstRootId, "first"),
+                               new CreateFamilyRoot(secondRootId, "second"),
+                               new CreateFamilyChild(childId, firstRootId, "child"))
+                .whenCommand(new Message(new MoveFamilyChild(childId, secondRootId),
+                                         Metadata.of("context", "context-token")))
+                .expectNoErrors()
+                .expectThat(ignored -> observations.forEach(graphs -> {
+                    assertMovedChildGraphs(graphs, firstRootId, secondRootId, childId);
+                }));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     void contextPreservesPayloadPrecedenceAndAllowedClasses(boolean async) {
         FamilyRootId first = new FamilyRootId("filtered-first");
         FamilyRootId second = new FamilyRootId("filtered-second");

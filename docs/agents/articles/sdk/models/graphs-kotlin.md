@@ -350,7 +350,8 @@ Persistent instability fails with an explicit platform error.
 ## Complete graph-change handlers
 
 Use one unqualified `Graph<T>` parameter to subscribe to every durable change of that root or one
-of its descendants. Optional `Message` and `Metadata` context parameters may appear in any order:
+of its descendants. Context parameters such as `Message`, `DeserializingMessage`, `SerializedMessage`, `Metadata`, timestamps and users
+may appear in any order without broadening the subscribed Model type:
 
 ```kotlin
 @HandleEvent
@@ -363,6 +364,10 @@ Creation has no previous graph; deletion supplies an empty current graph and the
 `previous()`; moving a child invokes both old and new roots. The previous graph is commit-exact and does not depend on
 cache depth. One handler object may declare several such methods for distinct root types. Adding an explicit event
 payload turns the method back into ordinary payload handling with direct/ancestor Graph injection.
+
+Custom context resolvers can override `ParameterResolver.isContextParameter(parameter)` to return `true`.
+The flag describes the injected value; it is independent of handler specificity. Dynamic match and rejection rules
+still apply. Existing custom resolvers default to ordinary payload/binding selection, as do JSON payload parameters.
 
 Complete subscriptions select roots from the durable change targets and their current/previous parent relationships,
 not from a unique ID property in the event payload. An event may therefore contain several typed IDs for the same
