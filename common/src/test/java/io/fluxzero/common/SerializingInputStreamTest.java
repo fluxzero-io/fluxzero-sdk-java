@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class StreamInputStreamTest {
+class SerializingInputStreamTest {
     @Test
     void preservesPartialRecordTailWhenFetchingNextPageFails() throws Exception {
         var failure = new IllegalStateException("page failed");
@@ -76,7 +76,7 @@ class StreamInputStreamTest {
     void discardsOnlyIncompleteSerializationAndRetainsOriginalIOException() throws Exception {
         var failure = new IOException("writer failed");
         var writes = new AtomicInteger();
-        try (var input = new StreamInputStream<>(Stream.of("ok", "bad", "later"), (value, out) -> {
+        try (var input = new SerializingInputStream<>(Stream.of("ok", "bad", "later"), (value, out) -> {
             writes.incrementAndGet();
             out.write(value.getBytes(UTF_8));
             if (value.equals("bad")) { throw failure; }
@@ -93,7 +93,7 @@ class StreamInputStreamTest {
     @Test
     void preservesWriterExceptionWrapping() throws Exception {
         var failure = new IllegalStateException("writer failed");
-        try (var input = new StreamInputStream<>(Stream.of("ok", "bad"), (value, out) -> {
+        try (var input = new SerializingInputStream<>(Stream.of("ok", "bad"), (value, out) -> {
             if (value.equals("bad")) { throw failure; }
             out.write(value.getBytes(UTF_8));
         })) {
@@ -156,7 +156,7 @@ class StreamInputStreamTest {
     @Test
     void preservesSingleByteReadsAndExplicitClose() throws Exception {
         var closes = new AtomicInteger();
-        var input = new StreamInputStream<>(Stream.of(255, 128), (value, out) -> out.write(value));
+        var input = new SerializingInputStream<>(Stream.of(255, 128), (value, out) -> out.write(value));
         assertEquals(255, input.read());
         assertEquals(128, input.read());
         assertEquals(-1, input.read());
@@ -168,6 +168,18 @@ class StreamInputStreamTest {
         assertEquals(1, closes.get());
         assertEquals(-1, early.read());
         assertEquals(0, early.available());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void legacyNameRetainsCorrectedBehavior() throws Exception {
+        var failure = new IllegalStateException("fetch failed");
+        try (var input = new StreamInputStream<>(
+                Stream.concat(Stream.of("ok"), Stream.generate(() -> { throw failure; })),
+                (String value, java.io.OutputStream out) -> out.write(value.getBytes(UTF_8)))) {
+            assertEquals(2, input.read(new byte[10]));
+            assertSame(failure, assertThrows(IllegalStateException.class, input::read));
+        }
     }
 
     @Test
@@ -183,7 +195,7 @@ class StreamInputStreamTest {
         }
     }
 
-    private StreamInputStream<String> input(Stream<String> source) {
-        return new StreamInputStream<>(source, (value, out) -> out.write(value.getBytes(UTF_8)));
+    private SerializingInputStream<String> input(Stream<String> source) {
+        return new SerializingInputStream<>(source, (value, out) -> out.write(value.getBytes(UTF_8)));
     }
 }
