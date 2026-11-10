@@ -26,7 +26,12 @@ import java.util.stream.Stream;
 
 /**
  * Exposes the mapped contents of a {@link Stream} as an {@link InputStream} without buffering the full stream in
- * memory.
+ * memory. Each element is fully serialized before its bytes become available.
+ * <p>
+ * If fetching or serializing an element fails after a bulk read has copied bytes, that read returns the copied
+ * byte count. Subsequent non-empty reads rethrow the saved failure without advancing the source, until explicitly
+ * closed. A failure before any bytes are copied is thrown immediately. Closing this input closes the source stream;
+ * reaching the end also closes it automatically.
  */
 public class StreamInputStream<T> extends InputStream {
     private final Stream<? extends T> stream;
@@ -36,6 +41,7 @@ public class StreamInputStream<T> extends InputStream {
     private byte[] currentChunk = new byte[0];
     private int currentIndex;
     private boolean closed;
+    private Exception pendingFailure;
 
     /**
      * Constructs a {@code StreamInputStream} instance that maps the elements of the given {@link Stream}
@@ -75,13 +81,20 @@ public class StreamInputStream<T> extends InputStream {
             return -1;
         }
         int totalRead = 0;
-        while (len > 0 && ensureChunk()) {
-            int copied = Math.min(len, currentChunk.length - currentIndex);
-            System.arraycopy(currentChunk, currentIndex, b, off, copied);
-            currentIndex += copied;
-            off += copied;
-            len -= copied;
-            totalRead += copied;
+        try {
+            while (len > 0 && ensureChunk()) {
+                int copied = Math.min(len, currentChunk.length - currentIndex);
+                System.arraycopy(currentChunk, currentIndex, b, off, copied);
+                currentIndex += copied;
+                off += copied;
+                len -= copied;
+                totalRead += copied;
+            }
+        } catch (IOException | RuntimeException e) {
+            if (totalRead == 0) {
+                throw e;
+            }
+            pendingFailure = e;
         }
         return totalRead;
     }
@@ -93,6 +106,7 @@ public class StreamInputStream<T> extends InputStream {
 
     @Override
     public void close() {
+        pendingFailure = null;
         if (!closed) {
             closed = true;
             currentChunk = new byte[0];
@@ -102,6 +116,12 @@ public class StreamInputStream<T> extends InputStream {
     }
 
     private boolean ensureChunk() throws IOException {
+        if (pendingFailure instanceof IOException e) {
+            throw e;
+        }
+        if (pendingFailure instanceof RuntimeException e) {
+            throw e;
+        }
         while (!closed && currentIndex >= currentChunk.length) {
             if (!iterator.hasNext()) {
                 close();
