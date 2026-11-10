@@ -1301,7 +1301,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Streams matching values of the specified type as a lazily populated {@link InputStream}, fetching documents in\n batches of {@code fetchSize}.\n"
+    "documentation" : " Streams matching values of the specified type as a lazily populated {@link InputStream}, fetching documents in\n batches of {@code fetchSize}. Close the returned stream after use. If a read has already copied bytes when\n fetching or serialization fails, it returns those bytes and reports the failure on the next non-empty read.\n\n @see SerializingInputStream\n"
   }, {
     "name" : "toNdjsonInputStream",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#toNdjsonInputStream",

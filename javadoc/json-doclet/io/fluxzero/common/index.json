@@ -185,6 +185,11 @@
     "qualifiedName" : "io.fluxzero.common.SearchUtils",
     "kind" : "class"
   }, {
+    "file" : "SerializingInputStream.json",
+    "name" : "SerializingInputStream",
+    "qualifiedName" : "io.fluxzero.common.SerializingInputStream",
+    "kind" : "class"
+  }, {
     "file" : "ServicePathBuilder.json",
     "name" : "ServicePathBuilder",
     "qualifiedName" : "io.fluxzero.common.ServicePathBuilder",
