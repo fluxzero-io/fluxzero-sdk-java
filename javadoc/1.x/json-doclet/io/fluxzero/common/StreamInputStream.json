@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " Exposes the mapped contents of a {@link Stream} as an {@link InputStream} without buffering the full stream in\n memory.\n",
+  "documentation" : " Exposes the mapped contents of a {@link Stream} as an {@link InputStream} without buffering the full stream in\n memory. Each element is fully serialized before its bytes become available.\n <p>\n If fetching or serializing an element fails after a bulk read has copied bytes, that read returns the copied\n byte count. Subsequent non-empty reads rethrow the saved failure without advancing the source, until explicitly\n closed. A failure before any bytes are copied is thrown immediately. Closing this input closes the source stream;\n reaching the end also closes it automatically.\n",
   "typeParameters" : [ "T" ],
   "superClass" : "java.io.InputStream",
   "interfaces" : [ ],
@@ -38,6 +38,14 @@
     "qualifiedName" : "io.fluxzero.common.StreamInputStream.iterator",
     "type" : "java.util.Iterator<? extends T>",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pendingFailure",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream.pendingFailure",
+    "type" : "java.lang.Exception",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
