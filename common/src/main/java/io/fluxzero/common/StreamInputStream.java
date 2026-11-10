@@ -15,132 +15,24 @@
 
 package io.fluxzero.common;
 
-import lombok.NonNull;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Iterator;
 import java.util.stream.Stream;
 
 /**
- * Exposes the mapped contents of a {@link Stream} as an {@link InputStream} without buffering the full stream in
- * memory. Each element is fully serialized before its bytes become available.
- * <p>
- * If fetching or serializing an element fails after a bulk read has copied bytes, that read returns the copied
- * byte count. Subsequent non-empty reads rethrow the saved failure without advancing the source, until explicitly
- * closed. A failure before any bytes are copied is thrown immediately. Closing this input closes the source stream;
- * reaching the end also closes it automatically.
+ * Compatibility name for {@link SerializingInputStream}.
+ *
+ * @deprecated use {@link SerializingInputStream} instead
  */
-public class StreamInputStream<T> extends InputStream {
-    private final Stream<? extends T> stream;
-    private final Iterator<? extends T> iterator;
-    private final ThrowingBiConsumer<? super T, ? super OutputStream> writer;
-
-    private byte[] currentChunk = new byte[0];
-    private int currentIndex;
-    private boolean closed;
-    private Exception pendingFailure;
-
+@Deprecated
+public class StreamInputStream<T> extends SerializingInputStream<T> {
     /**
-     * Constructs a {@code StreamInputStream} instance that maps the elements of the given {@link Stream}
-     * to an {@link InputStream} representation using a provided writer function.
+     * Creates an input stream that serializes each source element with the supplied writer.
      *
-     * @param stream the stream containing the elements to be exposed as an {@link InputStream}; must not be null
-     * @param writer a {@code ThrowingBiConsumer} that writes each element of the stream to an {@link OutputStream};
-     *               must not be null
+     * @param stream the source elements; must not be null
+     * @param writer the element serializer; must not be null
      */
-    public StreamInputStream(@NonNull Stream<? extends T> stream,
-                             @NonNull ThrowingBiConsumer<? super T, ? super OutputStream> writer) {
-        this.stream = stream;
-        this.iterator = stream.iterator();
-        this.writer = writer;
-    }
-
-    @Override
-    public int read() throws IOException {
-        if (!ensureChunk()) {
-            return -1;
-        }
-        return currentChunk[currentIndex++] & 0xff;
-    }
-
-    @Override
-    public int read(byte[] b, int off, int len) throws IOException {
-        if (b == null) {
-            throw new NullPointerException("Target buffer is null");
-        }
-        if (off < 0 || len < 0 || len > b.length - off) {
-            throw new IndexOutOfBoundsException();
-        }
-        if (len == 0) {
-            return 0;
-        }
-        if (!ensureChunk()) {
-            return -1;
-        }
-        int totalRead = 0;
-        try {
-            while (len > 0 && ensureChunk()) {
-                int copied = Math.min(len, currentChunk.length - currentIndex);
-                System.arraycopy(currentChunk, currentIndex, b, off, copied);
-                currentIndex += copied;
-                off += copied;
-                len -= copied;
-                totalRead += copied;
-            }
-        } catch (IOException | RuntimeException e) {
-            if (totalRead == 0) {
-                throw e;
-            }
-            pendingFailure = e;
-        }
-        return totalRead;
-    }
-
-    @Override
-    public int available() {
-        return currentChunk.length - currentIndex;
-    }
-
-    @Override
-    public void close() {
-        pendingFailure = null;
-        if (!closed) {
-            closed = true;
-            currentChunk = new byte[0];
-            currentIndex = 0;
-            stream.close();
-        }
-    }
-
-    private boolean ensureChunk() throws IOException {
-        if (pendingFailure instanceof IOException e) {
-            throw e;
-        }
-        if (pendingFailure instanceof RuntimeException e) {
-            throw e;
-        }
-        while (!closed && currentIndex >= currentChunk.length) {
-            if (!iterator.hasNext()) {
-                close();
-                return false;
-            }
-            currentChunk = nextChunk(iterator.next());
-            currentIndex = 0;
-        }
-        return !closed;
-    }
-
-    private byte[] nextChunk(T value) throws IOException {
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            writer.accept(value, outputStream);
-            return outputStream.toByteArray();
-        } catch (IOException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IOException("Failed to write stream element", e);
-        }
+    public StreamInputStream(Stream<? extends T> stream,
+                             ThrowingBiConsumer<? super T, ? super OutputStream> writer) {
+        super(stream, writer);
     }
 }

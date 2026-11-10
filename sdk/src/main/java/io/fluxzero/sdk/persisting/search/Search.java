@@ -17,7 +17,7 @@ package io.fluxzero.sdk.persisting.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.StreamInputStream;
+import io.fluxzero.common.SerializingInputStream;
 import io.fluxzero.common.ThrowingBiConsumer;
 import io.fluxzero.common.ThrowingFunction;
 import io.fluxzero.common.api.search.Constraint;
@@ -795,17 +795,20 @@ public interface Search<R> {
 
     /**
      * Streams matching values of the specified type as a lazily populated {@link InputStream}, fetching documents in
-     * batches of {@code fetchSize}.
+     * batches of {@code fetchSize}. Close the returned stream after use. If a read has already copied bytes when
+     * fetching or serialization fails, it returns those bytes and reports the failure on the next non-empty read.
+     *
+     * @see SerializingInputStream
      */
     default <T> InputStream toInputStream(Class<T> type, ThrowingBiConsumer<T, OutputStream> writer, int fetchSize) {
-        return new StreamInputStream<>(stream(type, fetchSize), writer);
+        return new SerializingInputStream<>(stream(type, fetchSize), writer);
     }
 
     /**
      * Streams matching values as NDJSON using the stored document types and the default fetch size.
      */
     default InputStream toNdjsonInputStream() {
-        return new StreamInputStream<>(stream(JsonNode.class), (doc, outputStream) -> {
+        return new SerializingInputStream<>(stream(JsonNode.class), (doc, outputStream) -> {
             outputStream.write(JsonUtils.asBytes(doc));
             outputStream.write('\n');
         });
