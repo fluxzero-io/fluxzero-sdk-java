@@ -18,6 +18,8 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxy;
 import ch.qos.logback.core.read.ListAppender;
+import ch.qos.logback.core.filter.Filter;
+import ch.qos.logback.core.spi.FilterReply;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.handling.Handler;
@@ -64,6 +66,14 @@ class DefaultSocketSessionTest {
 
     @BeforeEach
     void captureLogs() {
+        // These unit tests use already-completed futures: all their logging runs on the invoking thread.
+        Thread owner = Thread.currentThread();
+        logs.addFilter(new Filter<>() {
+            @Override
+            public FilterReply decide(ILoggingEvent event) {
+                return Thread.currentThread() == owner ? FilterReply.NEUTRAL : FilterReply.DENY;
+            }
+        });
         logs.start();
         logger.addAppender(logs);
     }
@@ -72,6 +82,17 @@ class DefaultSocketSessionTest {
     void releaseLogs() {
         logger.detachAppender(logs);
         logs.stop();
+    }
+
+    @Test
+    void capturesOnlyThisTestsLogging() throws InterruptedException {
+        Thread otherTest = new Thread(() -> logger.error("Concurrent socket failure"));
+        otherTest.start();
+        otherTest.join();
+        assertTrue(logs.list.isEmpty());
+        logger.error("Owned socket failure");
+        assertEquals(1, logs.list.size());
+        assertEquals("Owned socket failure", logs.list.getFirst().getMessage());
     }
 
     @ParameterizedTest
