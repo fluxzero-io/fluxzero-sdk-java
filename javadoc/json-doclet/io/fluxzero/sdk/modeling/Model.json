@@ -59,7 +59,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Number of older model versions retained in the shared cache. {@code -1} retains all available cached versions;\n {@code 0} retains only the latest version.\n <p>\n Independent models retain one previous version by default so event handlers can compare the event-visible model\n with {@link Entity#previous()}. Retaining an unbounded revision chain must be an explicit choice because model\n caches are expected to contain far more keys than aggregate caches.\n"
+    "documentation" : " Number of older model versions retained in the shared cache. {@code -1} retains all available cached versions;\n {@code 0} retains only the latest version.\n <p>\n Cached event-sourced models retain up to ten previous revisions by default. Each stored change to the\n same model counts as one revision, including changes within a single commit.\n"
   }, {
     "name" : "checkpointPeriod",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Model#checkpointPeriod",
