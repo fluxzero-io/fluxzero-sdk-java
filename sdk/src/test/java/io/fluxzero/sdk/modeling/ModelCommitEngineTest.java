@@ -23,8 +23,11 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
+import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -495,6 +498,44 @@ class ModelCommitEngineTest {
         assertEquals(new Order(command.orderId(), "pending"), begin.resolve(Order.class, null).get());
         assertEquals(new Inventory(command.inventoryId(), 5, null),
                      begin.resolve(Inventory.class, null).get());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void inheritedTransferCanWriteTheSelectedAccount(boolean legacyDescriptor) {
+        var cmd = new RoutedTransfer("op", new AccountId("source"), new AccountId("dest"));
+        var handlers = EntityMetadata.of(TransferOperator.class).handlerMethods();
+        var resolution = MutationPlan.compile(cmd.getClass(), handlers).resolve(cmd);
+        assertEquals(1, resolution.deferredWrites().size());
+        if (legacyDescriptor) {
+            var target = resolution.deferredWrites().getFirst();
+            var legacy = new MutationPlan.DeferredWriteTarget(target.modelType(), target.candidateModelIds(),
+                                                               handlers.getFirst().executable().toGenericString());
+            resolution = new MutationPlan.Resolution(resolution.models(), List.of(legacy),
+                                                     resolution.ancestorDependencies(), resolution.references());
+        }
+        var begin = CommitAttempt.create(101, resolution, Map.of(
+                "op", entity("op", new TransferOperator("op")),
+                cmd.sourceId().toString(), entity(cmd.sourceId(), new Account(cmd.sourceId(), 10)),
+                cmd.destinationId().toString(), entity(cmd.destinationId(), new Account(cmd.destinationId(), 20))));
+        var result = evaluate(message(cmd), begin, handlers);
+        assertEquals(List.of(new Account(cmd.destinationId(), 30)),
+                     result.stream().map(Change::after).toList());
+    }
+
+    @Test
+    void inheritedApplyCannotUseAnotherReceiversDeferredWrite() {
+        var command = new PickAccount("operator", "specialist", "left", "right", "permitted");
+        var handlers = new ArrayList<>(EntityMetadata.of(AccountPicker.class).handlerMethods());
+        handlers.addAll(EntityMetadata.of(SpecialPicker.class).handlerMethods());
+        var begin = context(command, handlers, entity("operator", new AccountPicker("operator")),
+                            entity("specialist", new SpecialPicker("specialist")),
+                            entity("left", new SpecialAccount("left", 0)),
+                            entity("right", new SpecialAccount("right", 0)),
+                            entity("permitted", new SpecialAccount("permitted", 0)));
+
+        var error = assertThrows(IllegalStateException.class, () -> evaluate(message(command), begin, handlers));
+        assertTrue(error.getMessage().contains("'right', which is not a resolved write target"));
     }
 
     @Test
@@ -1398,6 +1439,54 @@ class ModelCommitEngineTest {
     private static class AccountId extends Id<Account> {
         private AccountId(String id) {
             super(id, "account-");
+        }
+    }
+
+    private record RoutedTransfer(String operatorId, AccountId sourceId, AccountId destinationId) {}
+
+    private interface TransferAmounts {
+        @Apply
+        default Account move(RoutedTransfer command,
+                             @Association("sourceId") Account source,
+                             @Association("destinationId") Account destination) {
+            return new Account(destination.accountId(), source.balance() + destination.balance());
+        }
+    }
+
+    @Model(searchable = false)
+    private record TransferOperator(@EntityId String operatorId) implements TransferAmounts {}
+
+    private record PickAccount(String pickerId, String specialistId, String left, String right, String permitted) {}
+
+    @Model(searchable = false)
+    private interface PickedAccount {
+        @EntityId String accountId();
+    }
+
+    @Model(searchable = false)
+    private record SpecialAccount(@EntityId String accountId, int balance) implements PickedAccount {}
+
+    private interface Pick<R extends PickedAccount> {
+        @Apply
+        default R select(PickAccount command, @Association("left") PickedAccount left,
+                         @Association("right") PickedAccount right, @Association("permitted") SpecialAccount permitted) {
+            return select(left, right);
+        }
+
+        R select(PickedAccount left, PickedAccount right);
+    }
+
+    @Model(searchable = false)
+    private record AccountPicker(@EntityId String pickerId) implements Pick<PickedAccount> {
+        public PickedAccount select(PickedAccount left, PickedAccount right) {
+            return new SpecialAccount(left.accountId(), 1);
+        }
+    }
+
+    @Model(searchable = false)
+    private record SpecialPicker(@EntityId String specialistId) implements Pick<SpecialAccount> {
+        public SpecialAccount select(PickedAccount left, PickedAccount right) {
+            return new SpecialAccount(right.accountId(), 2);
         }
     }
 
