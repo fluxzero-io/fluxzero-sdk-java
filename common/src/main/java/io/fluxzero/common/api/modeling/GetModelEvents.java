@@ -16,6 +16,7 @@
 
 package io.fluxzero.common.api.modeling;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.fluxzero.common.api.Request;
 import lombok.Value;
 import lombok.experimental.NonFinal;
@@ -23,6 +24,7 @@ import lombok.experimental.NonFinal;
 import java.beans.ConstructorProperties;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Batch-loads independent model stream memberships at one namespace-wide state boundary.
@@ -55,11 +57,21 @@ public class GetModelEvents extends Request {
      */
     long maxBytes;
 
-    @ConstructorProperties({"requests", "boundary", "maxBytes"})
+    /** Optional type filter for streams which requested a materialized document version. */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    Set<String> documentVersionTypes;
+
     public GetModelEvents(
             List<ModelEventStreamRequest> requests,
             ModelReadBoundary boundary,
             long maxBytes) {
+        this(requests, boundary, maxBytes, Set.of());
+    }
+
+    @ConstructorProperties({"requests", "boundary", "maxBytes", "documentVersionTypes"})
+    public GetModelEvents(List<ModelEventStreamRequest> requests, ModelReadBoundary boundary, long maxBytes,
+                          Set<String> documentVersionTypes) {
+        this.documentVersionTypes = documentVersionTypes == null ? Set.of() : Set.copyOf(documentVersionTypes);
         this.requests = requests;
         this.boundary = Objects.requireNonNull(boundary, "boundary").forRequest();
         this.maxBytes = maxBytes;
@@ -71,9 +83,15 @@ public class GetModelEvents extends Request {
             ModelReadBoundary boundary,
             long maxBytes) {
         super(requestId);
+        this.documentVersionTypes = Set.of();
         this.requests = requests;
         this.boundary = Objects.requireNonNull(boundary, "boundary").forRequest();
         this.maxBytes = maxBytes;
+    }
+
+    /** Whether the type qualifies for an individual stream's requested document version. */
+    public boolean includesDocumentVersionFor(String modelType) {
+        return documentVersionTypes.isEmpty() || documentVersionTypes.contains(modelType);
     }
 
     @Override

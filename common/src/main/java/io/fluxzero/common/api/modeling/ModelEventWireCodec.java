@@ -132,7 +132,7 @@ public final class ModelEventWireCodec {
 
     // The compact format has no document evidence fields. Preserve them in the JSON envelope.
     private static boolean supportsRequest(GetModelEvents request) {
-        if (request.getClass() != GetModelEvents.class) { return false; }
+        if (request.getClass() != GetModelEvents.class || !request.getDocumentVersionTypes().isEmpty()) { return false; }
         for (var stream : request.getRequests()) {
             if (stream.isIncludeDocumentVersion()) { return false; }
         }

@@ -18,6 +18,7 @@ import io.fluxzero.common.caching.CacheEviction;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +26,7 @@ import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
@@ -37,6 +39,30 @@ import java.util.function.Function;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ModelCacheTest {
+    @Test
+    void documentVersionTypesFollowVisibleCachePublications() {
+        var cache = new ModelCache(new SoftReferenceCache(100, Runnable::run, null));
+        try {
+            for (String id : List.of("a", "b", "c")) {
+                var head = new ModelHeadState(id, id.equals("c") ? "other" : "shared", 0, 1, false, false, "version");
+                try (var token = cache.beginRead(id)) {
+                    assertNotNull(cache.publish(token, id, 1, head));
+                }
+            }
+            assertEquals(Set.of("shared", "other"), cache.documentVersionTypes());
+            cache.put("a", "replacement");
+            assertFalse(cache.hasDocumentVersion("a"));
+            assertTrue(cache.hasDocumentVersion("b"));
+            assertEquals(Set.of("shared", "other"), cache.documentVersionTypes());
+            cache.remove("b");
+            assertEquals(Set.of("other"), cache.documentVersionTypes());
+            cache.clear();
+            assertTrue(cache.documentVersionTypes().isEmpty());
+        } finally {
+            cache.close();
+        }
+    }
+
     @Test
     void delayedPhysicalClearFencesValuesPublishedBeforeItsNotificationCompletes() {
         var notifications = new ConcurrentLinkedQueue<Runnable>();

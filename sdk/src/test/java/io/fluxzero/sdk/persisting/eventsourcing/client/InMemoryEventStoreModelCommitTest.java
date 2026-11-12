@@ -29,6 +29,7 @@ import io.fluxzero.common.api.modeling.CommitModelsWithDeadlines;
 import io.fluxzero.common.api.modeling.ModelDeadlineUpdate;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
@@ -42,6 +43,7 @@ import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.sdk.persisting.search.client.InMemorySearchStore;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -78,6 +80,40 @@ class InMemoryEventStoreModelCommitTest {
     void stopOperations() throws InterruptedException {
         operations.shutdownNow();
         assertTrue(operations.awaitTermination(2, TimeUnit.SECONDS), "Test operations did not terminate");
+    }
+
+    @Test
+    void graphReadsUseTheConfiguredStreamReaderEvenWhenDocumentEvidenceIsUnavailable() {
+        AtomicInteger streamReads = new AtomicInteger(), versionReads = new AtomicInteger();
+        var store = new InMemoryEventStore() {
+            @Override
+            public GetModelEventsResult getModelEvents(GetModelEvents request) {
+                streamReads.incrementAndGet();
+                return super.getModelEvents(request);
+            }
+        };
+        store.setModelCommitMaterializer(new InMemorySearchStore(Duration.ofMinutes(2))::prepareModelCommit);
+        var document = new io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer()
+                .toDocument("value", "root", "roots", null, null);
+        var target = storedTarget("root").toBuilder().document(new ModelDocumentMutation("roots", document)).build();
+        store.commitModels(commit("create", ModelCommitStep.builder().event(event("create")).targets(List.of(target)).build())).join();
+        store.setDocumentVersionReader((collection, head) -> {
+            versionReads.incrementAndGet();
+            assertFalse(Thread.holdsLock(store));
+            throw new IllegalStateException("Document store unavailable");
+        });
+        var request = new GetModelGraph("root", ModelReadBoundary.current(), 0, 1, 0, 0, false);
+        var original = store.getModelGraph(request);
+        var optedIn = request.withIncludeDocumentVersions(true);
+        var observed = store.getModelGraph(optedIn);
+        assertEquals(optedIn.getRequestId(), observed.getRequestId());
+        var expected = original.getEvents().getStreams().getFirst().getHead();
+        assertNotNull(expected);
+        assertEquals(expected, observed.getEvents().getStreams().getFirst().getHead());
+        var unrelated = store.getModelGraph(request.withDocumentVersionTypes(java.util.Set.of("unrelated")));
+        assertEquals(expected, unrelated.getEvents().getStreams().getFirst().getHead());
+        assertEquals(3, streamReads.get());
+        assertEquals(1, versionReads.get());
     }
 
     @Test

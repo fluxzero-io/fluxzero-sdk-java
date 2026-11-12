@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.persisting.repository;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.CacheEviction;
 import io.fluxzero.sdk.modeling.ModelRoot;
@@ -23,10 +24,12 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -84,7 +87,8 @@ final class ModelCache implements Cache {
     private final Cache delegate;
     private final ConcurrentHashMap<Object, State> states = new ConcurrentHashMap<>();
     private final Registration evictionRegistration;
-    private volatile boolean documentVersions;
+    private final Map<String, Integer> documentTypeCounts = new HashMap<>();
+    private volatile Set<String> documentVersionTypes = Set.of();
     private volatile Epoch epoch = new Epoch(false);
     private int clearing;
     private volatile int sharedUsers;
@@ -220,6 +224,10 @@ final class ModelCache implements Cache {
 
     /** Publishes only if no writer or invalidation superseded this read after it began. */
     Stamp publish(ReadToken token, Object value, long readBoundary) {
+        return publish(token, value, readBoundary, null);
+    }
+
+    Stamp publish(ReadToken token, Object value, long readBoundary, ModelHeadState documentHead) {
         Write write = beginWrite(token.state.id, token, false, true, Math.max(readBoundary, stateIndex(value)));
         if (write == null) {
             return null;
@@ -229,7 +237,7 @@ final class ModelCache implements Cache {
             write.boundary = Math.max(readBoundary, stateIndex(value));
             write.success = true;
         } finally {
-            finish(write);
+            finish(write, documentHead);
         }
         return token.published = write.published;
     }
@@ -272,21 +280,34 @@ final class ModelCache implements Cache {
         return get(id, stamp(id));
     }
 
-    void recordDocumentVersion(Stamp stamp, io.fluxzero.common.api.modeling.ModelHeadState head) {
-        if (stamp != null && head != null && head.getDocumentVersion() != null) {
-            stamp.documentVersion = head.getDocumentVersion();
-            documentVersions = true;
-        }
-    }
-
     boolean hasDocumentVersion(String id) {
-        if (!documentVersions) { return false; }
+        if (documentVersionTypes.isEmpty()) { return false; }
         Stamp current = stamp(id);
         return current != null && current.documentVersion != null;
     }
 
-    boolean hasDocumentVersions() {
-        return documentVersions && mayHaveEntries();
+    Set<String> documentVersionTypes() {
+        return documentVersionTypes;
+    }
+
+    // Updated inside the per-ID stamp publication/invalidation. Graph reads share the immutable set.
+    private synchronized void addDocumentType(String type) {
+        if (documentTypeCounts.merge(type, 1, Integer::sum) == 1) {
+            documentVersionTypes = Set.copyOf(documentTypeCounts.keySet());
+        }
+    }
+
+    private synchronized void removeDocumentType(String type) {
+        if (documentTypeCounts.compute(type, (key, count) -> count == 1 ? null : count - 1) == null) {
+            documentVersionTypes = Set.copyOf(documentTypeCounts.keySet());
+        }
+    }
+
+    private void discardStamp(State state) {
+        if (state.stamp != null && state.stamp.documentType != null) {
+            removeDocumentType(state.stamp.documentType);
+        }
+        state.stamp = null;
     }
 
     /** An empty state table rules out every readable revision, including unknown alias owners. */
@@ -317,7 +338,7 @@ final class ModelCache implements Cache {
     private void invalidate(Object id, Stamp expected) {
         states.computeIfPresent(id, (key, state) -> {
             if (expected == null || state.stamp == expected) {
-                state.stamp = null;
+                discardStamp(state);
                 state.version++;
                 state.invalid = true;
             }
@@ -335,7 +356,7 @@ final class ModelCache implements Cache {
     private void pruneObsoleteStates() {
         states.forEach((id, ignored) -> states.computeIfPresent(id, (key, state) -> {
             if (state.stamp != null && state.stamp.epoch != epoch) {
-                state.stamp = null;
+                discardStamp(state);
                 state.version++;
                 state.invalid = true;
             }
@@ -379,7 +400,7 @@ final class ModelCache implements Cache {
                 state.invalid = true;
             }
             state.version++;
-            state.stamp = null;
+            discardStamp(state);
             result[0] = new Write(state, observed, previous);
             result[0].cleanup = cleanup;
             result[0].counted = counted;
@@ -394,6 +415,10 @@ final class ModelCache implements Cache {
     }
 
     private void finish(Write write) {
+        finish(write, null);
+    }
+
+    private void finish(Write write, ModelHeadState documentHead) {
         boolean admitted = false;
         boolean presenceKnown = false;
         try {
@@ -416,7 +441,10 @@ final class ModelCache implements Cache {
                     state.version++;
                     state.active = false;
                     if (!state.invalid) {
-                        write.published = state.stamp = new Stamp(state, epoch, write.boundary);
+                        write.published = state.stamp = new Stamp(state, epoch, write.boundary, documentHead);
+                        if (write.published.documentType != null) {
+                            addDocumentType(write.published.documentType);
+                        }
                     } else if (state.needsCleanup) {
                         cleanupNeeded[0] = true;
                     }
@@ -805,9 +833,12 @@ final class ModelCache implements Cache {
         private final Epoch epoch;
         final long boundary;
         // Applies only to the entity admitted by this exact cache publication.
-        volatile String documentVersion;
+        final String documentVersion;
+        final String documentType;
 
-        private Stamp(State state, Epoch epoch, long boundary) {
+        private Stamp(State state, Epoch epoch, long boundary, ModelHeadState head) {
+            this.documentVersion = head == null ? null : head.getDocumentVersion();
+            this.documentType = documentVersion == null ? null : head.getModelType();
             this.state = state;
             this.epoch = epoch;
             this.boundary = boundary;

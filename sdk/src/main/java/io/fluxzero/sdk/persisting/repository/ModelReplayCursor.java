@@ -1216,9 +1216,8 @@ final class ModelReplayCursor {
                         ? entity.id().toString() : target.modelId();
                 if (modelCache instanceof ModelCache guarded) {
                     ModelCache.Stamp stamp = readToken != null && readToken.forId(resolvedId)
-                            ? guarded.publish(readToken, entity, documentCacheBoundary) : null;
+                            ? guarded.publish(readToken, entity, documentCacheBoundary, document.head()) : null;
                     if (stamp != null) {
-                        guarded.recordDocumentVersion(stamp, document.head());
                         cachePublications.put(resolvedId, stamp);
                     }
                 } else {
@@ -1778,7 +1777,7 @@ final class ModelReplayCursor {
                 modelIds, boundary, direction == ModelRelationshipRead.Direction.CHILDREN && !recursive ? 1 : -1, -1, 0, 0L,
                 direction == ModelRelationshipRead.Direction.CHILDREN
                         ? GetModelGraph.TraversalDirection.DESCENDANTS : GetModelGraph.TraversalDirection.ANCESTORS,
-                false).withIncludeDocumentVersions(requestDocumentVersions()));
+                false).withDocumentVersionTypes(documentVersionTypes()));
         long stateIndex = response.getEvents().getStateIndex();
         if (boundary.stateIndex() != null && boundary.stateIndex() != stateIndex) {
             throw new GraphBoundaryMovedException("Graph metadata changed its pinned state boundary");
@@ -1956,7 +1955,7 @@ final class ModelReplayCursor {
             String rootId, Class<T> rootType, Graph.Options options, ModelReadBoundary boundary,
             String namespace, Map<String, Entity<?>> staged, boolean historicalBoundary, Entity<?> resolvedRoot) {
         GetModelGraph request = new GetModelGraph(
-                rootId, boundary, options.maxDepth(), options.maxModels(), 0, 0L, false).withIncludeDocumentVersions(requestDocumentVersions());
+                rootId, boundary, options.maxDepth(), options.maxModels(), 0, 0L, false).withDocumentVersionTypes(documentVersionTypes());
         GetModelGraphResult response = getModelGraph(request);
         GetModelEventsResult graphEvents = response.getEvents();
         long stateIndex = graphEvents.getStateIndex();
@@ -2175,8 +2174,8 @@ final class ModelReplayCursor {
                 || actual.getDocumentVersion() == null || expected.getDocumentVersion().equals(actual.getDocumentVersion()));
     }
 
-    private boolean requestDocumentVersions() {
-        return modelCache instanceof ModelCache cache && cache.hasDocumentVersions();
+    private Set<String> documentVersionTypes() {
+        return modelCache instanceof ModelCache cache ? cache.documentVersionTypes() : Set.of();
     }
 
     private DocumentVersion graphDocument(MutationPlan.ResolvedModel target, ModelHeadState expected, long stateIndex) {
@@ -2195,7 +2194,7 @@ final class ModelReplayCursor {
         try (var token = cache.beginRead(id)) {
             DocumentVersion loaded = documentReader.load(id, type, false);
             if (matchesDocumentHead(expected, loaded.head()) && loaded.head().getDocumentVersion() != null) {
-                cache.recordDocumentVersion(cache.publish(token, loaded.entity(), stateIndex), loaded.head());
+                cache.publish(token, loaded.entity(), stateIndex, loaded.head());
             }
             return loaded;
         }

@@ -87,7 +87,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -1857,29 +1859,34 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
     }
 
-    private volatile java.util.function.BiFunction<String, ModelHeadState, ModelHeadState> documentVersionReader;
+    private volatile BiFunction<String, ModelHeadState, ModelHeadState> documentVersionReader;
 
     /** Attaches read evidence from the namespace's materialized document store to opted-in heads. */
     public synchronized void setDocumentVersionReader(
-            java.util.function.BiFunction<String, ModelHeadState, ModelHeadState> reader) {
+            BiFunction<String, ModelHeadState, ModelHeadState> reader) {
         this.documentVersionReader = reader;
     }
 
     @Override
     public GetModelEventsResult getModelEvents(GetModelEvents request) {
         var result = selectModelEvents(request);
-        if (documentVersionReader == null || request.getRequests().stream().noneMatch(ModelEventStreamRequest::isIncludeDocumentVersion)) {
+        var reader = documentVersionReader;
+        if (reader == null || request.getRequests().stream().noneMatch(ModelEventStreamRequest::isIncludeDocumentVersion)) {
             return result;
         }
-        return withDocumentVersions(result, i -> request.getRequests().get(i).isIncludeDocumentVersion());
+        return withDocumentVersions(result, reader, request.getDocumentVersionTypes(), i -> request.getRequests().get(i).isIncludeDocumentVersion());
     }
 
-    private GetModelEventsResult withDocumentVersions(GetModelEventsResult result, java.util.function.IntPredicate requested) {
+    private GetModelEventsResult withDocumentVersions(GetModelEventsResult result,
+            BiFunction<String, ModelHeadState, ModelHeadState> reader, Set<String> types, IntPredicate requested) {
         var streams = result.getStreams();
         var ids = new java.util.LinkedHashSet<String>();
         for (int i = 0; i < streams.size(); i++) {
             var head = streams.get(i).getHead();
-            if (requested.test(i) && head != null && !head.isDeleted()) { ids.add(head.getModelId()); }
+            if (requested.test(i) && head != null && !head.isDeleted()
+                && (types.isEmpty() || types.contains(head.getModelType()))) {
+                ids.add(head.getModelId());
+            }
         }
         if (ids.isEmpty()) { return result; }
         var collections = resolveModelDocumentCollections(ids);
@@ -1889,7 +1896,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             var head = streams.get(i).getHead();
             String collection = head == null ? null : collections.get(head.getModelId());
             if (requested.test(i) && collection != null && !head.isDeleted()) {
-                attested.put(head.getModelId(), documentVersionReader.apply(collection, head));
+                try {
+                    attested.put(head.getModelId(), reader.apply(collection, head));
+                } catch (RuntimeException unavailable) {
+                    // The head is still valid. A value read without evidence goes through the document store.
+                }
             }
         }
         return result.withDocumentVersions(attested);
@@ -1997,10 +2008,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     @Override
     public GetModelGraphResult getModelGraph(GetModelGraph request) {
-        var result = selectModelGraph(request);
-        if (!request.isIncludeDocumentVersions() || documentVersionReader == null) { return result; }
-        return new GetModelGraphResult(result.getRequestId(), result.getEdges(),
-                                       withDocumentVersions(result.getEvents(), ignored -> true));
+        if (!request.isIncludeDocumentVersions()) { return selectModelGraph(request); }
+        // Keep stream selection under the graph lock and consult the optional document store after releasing it.
+        var selected = selectModelGraph(request.withIncludeDocumentVersions(false));
+        var reader = documentVersionReader;
+        var events = reader == null ? selected.getEvents() : withDocumentVersions(selected.getEvents(), reader,
+                request.getDocumentVersionTypes(), ignored -> true);
+        return new GetModelGraphResult(request.getRequestId(), selected.getEdges(), events);
     }
 
     private synchronized GetModelGraphResult selectModelGraph(GetModelGraph request) {
@@ -2030,7 +2044,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 frontier -> request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS
                         ? relationshipsByChildren(frontier, boundary, before)
                         : relationshipsByParents(frontier, boundary, before),
-                this::selectModelEvents);
+                this::getModelEvents);
     }
 
     @Override
