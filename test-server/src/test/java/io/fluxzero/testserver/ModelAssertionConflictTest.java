@@ -32,6 +32,7 @@ import io.fluxzero.sdk.modeling.ModelConflictResolver;
 import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import jakarta.annotation.Nullable;
 import org.eclipse.jetty.server.Server;
@@ -50,6 +51,8 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.UUID;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -208,16 +211,16 @@ class ModelAssertionConflictTest {
             for (int i = 0; i < 100; i++) { assertTrue(canReadEntry(reader)); }
             assertEquals(0, client.documentReads.get(), "Storage head and relationship reads attest the cached bodies");
 
-            var eventRead = new java.util.concurrent.CompletableFuture<Boolean>();
+            var eventRead = new CompletableFuture<Boolean>();
             reader.registerHandlers(new Object() {
-                @io.fluxzero.sdk.tracking.handling.HandleEvent
+                @HandleEvent
                 void read(CheckEntry event) {
                     var graph = Fluxzero.loadGraph("entry", Entry.class);
                     eventRead.complete(graph.get() != null && graph.parentModel(Group.class).orElseThrow().enabled());
                 }
             });
             execute(writer, new CheckEntry("check"), false);
-            assertTrue(eventRead.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).join());
+            assertTrue(eventRead.orTimeout(5, TimeUnit.SECONDS).join());
             assertEquals(0, client.documentReads.get(), "An event-bound Graph uses the confirmed materialized revisions");
             execute(writer, new SetGroup("group", false), false);
             assertFalse(canReadEntry(reader));
@@ -226,6 +229,49 @@ class ModelAssertionConflictTest {
             assertEquals(1, client.documentReads.get(), "The new parent revision is reusable");
             execute(writer, new DeleteEntry("entry"), false);
             assertFalse(canReadEntry(reader));
+        }
+    }
+
+    @Test
+    void laggingEventHandlerReadsCurrentDocumentValuesThroughHistoricalRelationships() throws Exception {
+        String namespace = "lagging-document-reader-" + UUID.randomUUID();
+        var client = new DocumentReaderClient(config(namespace, "reader"));
+        try (var reader = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             var writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                     .build(WebSocketClient.newInstance(config(namespace, "writer")))) {
+            execute(writer, new SetGroup("original", true), false);
+            execute(writer, new SetGroup("replacement", true), false);
+            execute(writer, new SetEntry("entry", "original"), false);
+            reader.registerHandlers(Group.class, Entry.class);
+            assertTrue(canReadEntry(reader));
+
+            record Observation(Entry entry, Group parent) {}
+            var handlerStarted = new CompletableFuture<Void>();
+            var writesCommitted = new CompletableFuture<Void>();
+            var observed = new CompletableFuture<Observation>();
+            reader.registerHandlers(new Object() {
+                @HandleEvent
+                void read(CheckEntry event) {
+                    handlerStarted.complete(null);
+                    try {
+                        writesCommitted.join();
+                        var graph = Fluxzero.loadGraph("entry", Entry.class);
+                        observed.complete(new Observation(graph.get(), graph.parentModel(Group.class).orElseThrow()));
+                    } catch (RuntimeException e) {
+                        observed.completeExceptionally(e);
+                    }
+                }
+            });
+            try {
+                execute(writer, new CheckEntry("check"), false);
+                handlerStarted.get(5, TimeUnit.SECONDS);
+                execute(writer, new SetGroup("original", false), false);
+                execute(writer, new SetEntry("entry", "replacement"), false);
+            } finally {
+                writesCommitted.complete(null);
+            }
+            assertEquals(new Observation(new Entry("entry", "replacement"), new Group("original", false)),
+                         observed.get(5, TimeUnit.SECONDS));
         }
     }
 
@@ -252,7 +298,7 @@ class ModelAssertionConflictTest {
     }
 
     record SetEntry(String id, String groupId) {
-        @Apply Entry apply() { return new Entry(id, groupId); }
+        @Apply Entry apply(@Nullable Entry previous) { return new Entry(id, groupId); }
     }
 
     record DeleteEntry(String id) {
@@ -285,7 +331,7 @@ class ModelAssertionConflictTest {
                     new Class<?>[]{EventStoreClient.class}, (proxy, method, arguments) -> {
                         if (method.getName().equals("trackModelUpdates")) {
                             // This client receives no update notifications, including after a successful remote write.
-                            return new java.util.concurrent.CompletableFuture<>();
+                            return new CompletableFuture<>();
                         }
                         try { return method.invoke(delegate, arguments); }
                         catch (InvocationTargetException e) { throw e.getCause(); }
