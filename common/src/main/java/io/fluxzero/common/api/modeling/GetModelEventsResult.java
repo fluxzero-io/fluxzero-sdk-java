@@ -115,11 +115,27 @@ public class GetModelEventsResult extends AbstractRequestResult {
         this.membershipBlocks = Objects.requireNonNull(membershipBlocks, "membershipBlocks");
     }
 
+    /** Attach current materialization evidence only to the same canonical revision selected by this read. */
+    public GetModelEventsResult withDocumentVersions(java.util.Map<String, ModelHeadState> materialized) {
+        if (materialized.isEmpty()) { return this; }
+        var attested = streams.stream().map(stream -> {
+            var selected = stream.getHead();
+            var actual = selected == null ? null : materialized.get(selected.getModelId());
+            return actual != null && actual.getDocumentVersion() != null && actual.equals(selected)
+                    ? new ModelEventStream(stream.getModelId(), actual, stream.getMemberships()) : stream;
+        }).toList();
+        return copy(exactBoundary, attested);
+    }
+
     /** Returns this result with explicit evidence whether the original selector resolved exactly. */
     public GetModelEventsResult withExactBoundary(boolean exactBoundary) {
         if (this.exactBoundary == exactBoundary) {
             return this;
         }
+        return copy(exactBoundary, streams);
+    }
+
+    private GetModelEventsResult copy(boolean exactBoundary, List<ModelEventStream> streams) {
         GetModelEventsResult result = new GetModelEventsResult(
                 requestId, stateIndex, exactBoundary, payloads, streams,
                 payloadStateIndices, payloadBlocks, payloadEventIndices, membershipBlocks);

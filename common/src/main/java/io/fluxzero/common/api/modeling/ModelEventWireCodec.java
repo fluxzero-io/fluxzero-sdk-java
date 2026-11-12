@@ -62,13 +62,13 @@ public final class ModelEventWireCodec {
 
     /** Encodes routed native envelopes only for a peer that explicitly supports them. */
     public static byte[] tryEncode(JsonType value, boolean routedEnvelopes) throws IOException {
-        if (value instanceof GetModelEvents request && value.getClass() == GetModelEvents.class) {
+        if (value instanceof GetModelEvents request && supportsRequest(request)) {
             return encodeRequests(
                     new RequestBatch<>(List.of(request)),
                     DIRECT_REQUEST_MAGIC);
         }
         if (value instanceof GetModelEventsResult result) {
-            if (!routedEnvelopes && hasRoutes(result)) return null;
+            if (!supportsResult(result, routedEnvelopes)) return null;
             return encodeResults(
                     new ResultBatch(List.of(result)),
                     DIRECT_RESULT_MAGIC);
@@ -130,12 +130,28 @@ public final class ModelEventWireCodec {
         return result.getPayloads().stream().anyMatch(payload -> payload.getEvent().getRoute() != null);
     }
 
+    // The compact format has no document evidence fields. Preserve them in the JSON envelope.
+    private static boolean supportsRequest(GetModelEvents request) {
+        if (request.getClass() != GetModelEvents.class) { return false; }
+        for (var stream : request.getRequests()) {
+            if (stream.isIncludeDocumentVersion()) { return false; }
+        }
+        return true;
+    }
+
+    private static boolean supportsResult(GetModelEventsResult result, boolean routedEnvelopes) {
+        for (var stream : result.getStreams()) {
+            if (stream.getHead() != null && stream.getHead().getDocumentVersion() != null) { return false; }
+        }
+        return routedEnvelopes || !hasRoutes(result);
+    }
+
     private static boolean supportsRequests(RequestBatch<?> batch) {
         if (batch.getRequests().isEmpty()) {
             return false;
         }
         for (JsonType value : batch.getRequests()) {
-            if (value.getClass() != GetModelEvents.class) {
+            if (!(value instanceof GetModelEvents request) || !supportsRequest(request)) {
                 return false;
             }
         }
@@ -147,7 +163,7 @@ public final class ModelEventWireCodec {
             return false;
         }
         for (RequestResult value : batch.getResults()) {
-            if (!(value instanceof GetModelEventsResult result) || !routedEnvelopes && hasRoutes(result)) {
+            if (!(value instanceof GetModelEventsResult result) || !supportsResult(result, routedEnvelopes)) {
                 return false;
             }
         }

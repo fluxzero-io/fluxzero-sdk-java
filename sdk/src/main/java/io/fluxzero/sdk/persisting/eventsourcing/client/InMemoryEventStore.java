@@ -42,6 +42,7 @@ import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
+import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
@@ -1856,8 +1857,45 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
     }
 
+    private volatile java.util.function.BiFunction<String, ModelHeadState, ModelHeadState> documentVersionReader;
+
+    /** Attaches read evidence from the namespace's materialized document store to opted-in heads. */
+    public synchronized void setDocumentVersionReader(
+            java.util.function.BiFunction<String, ModelHeadState, ModelHeadState> reader) {
+        this.documentVersionReader = reader;
+    }
+
     @Override
-    public synchronized GetModelEventsResult getModelEvents(GetModelEvents request) {
+    public GetModelEventsResult getModelEvents(GetModelEvents request) {
+        var result = selectModelEvents(request);
+        if (documentVersionReader == null || request.getRequests().stream().noneMatch(ModelEventStreamRequest::isIncludeDocumentVersion)) {
+            return result;
+        }
+        return withDocumentVersions(result, i -> request.getRequests().get(i).isIncludeDocumentVersion());
+    }
+
+    private GetModelEventsResult withDocumentVersions(GetModelEventsResult result, java.util.function.IntPredicate requested) {
+        var streams = result.getStreams();
+        var ids = new java.util.LinkedHashSet<String>();
+        for (int i = 0; i < streams.size(); i++) {
+            var head = streams.get(i).getHead();
+            if (requested.test(i) && head != null && !head.isDeleted()) { ids.add(head.getModelId()); }
+        }
+        if (ids.isEmpty()) { return result; }
+        var collections = resolveModelDocumentCollections(ids);
+        if (collections.isEmpty()) { return result; }
+        Map<String, ModelHeadState> attested = new HashMap<>();
+        for (int i = 0; i < streams.size(); i++) {
+            var head = streams.get(i).getHead();
+            String collection = head == null ? null : collections.get(head.getModelId());
+            if (requested.test(i) && collection != null && !head.isDeleted()) {
+                attested.put(head.getModelId(), documentVersionReader.apply(collection, head));
+            }
+        }
+        return result.withDocumentVersions(attested);
+    }
+
+    private synchronized GetModelEventsResult selectModelEvents(GetModelEvents request) {
         ModelCommitValidator.validate(request);
         ModelRelationshipQueries.ResolvedBoundary resolved =
                 modelBoundary(request.getBoundary());
@@ -1920,12 +1958,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     : modelHeadHistory.getOrDefault(resolvedModelId, List.of()).stream()
                             .filter(candidate -> candidate.stateIndex() <= stateIndex)
                             .reduce((first, second) -> second).orElse(null);
-            streams.add(new ModelEventStream(
-                    streamRequest.getModelId(),
-                    head == null ? null : new ModelHeadState(
-                            resolvedModelId, head.modelType(),
-                            head.sequenceNumber(), head.stateIndex(),
-                            head.historyComplete(), head.deleted()),
+            ModelHeadState selected = head == null ? null : new ModelHeadState(
+                    resolvedModelId, head.modelType(), head.sequenceNumber(), head.stateIndex(), head.historyComplete(), head.deleted());
+            streams.add(new ModelEventStream(streamRequest.getModelId(), selected,
                     candidateMemberships.get(streamRequest.getModelId()).stream()
                             .filter(membership -> selectedStateIndices.contains(membership.getStateIndex()))
                             .toList()));
@@ -1961,7 +1996,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     @Override
-    public synchronized GetModelGraphResult getModelGraph(GetModelGraph request) {
+    public GetModelGraphResult getModelGraph(GetModelGraph request) {
+        var result = selectModelGraph(request);
+        if (!request.isIncludeDocumentVersions() || documentVersionReader == null) { return result; }
+        return new GetModelGraphResult(result.getRequestId(), result.getEdges(),
+                                       withDocumentVersions(result.getEvents(), ignored -> true));
+    }
+
+    private synchronized GetModelGraphResult selectModelGraph(GetModelGraph request) {
         ModelCommitValidator.validate(request);
         ModelRelationshipQueries.ResolvedBoundary resolved =
                 modelBoundary(request.getBoundary());
@@ -1988,7 +2030,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 frontier -> request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS
                         ? relationshipsByChildren(frontier, boundary, before)
                         : relationshipsByParents(frontier, boundary, before),
-                this::getModelEvents);
+                this::selectModelEvents);
     }
 
     @Override

@@ -70,9 +70,11 @@ public class GetModelGraph extends Request {
      */
     boolean composableOnly;
 
-    @ConstructorProperties({
-            "modelIds", "boundary", "maxDepth", "maxModels",
-            "maxEventsPerModel", "maxBytes", "direction", "composableOnly"})
+    /** Request materialized document versions alongside the selected graph heads. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT)
+    @lombok.With
+    boolean includeDocumentVersions;
+
     public GetModelGraph(
             List<String> modelIds,
             ModelReadBoundary boundary,
@@ -82,6 +84,22 @@ public class GetModelGraph extends Request {
             long maxBytes,
             TraversalDirection direction,
             boolean composableOnly) {
+        this(modelIds, boundary, maxDepth, maxModels, maxEventsPerModel, maxBytes, direction, composableOnly, false);
+    }
+
+    @ConstructorProperties({
+            "modelIds", "boundary", "maxDepth", "maxModels",
+            "maxEventsPerModel", "maxBytes", "direction", "composableOnly", "includeDocumentVersions"})
+    public GetModelGraph(
+            List<String> modelIds,
+            ModelReadBoundary boundary,
+            int maxDepth,
+            int maxModels,
+            int maxEventsPerModel,
+            long maxBytes,
+            TraversalDirection direction,
+            boolean composableOnly, boolean includeDocumentVersions) {
+        this.includeDocumentVersions = includeDocumentVersions;
         this.modelIds = modelIds == null ? null : List.copyOf(modelIds);
         ModelReadBoundary selectedBoundary = Objects.requireNonNull(boundary, "boundary");
         ModelReadBoundary requestBoundary = selectedBoundary.forRequest();

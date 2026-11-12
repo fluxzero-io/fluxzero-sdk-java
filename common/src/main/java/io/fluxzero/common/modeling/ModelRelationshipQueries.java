@@ -132,7 +132,7 @@ public final class ModelRelationshipQueries {
                 Relationship::edge);
         return result(
                 request.getRequestId(), boundary, graph,
-                request.getMaxEventsPerModel(), request.getMaxBytes(), exactBoundary, events);
+                request.getMaxEventsPerModel(), request.getMaxBytes(), exactBoundary, request.isIncludeDocumentVersions(), events);
     }
 
     private static GetModelGraphResult result(
@@ -141,11 +141,11 @@ public final class ModelRelationshipQueries {
             ModelRelationshipTraversal.Result graph,
             int maxEventsPerModel,
             long maxBytes,
-            boolean exactBoundary,
+            boolean exactBoundary, boolean includeDocumentVersions,
             Function<GetModelEvents, GetModelEventsResult> eventLoader) {
         GetModelEventsResult events = eventLoader.apply(new GetModelEvents(
                 graph.modelIds().stream()
-                        .map(id -> new ModelEventStreamRequest(id, -1L, maxEventsPerModel))
+                        .map(id -> new ModelEventStreamRequest(id, -1L, maxEventsPerModel, includeDocumentVersions))
                         .toList(),
                 ModelReadBoundary.state(boundary, false), maxBytes));
         return new GetModelGraphResult(

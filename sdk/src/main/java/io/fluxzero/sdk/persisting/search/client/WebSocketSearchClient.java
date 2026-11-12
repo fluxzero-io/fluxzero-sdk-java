@@ -235,7 +235,7 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
     @Override
     public GetDocumentResult fetchModelDocument(GetDocument request) {
         return sendAndWait(new GetDocument(
-                request.getId(), request.getCollection(), true, request.isVerifyModelState()));
+                request.getId(), request.getCollection(), true, request.isVerifyModelState(), request.isIncludeDocumentVersion()));
     }
 
     @Override

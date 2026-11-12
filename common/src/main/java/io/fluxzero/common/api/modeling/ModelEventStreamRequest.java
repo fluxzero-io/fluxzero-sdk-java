@@ -16,7 +16,10 @@
 
 package io.fluxzero.common.api.modeling;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Value;
+
+import java.beans.ConstructorProperties;
 
 /**
  * One bounded model-stream read inside {@link GetModelEvents}.
@@ -38,4 +41,20 @@ public class ModelEventStreamRequest {
      * Maximum memberships to return. Zero requests only coordination head metadata.
      */
     int maxSize;
+
+    /** Include evidence for a matching materialized document in the selected head when available. */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean includeDocumentVersion;
+
+    public ModelEventStreamRequest(String modelId, long lastSequenceNumber, int maxSize) {
+        this(modelId, lastSequenceNumber, maxSize, false);
+    }
+
+    @ConstructorProperties({"modelId", "lastSequenceNumber", "maxSize", "includeDocumentVersion"})
+    public ModelEventStreamRequest(String modelId, long lastSequenceNumber, int maxSize, boolean includeDocumentVersion) {
+        this.modelId = modelId;
+        this.lastSequenceNumber = lastSequenceNumber;
+        this.maxSize = maxSize;
+        this.includeDocumentVersion = includeDocumentVersion;
+    }
 }

@@ -84,6 +84,7 @@ final class ModelCache implements Cache {
     private final Cache delegate;
     private final ConcurrentHashMap<Object, State> states = new ConcurrentHashMap<>();
     private final Registration evictionRegistration;
+    private volatile boolean documentVersions;
     private volatile Epoch epoch = new Epoch(false);
     private int clearing;
     private volatile int sharedUsers;
@@ -269,6 +270,23 @@ final class ModelCache implements Cache {
     @Override
     public <T> T get(Object id) {
         return get(id, stamp(id));
+    }
+
+    void recordDocumentVersion(Stamp stamp, io.fluxzero.common.api.modeling.ModelHeadState head) {
+        if (stamp != null && head != null && head.getDocumentVersion() != null) {
+            stamp.documentVersion = head.getDocumentVersion();
+            documentVersions = true;
+        }
+    }
+
+    boolean hasDocumentVersion(String id) {
+        if (!documentVersions) { return false; }
+        Stamp current = stamp(id);
+        return current != null && current.documentVersion != null;
+    }
+
+    boolean hasDocumentVersions() {
+        return documentVersions && mayHaveEntries();
     }
 
     /** An empty state table rules out every readable revision, including unknown alias owners. */
@@ -786,6 +804,8 @@ final class ModelCache implements Cache {
         private final State state;
         private final Epoch epoch;
         final long boundary;
+        // Applies only to the entity admitted by this exact cache publication.
+        volatile String documentVersion;
 
         private Stamp(State state, Epoch epoch, long boundary) {
             this.state = state;

@@ -1127,12 +1127,14 @@ class ModelReplayCursorTest {
         verify(client, never()).getModelEvents(any());
     }
 
-    @Test
-    void exactGraphRejectsAuthoritativeDocumentThatMovedPastIncompleteHistory() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void exactGraphRejectsAuthoritativeDocumentThatMovedPastIncompleteHistory(boolean sameHeadRewrite) {
         String modelId = "moved-exact-document";
         long boundary = 42L;
-        ModelHeadState historicalHead = directDocumentHead(modelId, 1L, boundary);
-        ModelHeadState currentHead = directDocumentHead(modelId, 2L, boundary + 1L);
+        ModelHeadState historicalHead = directDocumentHead(modelId, 1L, boundary).withDocumentVersion("original");
+        ModelHeadState currentHead = sameHeadRewrite ? historicalHead.withDocumentVersion("rewritten")
+                : directDocumentHead(modelId, 2L, boundary + 1L);
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelGraph(any())).thenReturn(
                 graphResponse(modelId, historicalHead, boundary));

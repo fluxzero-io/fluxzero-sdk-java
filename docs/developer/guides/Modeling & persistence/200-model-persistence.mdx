@@ -345,6 +345,13 @@ Models use a shared current-state cache and an action-local cache:
 Use `FluxzeroBuilder.withModelCache(cache)` for a dedicated model cache, or
 `FluxzeroBuilder.disableAutomaticModelCaching()` to disable both shared model caching and its update tracker.
 
+A fresh current Graph selects one storage boundary for the root and its relationships. For a cached
+`DOCUMENT` Model, the SDK can reuse the decoded value when the storage response confirms both the
+Model revision and the version of its materialized document. This works with `eventPublication = NEVER`
+and `cachingDepth = 0`. It also works for an event handler's selected boundary when that document
+version is still current. A changed or unavailable version takes the ordinary document-read path.
+Older servers that omit the document version use that path on every new Graph.
+
 Historical reads of event-sourced Models can reuse any retained revision after storage confirms the exact
 revision at the requested boundary and complete event history. This also applies when a Graph resolves an
 alias, navigates to a related Model, or loads several values together. Each missing value is reconstructed
