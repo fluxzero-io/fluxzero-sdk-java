@@ -1555,39 +1555,29 @@ final class ModelReplayCursor {
                     @Override public Class<?> type() { return storedType; }
                     @Override public ModelHeadState head() { return presenceHead; }
                     @Override public Entity<?> get() {
-                        if (head == null) {
-                            return ImmutableModelRoot.initial(id, type,
-                                    EntityMetadata.of(type).entityId().map(property -> property.name()).orElse(null),
+                        if (head == null || boundary.before() && presenceHead == null && head.isHistoryComplete()
+                            && head.getSequenceNumber() == 0 && canReuseRevision(storedType)) {
+                            return ImmutableModelRoot.initial(id, storedType,
+                                    EntityMetadata.of(storedType).entityId().map(property -> property.name()).orElse(null),
                                     null, entityHelper, serializer);
                         }
-                        boolean cacheRevision = historical && modelCache instanceof ModelCache
-                                && !boundary.before() && head.isHistoryComplete()
-                                && EntityMetadata.validate(storedType).rootConfiguration().orElseThrow().eventSourced()
-                                && EntityMetadata.validate(storedType).rootConfiguration().orElseThrow().cached();
-                        Entity<?> cachedRevision = cacheRevision ? modelCache.get(id) : null;
+                        boolean cacheRevision = historical && canReuseRevision(storedType) && head.isHistoryComplete();
+                        if (cacheRevision && sameStoredModel(head, presenceHead)) {
+                            Entity<?> retained = retainedRevision(presenceHead, storedType, loaded.stateIndex(), true);
+                            if (retained != null) { return retained; }
+                        }
                         if (cacheTracker != null && !historical && !boundary.before()
                             && EntityMetadata.validate(storedType).rootConfiguration().orElseThrow().eventSourced()) {
                             ModelCacheTracker.CurrentModel cached = cacheTracker.peekCurrentVersion(id, storedType);
-                            cachedRevision = cached == null ? null : cached.entity();
-                        }
-                        while (cachedRevision instanceof ModelRoot<?> root && root.type().equals(storedType)
-                               && id.equals(root.id().toString())) {
-                            if (root.sequenceNumber() == head.getSequenceNumber()
-                                && root.stateIndex() == head.getStateIndex()) {
-                                // The pinned head proves the revision; the Graph keeps its own snapshot boundary.
-                                return root;
+                            if (cached != null && matchesRevision(cached.entity(), storedType, head)) {
+                                return cached.entity();
                             }
-                            if (!cacheRevision || root.sequenceNumber() <= head.getSequenceNumber()
-                                || !(root instanceof ImmutableModelRoot<?>)) {
-                                break;
-                            }
-                            cachedRevision = root.previous();
                         }
                         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                                 id, storedType, MutationPlan.Access.READ_ONLY,
                                 List.of(EntityMetadata.validate(storedType).entityId().orElseThrow().name()));
                         // Historical admissions seed replay but do not claim current tracker coverage.
-                        Map<String, ModelCache.Stamp> publications = cacheRevision
+                        Map<String, ModelCache.Stamp> publications = cacheRevision && !boundary.before()
                                 || cacheTracker != null && !historical && !boundary.before()
                                 ? new LinkedHashMap<>() : null;
                         Entity<?> entity = reconstructProjection(List.of(target), Map.of(id, head), loaded.stateIndex(),
@@ -1608,6 +1598,43 @@ final class ModelReplayCursor {
                         return boundary.before() ? beforeBoundary(entity, loaded.stateIndex()) : entity;
                     }
                 });
+    }
+
+    private boolean canReuseRevision(Class<?> type) {
+        if (!(modelCache instanceof ModelCache)) { return false; }
+        var configuration = EntityMetadata.of(type).rootConfiguration().orElseThrow();
+        return configuration.eventSourced() && configuration.cached();
+    }
+
+    private static boolean sameStoredModel(ModelHeadState head, ModelHeadState other) {
+        return head != null && other != null && head.getModelId().equals(other.getModelId())
+               && head.getModelType() != null && head.getModelType().equals(other.getModelType());
+    }
+
+    private static boolean matchesRevision(Entity<?> candidate, Class<?> type, ModelHeadState head) {
+        return candidate instanceof ModelRoot<?> root && root.type().equals(type)
+               && head.getModelId().equals(root.id().toString()) && root.sequenceNumber() == head.getSequenceNumber()
+               && root.stateIndex() == head.getStateIndex() && root.isEmpty() == head.isDeleted();
+    }
+
+    /** Storage selected this canonical head. A cache hit supplies its value, never a new read boundary. */
+    private Entity<?> retainedRevision(ModelHeadState head, Class<?> type, long boundary, boolean includeLatest) {
+        if (head == null || !head.isHistoryComplete() || head.getSequenceNumber() < 0
+            || head.getStateIndex() < 0 || head.getStateIndex() > boundary) { return null; }
+        Entity<?> candidate = modelCache.get(head.getModelId());
+        if (!includeLatest && candidate instanceof ModelRoot<?> root && root.sequenceNumber() <= head.getSequenceNumber()) {
+            // Current projections validate the top cached suffix against GetModelEvents under a read fence.
+            return null;
+        }
+        while (candidate instanceof ModelRoot<?> root && root.type().equals(type)
+               && head.getModelId().equals(root.id().toString())) {
+            if (root.sequenceNumber() <= head.getSequenceNumber()) {
+                return matchesRevision(root, type, head) ? root : null;
+            }
+            if (!(root instanceof ImmutableModelRoot<?>)) { break; }
+            candidate = root.previous();
+        }
+        return null;
     }
 
     ModelGraphResolver.Value graphValue(String id, Class<?> type, ModelReadBoundary boundary,
@@ -1654,6 +1681,14 @@ final class ModelReplayCursor {
                 entity = beforeBoundary(entity, heads.stateIndex());
             }
             return new ModelGraphResolver.Value(entity, boundary.resolved(heads.stateIndex()), historical);
+        }
+        if (historical && boundary.before() && canReuseRevision(type)
+            && modelCache instanceof ModelCache guarded && guarded.mayHaveEntries()
+            && (metadata.hasAliases() || modelCache.containsKey(id))) {
+            LoadResult heads = loadHeads(List.of(id), boundary, false, probe);
+            var identity = graphIdentity(id, type, boundary.resolved(heads.stateIndex()), true, cacheTracker,
+                                         false, false, heads);
+            return new ModelGraphResolver.Value(identity.entity().get(), identity.boundary(), true);
         }
         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                 id, type, MutationPlan.Access.READ_ONLY, List.of(metadata.entityId().orElseThrow().name()));
@@ -1721,10 +1756,7 @@ final class ModelReplayCursor {
             if (!Objects.equals(boundary.stateIndex(), heads.stateIndex())) {
                 throw new GraphBoundaryMovedException("Graph values changed their pinned state boundary");
             }
-            result.putAll(reconstructProjection(targets, heads.heads(), heads.stateIndex(), historical));
-            if (boundary.before()) {
-                result.replaceAll((id, entity) -> beforeBoundary(entity, heads.stateIndex()));
-            }
+            result.putAll(selectedProjection(targets, heads.heads(), heads.stateIndex(), historical, boundary.before()));
         }
         types.keySet().stream().filter(staged::containsKey).forEach(id -> result.put(id, staged.get(id)));
         return result;
@@ -1844,6 +1876,13 @@ final class ModelReplayCursor {
                                 MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                                         id, valueType, MutationPlan.Access.READ_ONLY,
                                         List.of(EntityMetadata.validate(valueType).entityId().orElseThrow().name()));
+                                if (boundary.before() && head.isHistoryComplete() && canReuseRevision(valueType)) {
+                                    ModelHeadState selected = head();
+                                    if (id.equals(head.getModelId()) && sameStoredModel(head, selected)) {
+                                        Entity<?> retained = retainedForTarget(target, selected, stateIndex, true);
+                                        if (retained != null) { return retained; }
+                                    }
+                                }
                                 Entity<?> entity = reconstructProjection(List.of(target), Map.of(id, head), stateIndex,
                                                                          historical).get(id);
                                 return boundary.before() ? beforeBoundary(entity, stateIndex) : entity;
@@ -1965,16 +2004,13 @@ final class ModelReplayCursor {
             unresolvedDocumentHeads.forEach(heads::remove);
             heads.putAll(loaded.heads());
         }
-        LinkedHashMap<String, Entity<?>> models = reconstructProjection(targets, heads, stateIndex, historicalBoundary);
+        Map<String, Entity<?>> models = selectedProjection(targets, heads, stateIndex, historicalBoundary, boundary.before());
         Entity<?> stagedRoot = staged.get(rootId);
         if (stagedRoot instanceof io.fluxzero.sdk.modeling.PersistedRoot<?> persisted
             && persisted.sequenceNumber() < 0L && !models.containsKey(rootId)) {
             models.put(rootId, ImmutableModelRoot.initial(
                     rootId, (Class) stagedRoot.type(),
                     EntityMetadata.validate(stagedRoot.type()).entityId().orElseThrow().name(), null));
-        }
-        if (boundary.before()) {
-            models.replaceAll((ignored, entity) -> beforeBoundary(entity, stateIndex));
         }
         if (resolvedRoot != null) {
             models.put(rootId, resolvedRoot);
@@ -1987,6 +2023,37 @@ final class ModelReplayCursor {
                 candidate -> graph(
                         candidate.id().toString(), (Class) candidate.type(), Graph.Options.DEFAULT,
                         resolvedBoundary, namespace, Map.of()));
+    }
+
+    private Map<String, Entity<?>> selectedProjection(List<MutationPlan.ResolvedModel> targets,
+                                                       Map<String, ModelHeadState> heads, long stateIndex,
+                                                       boolean historical, boolean before) {
+        if (!before) { return reconstructProjection(targets, heads, stateIndex, historical); }
+        // Relationships are selected at the original boundary. For Models changed at that boundary,
+        // the value needs the preceding durable head, even if the inclusive revision is absent from the cache.
+        Set<String> changed = new LinkedHashSet<>();
+        for (var target : targets) {
+            ModelHeadState head = heads.get(target.modelId());
+            if (head != null && head.isHistoryComplete() && head.getStateIndex() == stateIndex
+                && canReuseRevision(target.modelType()) && modelCache.containsKey(head.getModelId())) {
+                changed.add(head.getModelId());
+            }
+        }
+        Function<List<MutationPlan.ResolvedModel>, ReconstructionBatch> fallback = missing -> {
+            var values = reconstructProjection(missing, heads, stateIndex, historical);
+            values.replaceAll((id, entity) -> beforeBoundary(entity, stateIndex));
+            return new ReconstructionBatch(stateIndex, values, Map.of());
+        };
+        if (changed.isEmpty()) { return fallback.apply(targets).entities(); }
+        var previous = loadHeads(List.copyOf(changed), ModelReadBoundary.at(stateIndex - 1));
+        Map<String, ModelHeadState> selected = new LinkedHashMap<>();
+        heads.forEach((id, head) -> {
+            ModelHeadState prior = head == null ? null : previous.heads().get(head.getModelId());
+            if (sameStoredModel(head, prior)) {
+                selected.put(id, prior);
+            }
+        });
+        return reuseRetained(targets, selected, stateIndex, true, fallback).entities();
     }
 
     private LinkedHashMap<String, Entity<?>> reconstructProjection(
@@ -2010,8 +2077,23 @@ final class ModelReplayCursor {
                 ? replayTargets : documentTargets).add(target));
         LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
         if (!replayTargets.isEmpty()) {
-            ReconstructionBatch reconstructed = session().reconstruct(
-                    replayTargets, ModelReadBoundary.at(stateIndex), !historicalBoundary || cachePublications != null);
+            var window = ReplayWindow.complete(ModelReadBoundary.at(stateIndex));
+            boolean publish = !historicalBoundary || cachePublications != null;
+            ReconstructionBatch reconstructed;
+            if (heads.isEmpty() || cachePublications != null) {
+                reconstructed = session().reconstruct(replayTargets, window, publish);
+            } else {
+                reconstructed = reuseRetained(replayTargets, heads, stateIndex, historicalBoundary, missing -> {
+                    // Older Graph responses may omit head metadata. Preserve their independent stream lookup.
+                    boolean verifySelection = missing.size() < replayTargets.size() && missing.stream().allMatch(target -> {
+                        ModelHeadState head = heads.get(target.modelId());
+                        return head != null && head.isHistoryComplete() && head.getModelType() != null
+                               && head.getSequenceNumber() >= 0;
+                    });
+                    return session().reconstruct(missing, window, publish, null, null, verifySelection ? heads : null,
+                                                 null, null);
+                });
+            }
             if (reconstructed.stateIndex() != stateIndex) {
                 throw new GraphBoundaryMovedException(
                         "Model graph moved from state index %d to %d during reconstruction"
@@ -2027,6 +2109,43 @@ final class ModelReplayCursor {
             result.put(target.modelId(), loadGraphDocument(target, expected));
         }
         return result;
+    }
+
+    /** Only unresolved targets enter replay. Keep the caller's order and its publication fences for misses. */
+    private ReconstructionBatch reuseRetained(List<MutationPlan.ResolvedModel> targets, Map<String, ModelHeadState> heads,
+                                              long boundary, boolean includeLatest,
+                                              Function<List<MutationPlan.ResolvedModel>, ReconstructionBatch> replay) {
+        if (!(modelCache instanceof ModelCache)) { return replay.apply(targets); }
+        Map<String, Entity<?>> values = new LinkedHashMap<>();
+        List<MutationPlan.ResolvedModel> missing = new ArrayList<>();
+        for (var target : targets) {
+            Entity<?> retained = retainedForTarget(target, heads.get(target.modelId()), boundary, includeLatest);
+            if (retained == null) { missing.add(target); }
+            else { values.put(target.modelId(), retained); }
+        }
+        if (values.isEmpty()) { return replay.apply(targets); }
+        if (missing.isEmpty()) { return new ReconstructionBatch(boundary, values, Map.of()); }
+        ReconstructionBatch loaded = replay.apply(missing);
+        values.putAll(loaded.entities());
+        return new ReconstructionBatch(loaded.stateIndex(), ordered(targets, values), loaded.cachePublications());
+    }
+
+    private static Map<String, Entity<?>> ordered(
+            List<MutationPlan.ResolvedModel> targets,
+            Map<String, Entity<?>> values) {
+        LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
+        targets.forEach(target -> result.put(
+                target.modelId(), values.get(target.modelId())));
+        return result;
+    }
+
+    private Entity<?> retainedForTarget(MutationPlan.ResolvedModel target, ModelHeadState head, long boundary,
+                                        boolean includeLatest) {
+        if (head == null || head.getModelType() == null || !canReuseRevision(target.modelType())) { return null; }
+        Entity<?> retained = retainedRevision(head, target.modelType(), boundary,
+                includeLatest || !target.modelId().equals(head.getModelId()));
+        if (retained == null || modelTypeResolver == null) { return null; }
+        return head.getModelType().equals(modelTypeResolver.modelName(target.modelType())) ? retained : null;
     }
 
     private Entity<?> loadGraphDocument(
@@ -2146,10 +2265,12 @@ final class ModelReplayCursor {
             return entity;
         }
         Entity<?> previous = root.previous();
-        if (previous == null && root.sequenceNumber() > 0 && stateIndex >= 0
-            && root.rootConfiguration().eventSourced()) {
-            // Snapshot seeds and bounded caches do not retain every predecessor. Resolve the exclusive
-            // state boundary from storage instead of treating absent in-memory history as creation.
+        if (root.sequenceNumber() > 0 && stateIndex >= 0 && root.rootConfiguration().eventSourced()
+            && (!(previous instanceof ModelRoot<?> prior) || prior.sequenceNumber() != root.sequenceNumber() - 1
+                || !prior.type().equals(root.type()) || !prior.id().toString().equals(root.id().toString())
+                || prior.stateIndex() < 0 || prior.stateIndex() >= stateIndex)) {
+            // A local commit may have linked an older cached base across a remote update.
+            // Select the durable before-state when the immediate predecessor is absent.
             var target = new MutationPlan.ResolvedModel(entity.id().toString(), entity.type(),
                     MutationPlan.Access.READ_ONLY, List.of(entity.idProperty()));
             previous = reconstructProjection(List.of(target), Map.of(), stateIndex - 1, true).get(target.modelId());
@@ -2435,7 +2556,27 @@ final class ModelReplayCursor {
             if (expectedHeads == null && mayUseCombinedRead(targets, window, probe)) {
                 return reconstructWithSnapshot(targets, window, cacheAtBoundary, aliasCandidate);
             }
+            if (expectedHeads == null && !cacheAtBoundary && !window.prefix() && window.boundary().historical()
+                && modelCache instanceof ModelCache guarded && guarded.mayHaveEntries()
+                && targets.stream().anyMatch(target -> mayNeedHistoricalHead(target, window))) {
+                LoadResult heads = loadHeads(targets.stream().map(MutationPlan.ResolvedModel::modelId).toList(),
+                        window.boundary(), true, probe);
+                var pinned = ReplayWindow.complete(ModelReadBoundary.at(heads.stateIndex()));
+                return reuseRetained(targets, heads.heads(), heads.stateIndex(), true, missing ->
+                        reconstruct(missing, pinned, false, probe, null, heads.heads(), null, null));
+            }
             return reconstruct(targets, window, cacheAtBoundary, probe, aliasCandidate, expectedHeads, null, null);
+        }
+
+        private boolean mayNeedHistoricalHead(MutationPlan.ResolvedModel target, ReplayWindow window) {
+            if (!canReuseRevision(target.modelType())) { return false; }
+            // The canonical owner of a historical alias may be resident under a different key.
+            if (!primaryOnly && EntityMetadata.of(target.modelType()).hasAliases()) { return true; }
+            Entity<?> cached = modelCache.get(target.modelId());
+            if (!(cached instanceof ModelRoot<?> root)) { return false; }
+            // A plain state read already validates a suffix when the cache is at or behind its boundary.
+            return !window.allowCurrentCache() || root.stateIndex() > window.baseStateIndex()
+                    && root instanceof ImmutableModelRoot<?> && root.previous() != null;
         }
 
         private boolean mayUseCombinedRead(List<MutationPlan.ResolvedModel> targets, ReplayWindow window, HeadProbe probe) {
@@ -2488,7 +2629,7 @@ final class ModelReplayCursor {
                 }
             }
             if (!aliased) {
-                return reconstruct(targets, window, cacheAtBoundary, probe, null, heads, readTokens, preparedBases);
+                return reconstructCanonical(targets, window, cacheAtBoundary, probe, heads, readTokens, preparedBases);
             }
             List<MutationPlan.ResolvedModel> canonicalTargets = new ArrayList<>(targets.size());
             Map<String, ModelHeadState> canonicalHeads = new LinkedHashMap<>();
@@ -2504,13 +2645,24 @@ final class ModelReplayCursor {
             }
             // Alias ownership is current metadata. Once selected, load the canonical stream at the pinned boundary.
             // Keep the original read fences: an owner discovered after I/O cannot receive a new publication token.
-            ReconstructionBatch loaded = reconstruct(canonicalTargets, window, cacheAtBoundary, probe,
-                    null, canonicalHeads, readTokens, preparedBases);
+            ReconstructionBatch loaded = reconstructCanonical(canonicalTargets, window, cacheAtBoundary, probe,
+                    canonicalHeads, readTokens, preparedBases);
             Map<String, Entity<?>> requested = new LinkedHashMap<>();
             for (int i = 0; i < targets.size(); i++) {
                 requested.put(targets.get(i).modelId(), loaded.entities().get(canonicalTargets.get(i).modelId()));
             }
             return new ReconstructionBatch(loaded.stateIndex(), requested, loaded.cachePublications());
+        }
+
+        private ReconstructionBatch reconstructCanonical(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                         boolean cacheAtBoundary, HeadProbe probe,
+                                                         Map<String, ModelHeadState> heads,
+                                                         Map<String, ModelCache.ReadToken> readTokens,
+                                                         Map<ModelKey, Entity<?>> preparedBases) {
+            Function<List<MutationPlan.ResolvedModel>, ReconstructionBatch> replay = missing ->
+                    reconstruct(missing, window, cacheAtBoundary, probe, null, heads, readTokens, preparedBases);
+            return !cacheAtBoundary && !window.prefix() && window.baseStateIndex() != null
+                    ? reuseRetained(targets, heads, window.baseStateIndex(), true, replay) : replay.apply(targets);
         }
 
         private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
@@ -3026,15 +3178,6 @@ final class ModelReplayCursor {
                 result.put(target.modelId(), entity);
             }
             return ordered(targets, result);
-        }
-
-        private Map<String, Entity<?>> ordered(
-                List<MutationPlan.ResolvedModel> targets,
-                Map<String, Entity<?>> values) {
-            LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
-            targets.forEach(target -> result.put(
-                    target.modelId(), values.get(target.modelId())));
-            return result;
         }
 
         private EventSourcingException incompleteHistory(String modelId) {

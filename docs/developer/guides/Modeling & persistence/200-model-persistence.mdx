@@ -345,8 +345,10 @@ Models use a shared current-state cache and an action-local cache:
 Use `FluxzeroBuilder.withModelCache(cache)` for a dedicated model cache, or
 `FluxzeroBuilder.disableAutomaticModelCaching()` to disable both shared model caching and its update tracker.
 
-Historical event-sourced Graph reads can reuse a cached value after storage confirms the exact revision at the
-requested boundary and complete event history. A complete reconstruction can also populate the same cache;
+Historical reads of event-sourced Models can reuse any retained revision after storage confirms the exact
+revision at the requested boundary and complete event history. This also applies when a Graph resolves an
+alias, navigates to a related Model, or loads several values together. Each missing value is reconstructed
+at the same boundary. A complete reconstruction can also populate the same cache;
 older reads never replace a newer cached revision. The Graph keeps its selected snapshot for relationship
 navigation. This does not provide missing historical DOCUMENT values.
 Historical-only reads do not start current-state tracking; retained values follow the configured cache's
