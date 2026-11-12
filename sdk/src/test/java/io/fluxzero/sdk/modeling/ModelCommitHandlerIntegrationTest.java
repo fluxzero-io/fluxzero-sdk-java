@@ -49,6 +49,7 @@ import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
@@ -335,6 +336,29 @@ class ModelCommitHandlerIntegrationTest {
                 .verifyExceptionalResult(error -> assertTrue(
                         error.toString().contains("Graph.apply") && error.toString().contains("@InterceptApply"),
                         error::toString));
+    }
+
+    @ParameterizedTest
+    @EnumSource(AppliedGraphResult.class)
+    void anAppliedDeletionCannotBeReturnedAsAStagedGraphDeletion(AppliedGraphResult result) {
+        AccountId id = new AccountId("deletion");
+        TestFixture.create(Account.class)
+                .givenCommands(new CreateAccount(id, 10))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id).assertAndApply(new ReturnAppliedDeletion(id, result)))
+                .expectNoEvents()
+                .expectThat(fc -> assertEquals(10, fc.modelRepository().load(id).get().balance()))
+                .verifyExceptionalResult(error -> assertTrue(error.getMessage().contains("return the update payload"),
+                                                            error::toString));
+    }
+
+    @Test
+    void interceptorMayInspectAnAppliedGraphAndReturnAnUpdatePayload() {
+        AccountId id = new AccountId("preview");
+        TestFixture.create(Account.class)
+                .givenCommands(new CreateAccount(id, 10))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id).assertAndApply(new PreviewCredit(id)))
+                .expectOnlyEvents(new ApplyTargetedCredit(id, 3))
+                .expectThat(fc -> assertEquals(13, fc.modelRepository().load(id).get().balance()));
     }
 
     @Test
@@ -3092,6 +3116,11 @@ class ModelCommitHandlerIntegrationTest {
     @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record Account(@EntityId AccountId accountId, int balance) {
         @Apply
+        Account apply(ClearAccount ignored) {
+            return null;
+        }
+
+        @Apply
         Account apply(SetExplicitValue command) {
             return new Account(accountId, balance + command.amount());
         }
@@ -3223,6 +3252,31 @@ class ModelCommitHandlerIntegrationTest {
         @InterceptApply
         Graph<Account> intercept(Graph<Account> account) {
             return account.apply(new ApplyTargetedCredit(accountId, 1));
+        }
+    }
+
+    private enum AppliedGraphResult { DIRECT, FILTERED, UPDATED, COMMITTED }
+
+    private record ReturnAppliedDeletion(AccountId accountId, AppliedGraphResult result) {
+        @InterceptApply
+        Graph<Account> intercept(Graph<Account> account) {
+            Graph<Account> preview = account.apply(new ClearAccount());
+            return switch (result) {
+                case DIRECT -> preview;
+                case FILTERED -> preview.filterBranches(branch -> true);
+                case UPDATED -> preview.update(value -> value);
+                case COMMITTED -> preview.commit();
+            };
+        }
+    }
+
+    private record ClearAccount() {}
+
+    private record PreviewCredit(AccountId accountId) {
+        @InterceptApply
+        ApplyTargetedCredit intercept(Graph<Account> account) {
+            int balance = account.apply(new SetExplicitValue(3)).get().balance();
+            return new ApplyTargetedCredit(accountId, balance - account.get().balance());
         }
     }
 
