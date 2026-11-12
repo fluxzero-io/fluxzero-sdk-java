@@ -496,7 +496,7 @@ public class InMemorySearchStore implements SearchClient {
                 String key = asIdentifier(request.getCollection(), request.getId());
                 modelDocumentVersions.replace(key, version, version.observed(document));
                 document = snapshot;
-                head = head.withDocumentVersion(of(snapshot, head));
+                head = head.withDocumentVersion(cacheVersion(snapshot, head));
             }
         }
         return new GetDocumentResult(
@@ -506,31 +506,41 @@ public class InMemorySearchStore implements SearchClient {
 
     private static SerializedDocument snapshotForCache(SerializedDocument source) {
         // The persisted proof predates interval minima and response-only continuation keys.
-        if (!source.getCollectionSortKeys().isEmpty() || source.getIndexes() != null
-            && source.getIndexes().stream().anyMatch(i -> i.getMinimum() != null)) { return null; }
         try {
+            if (!source.getCollectionSortKeys().isEmpty() || source.getIndexes() != null
+                && source.getIndexes().stream().anyMatch(i -> i.getMinimum() != null)) { return null; }
+            boolean supplied = source.serializedDataIfPresent().isPresent();
+            if (supplied && !source.hasDerivedDocumentView()) { return null; }
             var data = source.getDocument();
             var bytes = new Data<>(data.getValue().clone(), data.getType(), data.getRevision(), data.getFormat());
-            if (source.serializedDataIfPresent().isEmpty()) {
+            if (!supplied) {
                 // A native LocalClient envelope can have a separate logical view or custom binary encoding.
                 // Reuse only the standard representation. Never attempt to decode opaque application bytes.
+                if (!io.fluxzero.common.search.DefaultDocumentSerializer.INSTANCE.canDeserialize(bytes)) { return null; }
                 var view = source.deserializeDocument();
                 if (!Objects.equals(source.getId(), view.getId()) || !Objects.equals(source.getCollection(), view.getCollection())
-                    || !Objects.equals(source.getTimestamp(), view.getTimestamp() == null ? null : view.getTimestamp().toEpochMilli())
-                    || !Objects.equals(source.getEnd(), view.getEnd() == null ? null : view.getEnd().toEpochMilli())
+                    || !Objects.equals(view.getTimestamp(), source.getTimestamp() == null ? null : Instant.ofEpochMilli(source.getTimestamp()))
+                    || !Objects.equals(view.getEnd(), source.getEnd() == null ? null : Instant.ofEpochMilli(source.getEnd()))
                     || !bytes.equals(io.fluxzero.common.search.DefaultDocumentSerializer.INSTANCE.serialize(view))
                     || !Objects.equals(source.getSummary(), view.getSummary())
                     || !Objects.equals(source.getFacets(), view.getFacets()) || !Objects.equals(source.getIndexes(), view.getSortables())) {
                     return null;
                 }
             }
-            return new SerializedDocument(source.getId(), source.getTimestamp(), source.getEnd(), source.getCollection(),
+            var snapshot = new SerializedDocument(source.getId(), source.getTimestamp(), source.getEnd(), source.getCollection(),
                     bytes, source.getSummary(),
                     source.getFacets() == null ? null : java.util.Collections.unmodifiableSet(new LinkedHashSet<>(source.getFacets())),
                     source.getIndexes() == null ? null : java.util.Collections.unmodifiableSet(new LinkedHashSet<>(source.getIndexes())));
+            return supplied ? snapshot : snapshot.withData(() -> bytes);
         } catch (RuntimeException unavailable) {
             return null; // Optional evidence cannot change the ordinary reader's errors or behavior.
         }
+    }
+
+    private static String cacheVersion(SerializedDocument snapshot, ModelHeadState head) {
+        String proof = of(snapshot, head);
+        // A custom document serializer may select a different decoder for a native envelope.
+        return snapshot.serializedDataIfPresent().isPresent() ? proof : "native-" + proof;
     }
 
     /** Returns a body validator only for a source previously observed by a document reader. */
@@ -542,7 +552,7 @@ public class InMemorySearchStore implements SearchClient {
         if (document == null || version.observedSource().get() != document) { return selected; }
         var snapshot = snapshotForCache(document);
         if (snapshot == null) { return selected; }
-        String proof = of(snapshot, selected);
+        String proof = cacheVersion(snapshot, selected);
         return modelDocumentVersions.get(key) == version && documents.get(key) == document
                 ? selected.withDocumentVersion(proof) : selected;
     }

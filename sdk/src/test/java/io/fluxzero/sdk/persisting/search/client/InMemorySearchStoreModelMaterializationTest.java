@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.persisting.search.client;
 
 import io.fluxzero.common.SearchUtils;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
@@ -46,6 +47,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,6 +65,9 @@ import static io.fluxzero.common.api.search.constraints.QueryConstraint.query;
 import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -71,6 +76,54 @@ class InMemorySearchStoreModelMaterializationTest {
 
     private final InMemorySearchStore subject =
             new InMemorySearchStore(Duration.ofDays(1));
+
+    @ParameterizedTest
+    @MethodSource("localDocumentViews")
+    void documentCacheEvidencePreservesTheLocalSerializerView(SerializedDocument source, boolean reusable) {
+        materialize(1, source);
+        var ordinary = subject.fetchModelDocument(new GetDocument("model-1", "models", true, false));
+        var cached = subject.fetchModelDocument(new GetDocument("model-1", "models", true, false, true));
+        var before = ordinary.getDocument();
+        var after = cached.getDocument();
+        assertEquals(before.getDocument(), after.getDocument());
+        assertEquals(before.serializedDataIfPresent(), after.serializedDataIfPresent());
+        assertEquals(before.deserializeDocument(), after.deserializeDocument());
+        assertEquals(before.deserializeDocument().getSummary(), after.deserializeDocument().getSummary());
+        String version = cached.getModelHead().getDocumentVersion();
+        if (reusable) { assertNotNull(version); } else { assertNull(version); }
+        assertEquals(version, subject.attestDocumentVersion("models", ordinary.getModelHead()).getDocumentVersion());
+    }
+
+    static Stream<Arguments> localDocumentViews() {
+        var nativeSource = structuredDocument("model-1", "models", "native");
+        var alternate = structuredDocument("model-1", "models", "different").deserializeDocument();
+        var encoded = new SerializedDocument("model-1", null, null, "models", nativeSource.getDocument(),
+                                             "native", Set.of(), Set.of());
+        var opaque = new SerializedDocument("model-1", null, null, "models",
+                new Data<>(new byte[]{1, 2}, "TestModel", 0, "application/custom"), "native", Set.of(), Set.of());
+        var time = Instant.parse("2026-01-01T00:00:00.123456789Z");
+        var precise = new SerializedDocument(nativeSource.deserializeDocument().toBuilder()
+                .timestamp(time).end(time.plusNanos(1)).build());
+        return Stream.of(Arguments.of(nativeSource, true), Arguments.of(encoded, true), Arguments.of(opaque, true),
+                         Arguments.of(encoded.toBuilder().document(() -> alternate).build(), false),
+                         Arguments.of(opaque.toBuilder().document(() -> alternate).build(), false),
+                         Arguments.of(precise, false));
+    }
+
+    @Test
+    void nativeAndEncodedSourcesAtTheSameRevisionGiveDistinctCacheEvidence() {
+        var nativeSource = structuredDocument("model-1", "models", "native");
+        materialize(1, nativeSource);
+        var request = new GetDocument("model-1", "models", true, false, true);
+        var nativeHead = subject.fetchModelDocument(request).getModelHead();
+        var encoded = new SerializedDocument("model-1", null, null, "models", nativeSource.getDocument(),
+                                             "native", Set.of(), Set.of());
+        subject.index(List.of(encoded), STORED, false).join();
+        var encodedHead = subject.fetchModelDocument(request).getModelHead();
+        assertEquals(nativeHead, encodedHead);
+        assertNotNull(encodedHead.getDocumentVersion());
+        assertNotEquals(nativeHead.getDocumentVersion(), encodedHead.getDocumentVersion());
+    }
 
     @Test
     void hardErasureOwnsModelStorageButNotIndependentDocumentsAndRejectsLateWork() {

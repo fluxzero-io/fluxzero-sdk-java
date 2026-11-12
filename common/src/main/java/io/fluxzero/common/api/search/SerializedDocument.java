@@ -170,7 +170,12 @@ public class SerializedDocument {
         this.timestamp = timestamp;
         this.end = end;
         this.collection = collection;
-        this.data = data == null ? memoize(() -> DefaultDocumentSerializer.INSTANCE.serialize(document.get())) : data;
+        if (data instanceof SuppliedData supplied && document != null && supplied.derivedView()) {
+            // A builder or transformation may supply an independent logical view together with the original bytes.
+            this.data = new SuppliedData(supplied.value(), false);
+        } else {
+            this.data = data == null ? memoize(() -> DefaultDocumentSerializer.INSTANCE.serialize(document.get())) : data;
+        }
         this.document = document == null
                 ? memoize(() -> {
             Data<byte[]> d = data.get();
@@ -211,7 +216,17 @@ public class SerializedDocument {
         return data instanceof SuppliedData supplied ? Optional.ofNullable(supplied.value()) : Optional.empty();
     }
 
-    private record SuppliedData(Data<byte[]> value) implements Supplier<Data<byte[]>> {
+    /**
+     * Whether the logical view is known to be derived entirely from the directly supplied bytes and envelope fields.
+     * A document with a separately supplied view can expose its own entries or retain finer timestamp precision.
+     */
+    @JsonIgnore
+    public boolean hasDerivedDocumentView() {
+        return data instanceof SuppliedData supplied && supplied.derivedView();
+    }
+
+    private record SuppliedData(Data<byte[]> value, boolean derivedView) implements Supplier<Data<byte[]>> {
+        private SuppliedData(Data<byte[]> value) { this(value, true); }
         @Override public Data<byte[]> get() { return value; }
     }
 
