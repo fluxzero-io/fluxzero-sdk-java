@@ -354,7 +354,8 @@ navigation. This does not provide missing historical DOCUMENT values.
 Historical-only reads do not start current-state tracking; retained values follow the configured cache's
 limits, eviction and clearing policy. Every new explicitly pinned root load still validates its selected head in storage.
 
-The default `cachingDepth` keeps a previous revision cheaply available. It is a performance setting, not the source
+The default `cachingDepth = 10` keeps up to ten earlier revisions per cached event-sourced Model.
+Each change to that Model counts separately, including changes in the same commit. It is a performance setting, not the source
 or retention limit of historical truth: `EVENT_SOURCED` can reconstruct earlier values after cache eviction. Increase
 the depth only when measured historical reads warrant it. `DOCUMENT` alone has no durable previous versions; do not
 make `previous()`-based business logic depend on a coincidentally warm cache.

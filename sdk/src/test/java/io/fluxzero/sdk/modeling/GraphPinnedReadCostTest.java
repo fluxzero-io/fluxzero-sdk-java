@@ -157,6 +157,7 @@ class GraphPinnedReadCostTest {
                 Entity<Value> root = cache.get(ROOT.toString());
                 assertEquals(4, root.get().revision());
                 assertEquals(3, root.previous().get().revision());
+                assertNull(root.previous().previous());
             } finally {
                 cacheReady.complete(null);
             }
@@ -412,7 +413,7 @@ class GraphPinnedReadCostTest {
 
     record Snapshot(long stateIndex, List<Value> values) {}
 
-    @Model(searchable = false)
+    @Model(searchable = false, cachingDepth = 1)
     record Value(@EntityId ValueId valueId, int revision) {}
 
     static final class ValueId extends Id<Value> {

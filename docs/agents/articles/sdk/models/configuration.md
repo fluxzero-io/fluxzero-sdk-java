@@ -57,7 +57,7 @@ Important settings:
   Concurrent writes may retain excess until a later bounded snapshot write; idle Models have no cleanup deadline.
   Snapshot insertion still completes before successful commit acknowledgement. This applies to Java and Kotlin.
 - `checkpointPeriod`: bounds repeated replay work within one reconstruction session.
-- `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
+- `cached` and `cachingDepth`: a cached event-sourced Model retains its current revision and up to ten previous revisions by default, counting each change within a commit.
 - `conflictPolicy`: `ACCEPT`, `RETRY`, `FAIL` or inherited `DEFAULT` for concurrent writes.
 - `commitPolicy`: controls commit timing and completion-phase concurrency; normally keep `DEFAULT`.
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.

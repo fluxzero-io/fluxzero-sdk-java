@@ -1580,22 +1580,19 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
-    void modelCacheRetainsOnePreviousRevisionByDefault() {
-        AccountId id = new AccountId("latest-only");
+    void defaultModelCacheRetainsTenPreviousRevisionsAcrossCommitSubsteps() {
+        AccountId id = new AccountId("default-history");
         try (Fluxzero fluxzero = configuredFluxzero()) {
-            fluxzero.commandGateway().send(
-                    new CreateAccount(id, 1)).join();
-            fluxzero.commandGateway().send(
-                    new ChangeAccount(id, 1)).join();
+            fluxzero.commandGateway().send(new CreateAccount(id, 0)).join();
+            fluxzero.commandGateway().send(new IncrementAccountRepeatedly(id, 11)).join();
 
-            var result = fluxzero.modelRepository().load(id);
-
-            assertEquals(new Account(id, 2), result.get());
-            assertNotNull(result.previous());
-            assertEquals(
-                    new Account(id, 1),
-                    result.previous().get());
-            assertNull(result.previous().previous());
+            var revision = fluxzero.modelRepository().load(id);
+            for (int balance = 11; balance >= 1; balance--) {
+                assertNotNull(revision);
+                assertEquals(new Account(id, balance), revision.get());
+                revision = revision.previous();
+            }
+            assertNull(revision);
         }
     }
 
@@ -2542,6 +2539,13 @@ class DefaultModelRepositoryTest {
         @Apply
         Account apply(Account account) {
             return new Account(accountId, (account == null ? 0 : account.balance()) + delta);
+        }
+    }
+
+    private record IncrementAccountRepeatedly(AccountId accountId, int count) {
+        @InterceptApply
+        List<ChangeAccount> expand() {
+            return IntStream.range(0, count).mapToObj(i -> new ChangeAccount(accountId, 1)).toList();
         }
     }
 
