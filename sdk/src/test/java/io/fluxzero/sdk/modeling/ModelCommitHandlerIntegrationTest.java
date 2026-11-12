@@ -325,6 +325,19 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void explainsGraphApplyInsideAnInterceptor() {
+        AccountId id = new AccountId("credit");
+        TestFixture.create(Account.class)
+                .givenCommands(new CreateAccount(id, 10))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id).assertAndApply(new ApplyCreditInsideInterceptor(id)))
+                .expectNoEvents()
+                .expectThat(fc -> assertEquals(10, fc.modelRepository().load(id).get().balance()))
+                .verifyExceptionalResult(error -> assertTrue(
+                        error.toString().contains("Graph.apply") && error.toString().contains("@InterceptApply"),
+                        error::toString));
+    }
+
+    @Test
     void graphAssertAndApplyRetainsTheSelectedIdentityAcrossInterception() {
         AccountId payloadId = new AccountId("targeted-payload");
         AccountId selectedId = new AccountId("targeted-selected");
@@ -3203,6 +3216,13 @@ class ModelCommitHandlerIntegrationTest {
         @Apply(eventPublication = EventPublication.ALWAYS)
         Account apply(Account account) {
             return account;
+        }
+    }
+
+    private record ApplyCreditInsideInterceptor(AccountId accountId) {
+        @InterceptApply
+        Graph<Account> intercept(Graph<Account> account) {
+            return account.apply(new ApplyTargetedCredit(accountId, 1));
         }
     }
 
