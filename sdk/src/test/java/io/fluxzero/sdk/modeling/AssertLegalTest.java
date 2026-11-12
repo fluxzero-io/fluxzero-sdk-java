@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 import static io.fluxzero.sdk.modeling.AssertLegal.HIGHEST_PRIORITY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class AssertLegalTest {
@@ -146,6 +147,9 @@ public class AssertLegalTest {
             assertEquals(new Model2("initial"), root.get());
             root.assertAndApply(new SetValue("accepted"));
             assertEquals(new Model2("accepted"), root.get());
+            var events = fc.eventStore().getEvents(aggregateId).toList();
+            assertEquals(2, events.size());
+            assertFalse(events.getLast().getMetadata().containsKey(fc.correlationDataProvider().getInvocationKey()));
         });
     }
 

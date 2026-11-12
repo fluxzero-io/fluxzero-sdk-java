@@ -125,7 +125,9 @@ import java.lang.annotation.Target;
  *
  * <h2>Execution timing</h2>
  * By default, checks run immediately during handler execution. You can defer them until after the handler completes
- * (after any @Apply invocations but just before aggregate updates are committed) using {@link #afterHandler()}.
+ * using {@link #afterHandler()}. For an Aggregate, deferred checks see the final state of the handler and
+ * run before its automatic Aggregate commits. A direct {@link Entity#assertAndApply(Object)} call outside
+ * a handler supplies the same boundary for its updates.
  *
  * @see io.fluxzero.sdk.modeling.Entity#assertLegal
  */

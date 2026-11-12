@@ -540,8 +540,8 @@ including every intercepted output and automatic child deletion. This includes o
 assertions as well as retained current-input and cascading checks. Immediate assertions still run before their own
 step and see earlier staged changes. Each deferred check retains its own payload, metadata and user context;
 a refusal rolls back the whole operation. Splitting an action does not introduce intermediate after-handler phases.
-This boundary covers one Model operation, not separate commands or commits. Aggregate/Entity keeps its existing
-handler-completion phase. These checks are pure validation and must not perform external effects.
+This boundary covers one Model operation, not separate commands or commits. For Aggregates, `@AssertLegal(afterHandler = true)` checks the final state of the handler before automatic commit.
+A direct `assertAndApply` call outside a handler checks the final state of that call. These checks are pure validation and must not perform external effects.
 Immediate-only Model `assertLegal` does not run after-handler assertions. Apply-only legacy paths and replay do not
 start running assertions. Interceptors and assertions must remain free of external side effects.
 
