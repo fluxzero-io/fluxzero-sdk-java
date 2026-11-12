@@ -65,7 +65,12 @@ another validation needs them. Only collections actually fetched and retained af
 
 ## Model cache tracking
 
-Explicit historical Graph reads validate the selected head before reusing an exact cached EVENT_SOURCED revision.
+Historical Model and Graph reads can reuse a retained EVENT_SOURCED revision when the selected durable head
+proves its canonical ID, concrete type, sequence, state index and deletion state. Match the revision against the
+Model head at the selected boundary. The namespace boundary can be later than the Model's last change.
+This applies to lazy values, aliases, relationship navigation and batched reconstruction. Exclusive Graph
+reads select the preceding value of a Model changed at the boundary. Internal replay of a partial commit
+still follows its read state and earlier substeps.
 Complete reconstructed revisions may seed the existing Model cache with its normal publication fencing and
 newer-revision precedence; they do not establish current tracker coverage. Keep the original Graph boundary for
 relationships and history. Incomplete historical heads retain their replay errors, and `cached = false` and

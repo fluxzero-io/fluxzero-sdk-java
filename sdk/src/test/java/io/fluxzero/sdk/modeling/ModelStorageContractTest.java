@@ -99,7 +99,7 @@ class ModelStorageContractTest {
 
     static Stream<Arguments> cacheDepths() {
         return Stream.of(false, true).flatMap(async -> Stream.of(
-                Arguments.of(DefaultCounter.class, async, 1),
+                Arguments.of(DefaultCounter.class, async, 3),
                 Arguments.of(LatestCounter.class, async, 0),
                 Arguments.of(HistoryCounter.class, async, 3)));
     }

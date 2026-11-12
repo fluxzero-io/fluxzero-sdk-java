@@ -18,14 +18,23 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.repository.ModelGraphResolver;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.Consumer;
+import io.fluxzero.sdk.tracking.Tracker;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -103,6 +112,157 @@ class GraphPinnedReadCostTest {
             long bytes = client.reads.stream().mapToLong(r -> r.result().getBytes()).sum();
             assertEquals(0L, bytes);
         }
+    }
+
+    @Test
+    void changeHandlersReadTheRetainedPredecessorWithoutReplayingEvents() {
+        var client = new ObservedClient();
+        var cacheReady = new CompletableFuture<Void>();
+        record Change(String consumer, int before, int after, long beforeBoundary) {}
+        List<Change> changes = new CopyOnWriteArrayList<>();
+        class Observer {
+            void observe(Graph<Value> graph) throws Exception {
+                cacheReady.get(5, TimeUnit.SECONDS);
+                var previous = graph.previous();
+                changes.add(new Change(Tracker.current().orElseThrow().getName(),
+                        previous.get().revision(), graph.get().revision(), previous.stateIndex()));
+            }
+        }
+        @Consumer(name = "first-event")
+        class FirstEvent extends Observer {
+            @HandleEvent(allowedClasses = IncrementValue.class)
+            void on(Graph<Value> graph) throws Exception { observe(graph); }
+        }
+        @Consumer(name = "second-event")
+        class SecondEvent extends Observer {
+            @HandleEvent(allowedClasses = IncrementValue.class)
+            void on(Graph<Value> graph) throws Exception { observe(graph); }
+        }
+        @Consumer(name = "notification")
+        class Notification extends Observer {
+            @HandleNotification(allowedClasses = IncrementValue.class)
+            void on(Graph<Value> graph) throws Exception { observe(graph); }
+        }
+        var fixture = TestFixture.createAsync(DefaultFluxzero.builder(), client)
+                .registerHandlers(new FirstEvent(), new SecondEvent(), new Notification())
+                .givenCommands(new PutValue(ROOT, 0), new PutValue(ROOT, 1),
+                               new PutValue(ROOT, 2), new PutValue(ROOT, 3),
+                               new PutValue(DEPENDENCIES.getFirst(), 1));
+        fixture.whenExecuting(fc -> {
+            try {
+                client.reads.clear();
+                fc.commandGateway().sendAndWait(new IncrementValue(ROOT));
+                client.awaitTrackerAtHead();
+                Cache cache = ReflectionUtils.<Cache>getFieldValue("modelCache", fc.modelRepository()).orElseThrow();
+                Entity<Value> root = cache.get(ROOT.toString());
+                assertEquals(4, root.get().revision());
+                assertEquals(3, root.previous().get().revision());
+                assertNull(root.previous().previous());
+            } finally {
+                cacheReady.complete(null);
+            }
+        }).expectSuccessfulResult().expectNoErrors();
+        assertEquals(List.of("first-event", "notification", "second-event"),
+                changes.stream().map(Change::consumer).sorted().toList());
+        long boundary = changes.getFirst().beforeBoundary();
+        changes.forEach(change -> assertEquals(new Change(change.consumer(), 3, 4, boundary), change));
+        assertEquals(0, client.reads.stream()
+                .filter(r -> Long.valueOf(boundary).equals(r.request().getBoundary().stateIndex()))
+                .mapToInt(r -> r.result().getPayloadCount()).sum());
+
+        // Evict the predecessor and read the same boundary from durable history.
+        fixture.whenExecuting(fc -> {
+            clearCache(fc);
+            client.reads.clear();
+            assertEquals(3, Fluxzero.loadGraph(ROOT).atStateIndex(boundary).get().revision());
+        }).expectSuccessfulResult().expectNoErrors();
+        assertEquals(4, client.reads.stream().mapToInt(r -> r.result().getPayloadCount()).sum());
+    }
+
+    @Test
+    void pinnedValuesShareRetainedRevisionsAcrossGraphReadPaths() throws Exception {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client)) {
+            commit(app, new PutItem("parent", null, "p", 0));
+            commit(app, new PutItem("child", "parent", "alias", 1));
+            client.awaitTrackerAtHead();
+            long first = app.apply(fc -> Fluxzero.loadCurrentGraph("child", Item.class).stateIndex());
+            commit(app, new PutItem("child", "parent", "alias", 2));
+            client.awaitTrackerAtHead();
+            long second = app.apply(fc -> Fluxzero.loadCurrentGraph("child", Item.class).stateIndex());
+            var resolver = (ModelGraphResolver) app.modelRepository();
+            client.reads.clear();
+            var creation = resolver.resolveGraphIdentity("child", true, Object.class, ModelReadBoundary.at(first).asBefore());
+            var empty = creation.entity().get();
+            assertTrue(empty.isEmpty());
+            assertEquals(Item.class, empty.type());
+            assertEquals("id", empty.idProperty());
+            assertEquals(0, client.reads.stream().mapToInt(r -> r.result().getPayloadCount()).sum());
+
+            var expected = new Item("child", "parent", "alias", 1);
+            Cache cache = ReflectionUtils.<Cache>getFieldValue("modelCache", app.modelRepository()).orElseThrow();
+            for (var boundary : List.of(ModelReadBoundary.at(first), ModelReadBoundary.at(second).asBefore())) {
+                if (boundary.before()) {
+                    // Only the value before the selected change is resident.
+                    Entity<Item> latest = cache.get("child");
+                    cache.put("child", latest.previous());
+                }
+                client.reads.clear();
+                var value = resolver.loadGraphValue("alias", false, Item.class, boundary);
+                assertEquals(expected, value.entity().get());
+                assertEquals(boundary.stateIndex(), value.boundary().stateIndex());
+                var batch = resolver.loadGraphValues(Map.of("parent", Item.class, "child", Item.class),
+                        boundary, Map.of(), true);
+                assertEquals(expected, batch.get("child").get());
+                assertEquals(0, ((Item) batch.get("parent").get()).version());
+                var relations = resolver.loadGraphRelations(List.of("parent"), ModelRelationshipRead.Direction.CHILDREN,
+                        boundary, Map.of(), true);
+                assertEquals(expected, relations.models().get("child").entity().get().get());
+                var projection = resolver.loadGraphProjection("parent", Item.class, boundary, true);
+                assertEquals(expected, projection.children(Item.class).getFirst().get());
+                assertEquals(0, client.reads.stream().mapToInt(r -> r.result().getPayloadCount()).sum());
+            }
+
+            // The parent remains resident. Only the evicted child needs replay.
+            cache.remove("child");
+            client.reads.clear();
+            var mixed = resolver.loadGraphValues(Map.of("parent", Item.class, "child", Item.class),
+                    ModelReadBoundary.at(first), Map.of(), true);
+            assertEquals(expected, mixed.get("child").get());
+            assertEquals(0, ((Item) mixed.get("parent").get()).version());
+            assertEquals(List.of("child"), client.reads.stream().filter(r -> r.result().getPayloadCount() > 0)
+                    .flatMap(r -> r.request().getRequests().stream()).map(r -> r.getModelId()).toList());
+        }
+    }
+
+    @Test
+    void exclusiveReadReconstructsAnIntermediateRevisionMissingFromTheRetainedChain() throws Exception {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client)) {
+            Cache cache = ReflectionUtils.<Cache>getFieldValue("modelCache", app.modelRepository()).orElseThrow();
+            commit(app, new PutValue(ROOT, 0));
+            client.awaitTrackerAtHead();
+            Entity<Value> first = cache.get(ROOT.toString());
+            commit(app, new PutValue(ROOT, 1));
+            commit(app, new PutValue(ROOT, 2));
+            client.awaitTrackerAtHead();
+            ImmutableModelRoot<Value> latest = cache.get(ROOT.toString());
+            cache.put(ROOT.toString(), latest.withPrevious(first));
+
+            var resolver = (ModelGraphResolver) app.modelRepository();
+            var before = ModelReadBoundary.at(latest.stateIndex()).asBefore();
+            client.reads.clear();
+            assertEquals(new Value(ROOT, 1), resolver.loadGraphProjection(ROOT.toString(), Value.class, before, true).get());
+            assertTrue(client.reads.stream().anyMatch(r -> r.result().getPayloadCount() > 0));
+        }
+    }
+
+    @Model(searchable = false)
+    record Item(@EntityId String id, @Parent(value = Item.class, pathInParent = "children") String parentId,
+                @Alias String alias, int version) {}
+
+    record PutItem(String id, String parentId, String alias, int version) {
+        @Apply Item apply(@jakarta.annotation.Nullable Item before) { return new Item(id, parentId, alias, version); }
     }
 
     @Test
@@ -253,7 +413,7 @@ class GraphPinnedReadCostTest {
 
     record Snapshot(long stateIndex, List<Value> values) {}
 
-    @Model(searchable = false)
+    @Model(searchable = false, cachingDepth = 1)
     record Value(@EntityId ValueId valueId, int revision) {}
 
     static final class ValueId extends Id<Value> {
@@ -263,6 +423,10 @@ class GraphPinnedReadCostTest {
     record PutValue(ValueId valueId, int revision) {
         @Apply
         Value apply(@jakarta.annotation.Nullable Value before) { return new Value(valueId, revision); }
+    }
+
+    record IncrementValue(ValueId valueId) {
+        @Apply Value apply(Value before) { return new Value(valueId, before.revision() + 1); }
     }
 
     record Read(GetModelEvents request, GetModelEventsResult.Metric result) {}

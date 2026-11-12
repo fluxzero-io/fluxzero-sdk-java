@@ -386,6 +386,7 @@ class ModelReplayCursorTest {
             });
             ModelTypeResolver types = mock(ModelTypeResolver.class);
             when(types.modelType(head.getModelType(), id)).thenAnswer(ignored -> CachedReplayModel.class);
+            when(types.modelName(CachedReplayModel.class)).thenReturn(head.getModelType());
             JacksonSerializer serializer = mock(JacksonSerializer.class);
             EntityHelper helper = mock(EntityHelper.class);
             var cursor = new ModelReplayCursor(client, serializer, helper, new MutationPlan.Compiler(List.of()),
@@ -397,6 +398,18 @@ class ModelReplayCursorTest {
             assertTrue(identity.historical());
             assertSame(root, identity.entity().get());
             verify(client).getModelEvents(any());
+
+            var next = root.toBuilder().sequenceNumber(1L).stateIndex(30L).previous(root).build();
+            cache.put(id, next.toBuilder().sequenceNumber(2L).stateIndex(40L).previous(next).build());
+            var retained = cursor.graphIdentity(id, CachedReplayModel.class, boundary, true, null);
+            assertEquals(20L, retained.boundary().stateIndex());
+            assertSame(root, retained.entity().get());
+            var target = new MutationPlan.ResolvedModel(id, CachedReplayModel.class,
+                    MutationPlan.Access.READ_ONLY, List.of("id"));
+            var batch = cursor.session().reconstruct(List.of(target), boundary);
+            assertEquals(20L, batch.stateIndex());
+            assertSame(root, batch.entities().get(id));
+            assertTrue(batch.cachePublications().isEmpty());
             verifyNoInteractions(serializer, helper);
         }
     }

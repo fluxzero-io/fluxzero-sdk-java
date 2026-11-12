@@ -271,6 +271,11 @@ final class ModelCache implements Cache {
         return get(id, stamp(id));
     }
 
+    /** An empty state table rules out every readable revision, including unknown alias owners. */
+    boolean mayHaveEntries() {
+        return !states.isEmpty();
+    }
+
     @Override
     public boolean containsKey(Object id) {
         Stamp expected = stamp(id);

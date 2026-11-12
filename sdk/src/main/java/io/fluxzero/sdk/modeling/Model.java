@@ -201,11 +201,10 @@ public @interface Model {
      * Number of older model versions retained in the shared cache. {@code -1} retains all available cached versions;
      * {@code 0} retains only the latest version.
      * <p>
-     * Independent models retain one previous version by default so event handlers can compare the event-visible model
-     * with {@link Entity#previous()}. Retaining an unbounded revision chain must be an explicit choice because model
-     * caches are expected to contain far more keys than aggregate caches.
+     * Cached event-sourced models retain up to ten previous revisions by default. Each stored change to the
+     * same model counts as one revision, including changes within a single commit.
      */
-    int cachingDepth() default 1;
+    int cachingDepth() default 10;
 
     /**
      * Frequency at which intermediate states are checkpointed within one reconstruction session.

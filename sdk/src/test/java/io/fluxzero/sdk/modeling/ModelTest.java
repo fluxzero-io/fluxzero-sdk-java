@@ -55,7 +55,7 @@ class ModelTest {
         assertEquals(0, model.snapshotPeriod());
         assertEquals(1, model.maxSnapshotCount());
         assertTrue(model.cached());
-        assertEquals(1, model.cachingDepth());
+        assertEquals(10, model.cachingDepth());
         assertEquals(100, model.checkpointPeriod());
         assertEquals(ModelCommitPolicy.DEFAULT, model.commitPolicy());
         assertEquals(IF_MODIFIED, model.eventPublication());
