@@ -397,6 +397,12 @@ class ModelReplayCursorTest {
             assertTrue(identity.historical());
             assertSame(root, identity.entity().get());
             verify(client).getModelEvents(any());
+
+            var next = root.toBuilder().sequenceNumber(1L).stateIndex(30L).previous(root).build();
+            cache.put(id, next.toBuilder().sequenceNumber(2L).stateIndex(40L).previous(next).build());
+            var retained = cursor.graphIdentity(id, CachedReplayModel.class, boundary, true, null);
+            assertEquals(20L, retained.boundary().stateIndex());
+            assertSame(root, retained.entity().get());
             verifyNoInteractions(serializer, helper);
         }
     }

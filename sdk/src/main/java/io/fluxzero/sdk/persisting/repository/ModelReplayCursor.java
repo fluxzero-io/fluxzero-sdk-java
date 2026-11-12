@@ -1570,11 +1570,18 @@ final class ModelReplayCursor {
                             ModelCacheTracker.CurrentModel cached = cacheTracker.peekCurrentVersion(id, storedType);
                             cachedRevision = cached == null ? null : cached.entity();
                         }
-                        if (cachedRevision instanceof ModelRoot<?> root && root.type().equals(storedType)
-                            && id.equals(root.id().toString()) && root.sequenceNumber() == head.getSequenceNumber()
-                            && root.stateIndex() == head.getStateIndex()) {
-                            // The pinned head proves the revision; it does not advance this Graph's snapshot.
-                            return root;
+                        while (cachedRevision instanceof ModelRoot<?> root && root.type().equals(storedType)
+                               && id.equals(root.id().toString())) {
+                            if (root.sequenceNumber() == head.getSequenceNumber()
+                                && root.stateIndex() == head.getStateIndex()) {
+                                // The pinned head proves the revision; the Graph keeps its own snapshot boundary.
+                                return root;
+                            }
+                            if (!cacheRevision || root.sequenceNumber() <= head.getSequenceNumber()
+                                || !(root instanceof ImmutableModelRoot<?>)) {
+                                break;
+                            }
+                            cachedRevision = root.previous();
                         }
                         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                                 id, storedType, MutationPlan.Access.READ_ONLY,

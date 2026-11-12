@@ -19,6 +19,8 @@ import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
@@ -26,6 +28,10 @@ import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.Consumer;
+import io.fluxzero.sdk.tracking.Tracker;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -103,6 +109,70 @@ class GraphPinnedReadCostTest {
             long bytes = client.reads.stream().mapToLong(r -> r.result().getBytes()).sum();
             assertEquals(0L, bytes);
         }
+    }
+
+    @Test
+    void changeHandlersReadTheRetainedPredecessorWithoutReplayingEvents() {
+        var client = new ObservedClient();
+        var cacheReady = new CompletableFuture<Void>();
+        record Change(String consumer, int before, int after, long beforeBoundary) {}
+        List<Change> changes = new CopyOnWriteArrayList<>();
+        class Observer {
+            void observe(Graph<Value> graph) throws Exception {
+                cacheReady.get(5, TimeUnit.SECONDS);
+                var previous = graph.previous();
+                changes.add(new Change(Tracker.current().orElseThrow().getName(),
+                        previous.get().revision(), graph.get().revision(), previous.stateIndex()));
+            }
+        }
+        @Consumer(name = "first-event")
+        class FirstEvent extends Observer {
+            @HandleEvent(allowedClasses = IncrementValue.class)
+            void on(Graph<Value> graph) throws Exception { observe(graph); }
+        }
+        @Consumer(name = "second-event")
+        class SecondEvent extends Observer {
+            @HandleEvent(allowedClasses = IncrementValue.class)
+            void on(Graph<Value> graph) throws Exception { observe(graph); }
+        }
+        @Consumer(name = "notification")
+        class Notification extends Observer {
+            @HandleNotification(allowedClasses = IncrementValue.class)
+            void on(Graph<Value> graph) throws Exception { observe(graph); }
+        }
+        var fixture = TestFixture.createAsync(DefaultFluxzero.builder(), client)
+                .registerHandlers(new FirstEvent(), new SecondEvent(), new Notification())
+                .givenCommands(new PutValue(ROOT, 0), new PutValue(ROOT, 1),
+                               new PutValue(ROOT, 2), new PutValue(ROOT, 3),
+                               new PutValue(DEPENDENCIES.getFirst(), 1));
+        fixture.whenExecuting(fc -> {
+            try {
+                client.reads.clear();
+                fc.commandGateway().sendAndWait(new IncrementValue(ROOT));
+                client.awaitTrackerAtHead();
+                Cache cache = ReflectionUtils.<Cache>getFieldValue("modelCache", fc.modelRepository()).orElseThrow();
+                Entity<Value> root = cache.get(ROOT.toString());
+                assertEquals(4, root.get().revision());
+                assertEquals(3, root.previous().get().revision());
+            } finally {
+                cacheReady.complete(null);
+            }
+        }).expectSuccessfulResult().expectNoErrors();
+        assertEquals(List.of("first-event", "notification", "second-event"),
+                changes.stream().map(Change::consumer).sorted().toList());
+        long boundary = changes.getFirst().beforeBoundary();
+        changes.forEach(change -> assertEquals(new Change(change.consumer(), 3, 4, boundary), change));
+        assertEquals(0, client.reads.stream()
+                .filter(r -> Long.valueOf(boundary).equals(r.request().getBoundary().stateIndex()))
+                .mapToInt(r -> r.result().getPayloadCount()).sum());
+
+        // Evict the predecessor and read the same boundary from durable history.
+        fixture.whenExecuting(fc -> {
+            clearCache(fc);
+            client.reads.clear();
+            assertEquals(3, Fluxzero.loadGraph(ROOT).atStateIndex(boundary).get().revision());
+        }).expectSuccessfulResult().expectNoErrors();
+        assertEquals(4, client.reads.stream().mapToInt(r -> r.result().getPayloadCount()).sum());
     }
 
     @Test
@@ -263,6 +333,10 @@ class GraphPinnedReadCostTest {
     record PutValue(ValueId valueId, int revision) {
         @Apply
         Value apply(@jakarta.annotation.Nullable Value before) { return new Value(valueId, revision); }
+    }
+
+    record IncrementValue(ValueId valueId) {
+        @Apply Value apply(Value before) { return new Value(valueId, before.revision() + 1); }
     }
 
     record Read(GetModelEvents request, GetModelEventsResult.Metric result) {}
