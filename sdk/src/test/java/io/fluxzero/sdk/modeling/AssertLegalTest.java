@@ -24,6 +24,8 @@ import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import jakarta.validation.constraints.Null;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 import static io.fluxzero.sdk.modeling.AssertLegal.HIGHEST_PRIORITY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class AssertLegalTest {
 
@@ -120,6 +123,32 @@ public class AssertLegalTest {
         testFixture.whenCommand(new CommandWithAssertAfterApply()).expectExceptionalResult(MockException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void assertAndApplyRejectsFinalAggregateStateBeforeStoringEitherUpdate(boolean async) {
+        TestFixture fixture = async ? testFixture.async() : testFixture;
+        fixture.givenAppliedEvents(aggregateId, Model2.class, "initial")
+                .whenCommand(new SetValue("rejected"))
+                .expectExceptionalResult(MockException.class).expectNoEvents()
+                .expectThat(fc -> {
+                    assertEquals(List.of("initial"), fc.eventStore().getEvents(aggregateId)
+                            .map(message -> message.getPayload()).toList());
+                    assertEquals(new Model2("initial"), loadAggregate(aggregateId, Model2.class).get());
+                });
+    }
+
+    @Test
+    void standaloneAssertAndApplyChecksFinalStateAndRecoversAfterRejection() {
+        testFixture.givenAppliedEvents(aggregateId, Model2.class, "initial");
+        testFixture.getFluxzero().execute(fc -> {
+            Entity<Model2> root = loadAggregate(aggregateId, Model2.class);
+            assertThrows(MockException.class, () -> root.assertAndApply(new SetValue("rejected")));
+            assertEquals(new Model2("initial"), root.get());
+            root.assertAndApply(new SetValue("accepted"));
+            assertEquals(new Model2("accepted"), root.get());
+        });
+    }
+
     @Test
     void testBeforeAndAfterHandlerAssertionsAreFilteredSeparately() {
         CommandWithMixedBeforeAndAfterAssertions command = new CommandWithMixedBeforeAndAfterAssertions();
@@ -172,6 +201,11 @@ public class AssertLegalTest {
         @HandleCommand
         void handle(Object command) {
             loadAggregate(aggregateId, TestModel.class).assertLegal(command).apply(command);
+        }
+
+        @HandleCommand
+        void handle(SetValue command) {
+            loadAggregate(aggregateId, Model2.class).apply(new SetValue("intermediate")).assertAndApply(command);
         }
 
         @HandleCommand
@@ -312,6 +346,20 @@ public class AssertLegalTest {
         @Apply
         static Model2 apply(String event) {
             return new Model2(event);
+        }
+    }
+
+    private record SetValue(String value) {
+        @Apply
+        Model2 apply(Model2 current) {
+            return new Model2(value);
+        }
+
+        @AssertLegal(afterHandler = true)
+        void check(Entity<Model2> entity) {
+            if ("rejected".equals(entity.get().getEvent())) {
+                throw new MockException();
+            }
         }
     }
 
