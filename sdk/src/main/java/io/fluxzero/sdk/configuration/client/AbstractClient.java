@@ -144,14 +144,7 @@ public abstract class AbstractClient extends AbstractNamespaced<Client> implemen
      */
     @Override
     public GatewayClient getGatewayClient(MessageType messageType, String topic) {
-        switch (messageType) {
-            case DOCUMENT, CUSTOM -> requireNonNull(topic);
-            default -> {
-                if (topic != null) {
-                    throw new IllegalArgumentException("Topic is not supported for message type: " + messageType);
-                }
-            }
-        }
+        validateTopic(messageType, topic);
         if (!gatewayClients.isCached(messageType, topic)) {
             synchronized (gatewayClients) {
                 if (!gatewayClients.isCached(messageType, topic)) {
@@ -163,6 +156,17 @@ public abstract class AbstractClient extends AbstractNamespaced<Client> implemen
             }
         }
         return gatewayClients.apply(messageType, topic);
+    }
+
+    static void validateTopic(MessageType messageType, String topic) {
+        switch (messageType) {
+            case DOCUMENT, CUSTOM -> requireNonNull(topic);
+            default -> {
+                if (topic != null) {
+                    throw new IllegalArgumentException("Topic is not supported for message type: " + messageType);
+                }
+            }
+        }
     }
 
     @Override

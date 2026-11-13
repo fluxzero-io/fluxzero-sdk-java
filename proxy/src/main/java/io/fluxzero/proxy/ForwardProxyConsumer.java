@@ -1108,6 +1108,11 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             }
         }
 
+        boolean isRunning() {
+            return !cancelled.get() && consumer.runningConsumers.get(consumer.consumerName)
+                    instanceof DefaultTracker.TrackerRegistration workers && workers.isRunning();
+        }
+
         void force() {
             consumer.forceActiveRequests();
         }

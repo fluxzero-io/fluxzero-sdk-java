@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import static io.fluxzero.common.MessageType.CUSTOM;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.CLIENT_ID_PROPERTY;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.LEGACY_CLIENT_ID_PROPERTY;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.LEGACY_TASK_ID_PROPERTY;
@@ -36,6 +37,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebSocketClientConfigTest {
+
+    @Test
+    void shutdownRejectsObservationsEvenForUnusedTopics() {
+        var client = WebSocketClient.newInstance(clientConfigBuilder().build());
+        client.shutDown();
+        assertThrows(IllegalStateException.class, () -> client.monitorPublishing(CUSTOM, "unused", ignored -> {}));
+        assertThrows(IllegalStateException.class, () -> client.monitorTracking(CUSTOM, "unused", ignored -> {}));
+    }
 
     @Test
     void absentDeliveryOverrideRetainsOperationFallbackAcrossNamespaceCopies() {

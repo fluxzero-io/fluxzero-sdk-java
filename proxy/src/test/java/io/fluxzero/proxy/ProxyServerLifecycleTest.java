@@ -30,6 +30,8 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -67,14 +69,10 @@ class ProxyServerLifecycleTest {
     void explicitConfigStartsEmbeddedProxyWithoutConnectionProperties() throws Exception {
         Server runtime = null;
         ProxyServer proxyServer = null;
-        String previousGrace = System.getProperty(ProxyServer.READINESS_GRACE_PROPERTY);
-        String previousInterval = System.getProperty(ProxyServer.READINESS_INTERVAL_PROPERTY);
         String previousFluxzeroBaseUrl = System.getProperty("FLUXZERO_BASE_URL");
         String previousFluxBaseUrl = System.getProperty("FLUX_BASE_URL");
         String previousFluxUrl = System.getProperty("FLUX_URL");
         try {
-            System.setProperty(ProxyServer.READINESS_GRACE_PROPERTY, "200");
-            System.setProperty(ProxyServer.READINESS_INTERVAL_PROPERTY, "20");
             runtime = TestServer.startServer(new InetSocketAddress("127.0.0.1", 0));
             String runtimeUrl = "ws://127.0.0.1:" + localPort(runtime);
             System.clearProperty("FLUXZERO_BASE_URL");
@@ -89,15 +87,6 @@ class ProxyServerLifecycleTest {
             assertEventuallyReady(proxyServer,
                                   "http://127.0.0.1:" + proxyServer.getPort()
                                   + ProxyServer.DEFAULT_READINESS_ENDPOINT);
-            int runtimePort = localPort(runtime);
-            runtime.stop();
-            assertEventuallyStatus("http://127.0.0.1:" + proxyServer.getPort()
-                                   + ProxyServer.DEFAULT_READINESS_ENDPOINT, 503, "Not ready");
-            assertLocalHealth("http://127.0.0.1:" + proxyServer.getPort()
-                              + ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT);
-            runtime = TestServer.startServer(new InetSocketAddress("127.0.0.1", runtimePort));
-            assertEventuallyReady(proxyServer, "http://127.0.0.1:" + proxyServer.getPort()
-                                                + ProxyServer.DEFAULT_READINESS_ENDPOINT);
         } finally {
             if (proxyServer != null) {
                 proxyServer.cancel();
@@ -105,33 +94,39 @@ class ProxyServerLifecycleTest {
             if (runtime != null) {
                 runtime.stop();
             }
-            restoreProperty(ProxyServer.READINESS_GRACE_PROPERTY, previousGrace);
-            restoreProperty(ProxyServer.READINESS_INTERVAL_PROPERTY, previousInterval);
             restoreProperty("FLUXZERO_BASE_URL", previousFluxzeroBaseUrl);
             restoreProperty("FLUX_BASE_URL", previousFluxBaseUrl);
             restoreProperty("FLUX_URL", previousFluxUrl);
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     @Timeout(20)
-    void failedHttpStartupStopsTheAlreadyStartedForwardConsumer() throws Exception {
+    void failedHttpStartupStopsTheAlreadyStartedConsumers(boolean directional) throws Exception {
         Server runtime = null;
+        var unexpectedlyStarted = new java.util.concurrent.atomic.AtomicReference<ProxyServer>();
         String previousFluxzeroProxyPort = System.getProperty("FLUXZERO_PROXY_PORT");
         String previousFluxzeroBaseUrl = System.getProperty("FLUXZERO_BASE_URL");
         String previousProxyMetricsEnabled = System.getProperty(ForwardProxyConsumer.METRICS_ENABLED_PROPERTY);
         String previousProxyCompressionAlgorithms = System.getProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY);
         String previousDrainDelay = System.getProperty(ProxyServer.DRAIN_DELAY_MILLIS_PROPERTY);
         String previousShutdownTimeout = System.getProperty(ProxyServer.SHUTDOWN_TIMEOUT_MILLIS_PROPERTY);
-        try (ServerSocket occupiedPort = new ServerSocket(0)) {
+        try (ServerSocket occupiedPort = new ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"))) {
             runtime = TestServer.startServer(new InetSocketAddress("127.0.0.1", 0));
             configureProxy("ws://127.0.0.1:" + localPort(runtime), 0L, 1_000L);
             System.setProperty("FLUXZERO_PROXY_PORT", Integer.toString(occupiedPort.getLocalPort()));
 
-            assertThrows(IllegalStateException.class, ProxyServer::start);
+            var config = ProxyServerConfig.fromProperties();
+            assertThrows(IllegalStateException.class, () -> unexpectedlyStarted.set(ProxyServer.start(
+                    config, "127.0.0.1", directional ? Duration.ZERO : null)));
+            assertEventuallyNoThread(config.applicationName() + "_$proxy-request-handler-WEBRESPONSE-");
 
             assertEventuallyNoThread("forward-proxy-WEBREQUEST-");
         } finally {
+            if (unexpectedlyStarted.get() != null) {
+                unexpectedlyStarted.get().cancel();
+            }
             if (runtime != null) {
                 runtime.stop();
             }

@@ -15,15 +15,17 @@
 
 package io.fluxzero.sdk.configuration.client;
 
-import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
+import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
+import io.fluxzero.sdk.common.websocket.ConnectionMonitor;
 import io.fluxzero.sdk.common.websocket.WebsocketSession;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient;
 import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
@@ -51,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -113,7 +116,9 @@ public class WebSocketClient extends AbstractClient {
 
     @Override
     public void prepareShutdown() {
-        shutdownStarted.set(true);
+        synchronized (shutdownStarted) {
+            shutdownStarted.set(true);
+        }
     }
 
     /** Whether this client or its owning application has started controlled shutdown. */
@@ -155,6 +160,47 @@ public class WebSocketClient extends AbstractClient {
         }
         return registerNamespaceClient(
                 new WebSocketClient(getClientConfig().toBuilder().namespace(namespace).build(), this));
+    }
+
+    /**
+     * Keeps the append route for this client, message type and optional topic connected even when idle.
+     * Supply a topic for CUSTOM and DOCUMENT and null for other message types.
+     * The listener receives an initial snapshot and ordered changes on a worker without inherited thread locals.
+     * Registrations share the same pool slots.
+     * The callback should return promptly. While a listener is busy, a burst of pending transitions can be
+     * coalesced to the latest state. Cancelling discards pending callbacks and releases the observation.
+     * An invocation already in progress may finish. Application requests keep their own delivery and timeout contracts.
+     */
+    public ConnectionMonitor monitorPublishing(MessageType type, String topic, Consumer<Boolean> listener) {
+        synchronized (shutdownStarted) {
+            Objects.requireNonNull(listener, "listener");
+            requireActiveTransport();
+            return transport(getGatewayClient(type, topic)).maintainConnections(type.name(), listener);
+        }
+    }
+
+    /**
+     * Keeps all slots used by round-robin tracking reads connected and reports true when all are available.
+     * Includes cached tracking clients. Topic selection, callback delivery and cancellation follow {@link #monitorPublishing}.
+     */
+    public ConnectionMonitor monitorTracking(MessageType type, String topic, Consumer<Boolean> listener) {
+        synchronized (shutdownStarted) {
+            Objects.requireNonNull(listener, "listener");
+            requireActiveTransport();
+            validateTopic(type, topic);
+            TrackingClient tracking = getTrackingClient(type, topic);
+            while (tracking instanceof CachingTrackingClient cache) { tracking = cache.getDelegate(); }
+            return transport(tracking).maintainConnections(null, listener);
+        }
+    }
+
+    private void requireActiveTransport() {
+        if (isShuttingDown()) { throw new IllegalStateException("WebSocket client is shutting down"); }
+    }
+
+    private static AbstractWebsocketClient transport(Object client) {
+        if (client instanceof AbstractWebsocketClient transport) { return transport; }
+        throw new UnsupportedOperationException("Availability requires a WebSocket transport");
     }
 
     @Override

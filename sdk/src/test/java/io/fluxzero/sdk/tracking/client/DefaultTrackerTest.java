@@ -427,6 +427,16 @@ class DefaultTrackerTest {
     }
 
     @Test
+    void aRegistrationWithoutWorkersIsNotRunning() {
+        var config = ConsumerConfiguration.builder().name("empty").threads(0).build();
+        var group = assertInstanceOf(DefaultTracker.TrackerRegistration.class,
+                                     DefaultTracker.start(messages -> {}, config, trackingClient()));
+        assertFalse(group.isRunning());
+        group.cancel();
+        assertFalse(group.isRunning());
+    }
+
+    @Test
     void cancellationBoundsBlockedFetchesAndProcessingWithOneDeadline() throws Exception {
         TrackingClient trackingClient = trackingClient();
         io.fluxzero.sdk.tracking.BatchInterceptor interceptor = mock(io.fluxzero.sdk.tracking.BatchInterceptor.class);
@@ -478,6 +488,8 @@ class DefaultTrackerTest {
         try {
             assertTrue(fetching.await(1, TimeUnit.SECONDS));
             assertTrue(processing.await(1, TimeUnit.SECONDS));
+            var group = assertInstanceOf(DefaultTracker.TrackerRegistration.class, registration);
+            assertTrue(group.isRunning());
             var cancellation = new java.util.concurrent.FutureTask<Void>(() -> {
                 registration.cancel();
                 return null;
@@ -486,6 +498,7 @@ class DefaultTrackerTest {
             cancellingThread.start();
             try {
                 cancellation.get(1_800, TimeUnit.MILLISECONDS);
+                assertFalse(group.isRunning());
                 assertEquals(2, activeFetches.get(), "Both fetches must still be blocked");
                 verify(interceptor, never()).shutdown(any());
                 assertFalse(interruptedProcessing.get(), "Cancellation must not interrupt an active handler");
