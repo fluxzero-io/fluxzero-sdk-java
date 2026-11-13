@@ -18,6 +18,7 @@ package io.fluxzero.proxy;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.sdk.common.websocket.ConnectionMonitor;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.http.HttpTester;
 import org.eclipse.jetty.server.LocalConnector;
 import org.eclipse.jetty.server.Server;
@@ -199,7 +200,10 @@ class DirectionalReadinessTest {
     }
 
     private static int status(LocalConnector http, String path) throws Exception {
-        return HttpTester.parseResponse(http.getResponse("GET " + path + " HTTP/1.1\r\nHost: localhost\r\n\r\n"))
-                .getStatus();
+        var response = HttpTester.parseResponse(http.getResponse("GET " + path + " HTTP/1.1\r\nHost: localhost\r\n\r\n"));
+        if (path.equals(DirectionalReadiness.INGRESS_PATH) || path.equals(DirectionalReadiness.EGRESS_PATH)) {
+            assertEquals("no-store", response.get(HttpHeader.CACHE_CONTROL), path);
+        }
+        return response.getStatus();
     }
 }

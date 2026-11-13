@@ -20,6 +20,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.sdk.common.websocket.ConnectionMonitor;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
@@ -99,6 +100,7 @@ final class DirectionalReadiness {
                                                 && egress.isReady();
                     default -> { return super.handle(request, response, callback); }
                 }
+                response.getHeaders().put(HttpHeader.CACHE_CONTROL, "no-store");
                 ProxyServer.writeReadiness(response, callback, ready);
                 return true;
             }

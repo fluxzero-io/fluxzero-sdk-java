@@ -449,6 +449,7 @@ to expose two local endpoints for the proxy's configured namespace:
 
 Namespaces selected by individual incoming requests can have their own connections.
 
+Both endpoints send `Cache-Control: no-store` on ready and unavailable responses.
 A direction starts at HTTP 503. Once ready, it tolerates a continuous transport disconnection for 30 seconds.
 Set `fluxzero.proxy.directional-readiness.disconnect-grace` (`FLUXZERO_PROXY_DIRECTIONAL_READINESS_DISCONNECT_GRACE`)
 to an ISO-8601 duration such as `PT45S`, or `PT0S` for immediate reporting. Recovery restores HTTP 200 as soon as
