@@ -79,12 +79,67 @@ class WebPayloadParameterResolverTest {
         org.junit.jupiter.api.Assertions.assertEquals(0, body.available());
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void strictStreamingBodyIsConsumedOnlyDuringBinding(boolean valid) throws Exception {
+        var method = Endpoint.class.getDeclaredMethod("strict", Input.class);
+        String json = valid ? "{\"date\":\"2026-01-20\"}"
+                : "{\"date\":\"2026-01-20\",\"date\":\"2026-01-21\"}";
+        var body = new ByteArrayInputStream(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var message = WebRequest.post("/typed").contentType("application/json").payload(body).build();
+        var resolver = new WebPayloadParameterResolver(true, true);
+        var prepared = resolver.resolveIfPossible(method.getParameters()[0], method.getAnnotation(HandlePost.class), message);
+        org.junit.jupiter.api.Assertions.assertEquals(json.length(), body.available());
+        if (valid) {
+            org.junit.jupiter.api.Assertions.assertEquals(new Input(LocalDate.of(2026, 1, 20)), prepared.apply(message));
+        } else {
+            assertThrows(DeserializationException.class, () -> prepared.apply(message));
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(0, body.available());
+    }
+
+    @Test
+    void strictLocalTypedObjectDoesNotInvokeSerializer() throws Exception {
+        var method = Endpoint.class.getDeclaredMethod("strict", Input.class);
+        var input = new Input(LocalDate.of(2026, 1, 20));
+        var serializer = mock(io.fluxzero.sdk.common.serialization.Serializer.class);
+        var message = new io.fluxzero.sdk.common.serialization.DeserializingMessage(
+                new Message(input), io.fluxzero.common.MessageType.WEBREQUEST, serializer);
+        var result = new WebPayloadParameterResolver(false, false)
+                .resolve(method.getParameters()[0], method.getAnnotation(HandlePost.class)).apply(message);
+        org.junit.jupiter.api.Assertions.assertEquals(input, result);
+        org.mockito.Mockito.verifyNoInteractions(serializer);
+    }
+
+    @Test
+    void strictWireStringIsNotParsedAgainAfterDeserialization() throws Exception {
+        var method = Endpoint.class.getDeclaredMethod("choice", Choice.class);
+        var wire = new io.fluxzero.common.api.SerializedMessage(
+                new io.fluxzero.common.api.Data<>("\"FIRST\"".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        null, 0, "application/json"), io.fluxzero.common.api.Metadata.empty(), "id", 0L);
+        var serializer = new io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer();
+        var message = serializer.deserializeMessage(wire, io.fluxzero.common.MessageType.WEBREQUEST);
+        var result = new WebPayloadParameterResolver(false, false)
+                .resolve(method.getParameters()[0], method.getAnnotation(HandlePost.class)).apply(message);
+        org.junit.jupiter.api.Assertions.assertEquals(Choice.FIRST, result);
+    }
+
+    enum Choice { FIRST }
+
     record Input(LocalDate date) {}
 
     @RequiresUser(throwIfUnauthorized = false)
     record SilentInput() {}
 
     static class Endpoint {
+        @StrictJson
+        @HandlePost("/typed")
+        void strict(Input input) {}
+
+        @StrictJson
+        @HandlePost("/choice")
+        void choice(Choice input) {}
+
         @HandlePost("/typed")
         void handle(Input input) {}
 

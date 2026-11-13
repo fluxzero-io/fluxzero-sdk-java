@@ -44,6 +44,54 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class WebInputFailureTest {
     @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void strictEndpointRejectsAmbiguousJsonBeforeInvocation(boolean async) {
+        var processed = new AtomicReference<CompletableFuture<Void>>();
+        var builder = DefaultFluxzero.builder().configureDefaultConsumer(MessageType.WEBREQUEST,
+                c -> c.toBuilder().awaitAsyncResults(true).batchInterceptor((consumer, tracker) -> batch -> {
+                    consumer.accept(batch);
+                    if (processed.get() != null && !batch.getMessages().isEmpty()) {
+                        processed.get().complete(null);
+                    }
+                }).build());
+        var endpoint = new StrictEndpoint();
+        var fixture = async ? TestFixture.createAsync(builder, endpoint) : TestFixture.create(builder, endpoint);
+        try (var app = fixture.getFluxzero()) {
+            var responses = new ArrayList<Object>();
+            for (String body : List.of("{\"count\":1,\"count\":2}", "{\"count\":1} {\"count\":2}",
+                                       "{\"count\":1} true", "{\"count\":1,\"nested\":{\"x\":1,\"x\":2}}")) {
+                responses.add(WebResponse.builder().status(400)
+                        .payload("The request could not be read. Please check its format.").build());
+                send(fixture, async, processed, body).expectOnlyWebResponses(responses.toArray());
+                assertEquals(0, endpoint.invocations.get());
+            }
+            responses.add(WebResponse.builder().status(200).payload("accepted").build());
+            send(fixture, async, processed, "{\"count\":1}  ").expectOnlyWebResponses(responses.toArray());
+            assertEquals(1, endpoint.invocations.get());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void ordinaryEndpointRetainsPermissiveJsonBinding(boolean async) {
+        var endpoint = new Endpoint();
+        var processed = new AtomicReference<CompletableFuture<Void>>();
+        var builder = DefaultFluxzero.builder().configureDefaultConsumer(MessageType.WEBREQUEST,
+                c -> c.toBuilder().awaitAsyncResults(true).batchInterceptor((consumer, tracker) -> batch -> {
+                    consumer.accept(batch);
+                    if (processed.get() != null && !batch.getMessages().isEmpty()) {
+                        processed.get().complete(null);
+                    }
+                }).build());
+        var fixture = async ? TestFixture.createAsync(builder, endpoint) : TestFixture.create(builder, endpoint);
+        try (var app = fixture.getFluxzero()) {
+            send(fixture, async, processed, "{\"count\":1,\"count\":2} {\"count\":3}")
+                    .expectNoErrors().expectWebResponse(r -> r.getStatus() == 200);
+            assertEquals(1, endpoint.invocations.get());
+        }
+    }
+
+    @ParameterizedTest
     @CsvSource({"false,false", "false,true", "true,false", "true,true"})
     void malformedTypedInputReturnsBadRequestWithoutInvokingEndpoint(boolean async, boolean explicitUserProvider) {
         var processed = new AtomicReference<CompletableFuture<Void>>();
@@ -139,6 +187,15 @@ class WebInputFailureTest {
     }
 
     record Input(LocalDate date, int count) {}
+
+    static class StrictEndpoint extends Endpoint {
+        @Override
+        @StrictJson
+        @HandlePost("/typed")
+        String handle(Input input) {
+            return super.handle(input);
+        }
+    }
 
     static class Endpoint {
         final AtomicInteger invocations = new AtomicInteger();
