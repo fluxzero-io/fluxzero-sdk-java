@@ -40,7 +40,9 @@ public @interface HandleCustom {
     MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;
 
     /**
-     * Specifies the topic name.
+     * Specifies the complete logical topic name, exactly matching the publishing gateway and replay/position calls.
+     * Names are transported as UTF-8 without truncation; PostgreSQL's identifier limit is not an SDK topic limit.
+     * Long durable names require Runtime support for bounded internal storage identifiers.
      */
     String value();
 
