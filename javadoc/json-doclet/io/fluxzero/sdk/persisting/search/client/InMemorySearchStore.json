@@ -371,6 +371,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "attestDocumentVersion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#attestDocumentVersion",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelHeadState",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selected",
+      "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns a body validator only for a source previously observed by a document reader. "
+  }, {
     "name" : "bulkUpdate",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#bulkUpdate",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -388,6 +409,27 @@
     }, {
       "name" : "guarantee",
       "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cacheVersion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#cacheVersion",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "head",
+      "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1539,6 +1581,22 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "snapshotForCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#snapshotForCache",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

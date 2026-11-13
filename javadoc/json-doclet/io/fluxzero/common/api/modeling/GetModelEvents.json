@@ -24,6 +24,19 @@
     "documentation" : "Current, state, commit or event selector shared by every Model read. ",
     "constantValue" : null
   }, {
+    "name" : "documentVersionTypes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents.documentVersionTypes",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_EMPTY"
+      }
+    } ],
+    "documentation" : "Optional type filter for streams which requested a materialized document version. ",
+    "constantValue" : null
+  }, {
     "name" : "maxBytes",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents.maxBytes",
     "type" : "long",
@@ -44,10 +57,35 @@
     "name" : "GetModelEvents",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents#GetModelEvents",
     "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requests",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventStreamRequest>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "GetModelEvents",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents#GetModelEvents",
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.beans.ConstructorProperties",
       "values" : {
-        "value" : "\"requests\",\"boundary\",\"maxBytes\""
+        "value" : "\"requests\",\"boundary\",\"maxBytes\",\"documentVersionTypes\""
       }
     } ],
     "typeParameters" : [ ],
@@ -64,6 +102,11 @@
     }, {
       "name" : "maxBytes",
       "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentVersionTypes",
+      "type" : "java.util.Set<java.lang.String>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -102,6 +145,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "includesDocumentVersionFor",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents#includesDocumentVersionFor",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether the type qualifies for an individual stream's requested document version. "
+  }, {
     "name" : "toMetric",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents#toMetric",
     "returnType" : "io.fluxzero.common.api.modeling.GetModelEvents.Metric",

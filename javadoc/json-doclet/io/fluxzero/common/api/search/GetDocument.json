@@ -34,6 +34,19 @@
     "documentation" : " The unique ID of the document to fetch.\n",
     "constantValue" : null
   }, {
+    "name" : "includeDocumentVersion",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocument.includeDocumentVersion",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "documentation" : "Ask the store to attach the materialized body version to the returned Model head. ",
+    "constantValue" : null
+  }, {
     "name" : "includeModelHead",
     "qualifiedName" : "io.fluxzero.common.api.search.GetDocument.includeModelHead",
     "type" : "boolean",
@@ -104,10 +117,40 @@
     "name" : "GetDocument",
     "qualifiedName" : "io.fluxzero.common.api.search.GetDocument#GetDocument",
     "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeModelHead",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "verifyModelState",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "GetDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocument#GetDocument",
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.beans.ConstructorProperties",
       "values" : {
-        "value" : "\"id\",\"collection\",\"includeModelHead\",\"verifyModelState\""
+        "value" : "\"id\",\"collection\",\"includeModelHead\",\"verifyModelState\",\"includeDocumentVersion\""
       }
     } ],
     "typeParameters" : [ ],
@@ -128,6 +171,11 @@
       "annotations" : [ ]
     }, {
       "name" : "verifyModelState",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeDocumentVersion",
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]

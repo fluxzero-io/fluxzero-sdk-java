@@ -37,6 +37,35 @@
     "documentation" : "Relationship direction followed from the supplied roots. ",
     "constantValue" : null
   }, {
+    "name" : "documentVersionTypes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.documentVersionTypes",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_EMPTY"
+      }
+    } ],
+    "documentation" : "Stored model types eligible for document versions. An empty set allows every type on an explicit request. ",
+    "constantValue" : null
+  }, {
+    "name" : "includeDocumentVersions",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.includeDocumentVersions",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    }, {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : "Request materialized document versions alongside the selected graph heads. ",
+    "constantValue" : null
+  }, {
     "name" : "maxBytes",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.maxBytes",
     "type" : "long",
@@ -126,10 +155,115 @@
     "name" : "GetModelGraph",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph#GetModelGraph",
     "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEventsPerModel",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "direction",
+      "type" : "io.fluxzero.common.api.modeling.GetModelGraph.TraversalDirection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "composableOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "GetModelGraph",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph#GetModelGraph",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEventsPerModel",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "direction",
+      "type" : "io.fluxzero.common.api.modeling.GetModelGraph.TraversalDirection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "composableOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeDocumentVersions",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "GetModelGraph",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph#GetModelGraph",
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.beans.ConstructorProperties",
       "values" : {
-        "value" : "\"modelIds\",\"boundary\",\"maxDepth\",\"maxModels\",\"maxEventsPerModel\",\"maxBytes\",\"direction\",\"composableOnly\""
+        "value" : "\"modelIds\",\"boundary\",\"maxDepth\",\"maxModels\",\"maxEventsPerModel\",\"maxBytes\",\"direction\",\"composableOnly\",\"includeDocumentVersions\",\"documentVersionTypes\""
       }
     } ],
     "typeParameters" : [ ],
@@ -171,6 +305,16 @@
     }, {
       "name" : "composableOnly",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeDocumentVersions",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentVersionTypes",
+      "type" : "java.util.Set<java.lang.String>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -233,6 +377,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withDocumentVersionTypes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph#withDocumentVersionTypes",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraph",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "types",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Requests versions only for the listed stored model types. An empty set disables version lookup. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

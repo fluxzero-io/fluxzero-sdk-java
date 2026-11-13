@@ -430,52 +430,6 @@
     "varArgs" : false,
     "documentation" : "Resolves a boundary and records whether an event selector used its explicit current-state fallback. "
   }, {
-    "name" : "result",
-    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#result",
-    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraphResult",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "requestId",
-      "type" : "long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "boundary",
-      "type" : "long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "graph",
-      "type" : "io.fluxzero.common.modeling.ModelRelationshipTraversal.Result",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "maxEventsPerModel",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "maxBytes",
-      "type" : "long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "exactBoundary",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "eventLoader",
-      "type" : "java.util.function.Function<io.fluxzero.common.api.modeling.GetModelEvents,io.fluxzero.common.api.modeling.GetModelEventsResult>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "updateDigest",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#updateDigest",
     "returnType" : "void",

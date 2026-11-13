@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "observedSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DirectDocumentVersion.observedSource",
+    "type" : "java.lang.ref.WeakReference<io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "projection",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DirectDocumentVersion.projection",
     "type" : "boolean",
@@ -97,6 +105,41 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "DirectDocumentVersion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DirectDocumentVersion#DirectDocumentVersion",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "head",
+      "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "proof",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "projection",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "observedSource",
+      "type" : "java.lang.ref.WeakReference<io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "collection",
@@ -148,6 +191,33 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "observed",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DirectDocumentVersion#observed",
+    "returnType" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.DirectDocumentVersion",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "observedSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DirectDocumentVersion#observedSource",
+    "returnType" : "java.lang.ref.WeakReference<io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "projection",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DirectDocumentVersion#projection",
     "returnType" : "boolean",
@@ -190,6 +260,11 @@
   }, {
     "name" : "head",
     "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "observedSource",
+    "type" : "java.lang.ref.WeakReference<io.fluxzero.common.api.search.SerializedDocument>",
     "annotations" : [ ],
     "documentation" : null
   }, {

@@ -13,6 +13,19 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "includeDocumentVersion",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventStreamRequest.includeDocumentVersion",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "documentation" : "Include evidence for a matching materialized document in the selected head when available. ",
+    "constantValue" : null
+  }, {
     "name" : "lastSequenceNumber",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventStreamRequest.lastSequenceNumber",
     "type" : "long",
@@ -43,7 +56,57 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ModelEventStreamRequest",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventStreamRequest#ModelEventStreamRequest",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"modelId\",\"lastSequenceNumber\",\"maxSize\",\"includeDocumentVersion\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeDocumentVersion",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

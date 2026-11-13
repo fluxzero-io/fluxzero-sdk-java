@@ -21,6 +21,25 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "documentVersion",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelHeadState.documentVersion",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "documentation" : "Optional read evidence for the exact current source body. Independent of durable Model revision equality. ",
+    "constantValue" : null
+  }, {
     "name" : "historyComplete",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelHeadState.historyComplete",
     "type" : "boolean",
@@ -67,7 +86,87 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historyComplete",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deleted",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ModelHeadState",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelHeadState#ModelHeadState",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"modelId\",\"modelType\",\"sequenceNumber\",\"stateIndex\",\"historyComplete\",\"deleted\",\"documentVersion\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historyComplete",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deleted",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentVersion",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

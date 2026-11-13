@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ "java.util.function.Supplier<io.fluxzero.common.api.Data<byte[]>>" ],
   "fields" : [ {
+    "name" : "derivedView",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument$SuppliedData.derivedView",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "value",
     "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument$SuppliedData.value",
     "type" : "io.fluxzero.common.api.Data<byte[]>",
@@ -33,8 +41,39 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "SuppliedData",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument$SuppliedData#SuppliedData",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "derivedView",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "derivedView",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument$SuppliedData#derivedView",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "equals",
     "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument$SuppliedData#equals",
     "returnType" : "boolean",
@@ -100,6 +139,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "derivedView",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "value",
     "type" : "io.fluxzero.common.api.Data<byte[]>",
     "annotations" : [ ],

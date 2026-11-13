@@ -319,6 +319,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "supportsRequest",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#supportsRequest",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEvents",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "supportsRequests",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#supportsRequests",
     "returnType" : "boolean",
@@ -328,6 +344,27 @@
     "parameters" : [ {
       "name" : "batch",
       "type" : "io.fluxzero.common.api.RequestBatch<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#supportsResult",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routedEnvelopes",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

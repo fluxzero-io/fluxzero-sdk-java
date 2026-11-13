@@ -220,6 +220,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "copy",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsResult#copy",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exactBoundary",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "streams",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventStream>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toMetric",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsResult#toMetric",
     "returnType" : "io.fluxzero.common.api.modeling.GetModelEventsResult.Metric",
@@ -233,6 +254,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withDocumentVersions",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsResult#withDocumentVersions",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "materialized",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.modeling.ModelHeadState>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Attach current materialization evidence only to the same canonical revision selected by this read. "
   }, {
     "name" : "withExactBoundary",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsResult#withExactBoundary",

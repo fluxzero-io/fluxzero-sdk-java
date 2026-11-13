@@ -34,6 +34,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "documentVersionReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.documentVersionReader",
+    "type" : "java.util.function.BiFunction<java.lang.String,io.fluxzero.common.api.modeling.ModelHeadState,io.fluxzero.common.api.modeling.ModelHeadState>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "erasedModelTokens",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.erasedModelTokens",
     "type" : "java.util.Set<java.lang.String>",
@@ -865,7 +873,7 @@
     "name" : "getModelEvents",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getModelEvents",
     "returnType" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
-    "modifiers" : [ "public", "synchronized" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
@@ -884,7 +892,7 @@
     "name" : "getModelGraph",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getModelGraph",
     "returnType" : "io.fluxzero.common.api.modeling.GetModelGraphResult",
-    "modifiers" : [ "public", "synchronized" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
@@ -1584,6 +1592,38 @@
     "varArgs" : false,
     "documentation" : "Lock-free lifetime lookup used while the schedule store holds its own lock. "
   }, {
+    "name" : "selectModelEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#selectModelEvents",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+    "modifiers" : [ "private", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEvents",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selectModelGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#selectModelGraph",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraphResult",
+    "modifiers" : [ "private", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelGraph",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "selectPayloads",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#selectPayloads",
     "returnType" : "java.util.LinkedHashMap<java.lang.Long,io.fluxzero.common.api.SerializedMessage>",
@@ -1604,6 +1644,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "setDocumentVersionReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setDocumentVersionReader",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "reader",
+      "type" : "java.util.function.BiFunction<java.lang.String,io.fluxzero.common.api.modeling.ModelHeadState,io.fluxzero.common.api.modeling.ModelHeadState>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Attaches read evidence from the namespace's materialized document store to opted-in heads. "
   }, {
     "name" : "setModelCommitMaterializer",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setModelCommitMaterializer",
@@ -1930,6 +1986,37 @@
     }, {
       "name" : "stored",
       "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withDocumentVersions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#withDocumentVersions",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reader",
+      "type" : "java.util.function.BiFunction<java.lang.String,io.fluxzero.common.api.modeling.ModelHeadState,io.fluxzero.common.api.modeling.ModelHeadState>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "types",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requested",
+      "type" : "java.util.function.IntPredicate",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
