@@ -27,6 +27,7 @@ import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
+import io.fluxzero.sdk.tracking.client.DefaultTracker.TrackerRegistration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -241,6 +242,11 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         request.setRequestId(requestId);
         request.setSource(client.id());
         return result;
+    }
+
+    /** Whether this handler's response workers are running. Does not start tracking. */
+    protected boolean isTrackingResponses() {
+        return registration instanceof TrackerRegistration workers && workers.isRunning();
     }
 
     protected void ensureStarted() {

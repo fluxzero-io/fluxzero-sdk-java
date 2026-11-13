@@ -14,9 +14,12 @@
 
 package io.fluxzero.sdk.modeling;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
@@ -24,6 +27,8 @@ import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import jakarta.validation.constraints.Null;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +37,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 import static io.fluxzero.sdk.modeling.AssertLegal.HIGHEST_PRIORITY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class AssertLegalTest {
 
@@ -120,6 +128,130 @@ public class AssertLegalTest {
         testFixture.whenCommand(new CommandWithAssertAfterApply()).expectExceptionalResult(MockException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void assertAndApplyRejectsFinalAggregateStateBeforeStoringEitherUpdate(boolean async) {
+        TestFixture fixture = async ? testFixture.async() : testFixture;
+        fixture.givenAppliedEvents(aggregateId, Model2.class, "initial")
+                .whenCommand(new SetValue("rejected"))
+                .expectExceptionalResult(MockException.class).expectNoEvents()
+                .expectThat(fc -> {
+                    assertEquals(List.of("initial"), fc.eventStore().getEvents(aggregateId)
+                            .map(message -> message.getPayload()).toList());
+                    assertEquals(new Model2("initial"), loadAggregate(aggregateId, Model2.class).get());
+                });
+    }
+
+    @Test
+    void standaloneAssertAndApplyChecksFinalStateAndRecoversAfterRejection() {
+        testFixture.givenAppliedEvents(aggregateId, Model2.class, "initial");
+        testFixture.getFluxzero().execute(fc -> {
+            Entity<Model2> root = loadAggregate(aggregateId, Model2.class);
+            assertThrows(MockException.class, () -> root.assertAndApply(new SetValue("rejected")));
+            assertEquals(new Model2("initial"), root.get());
+            root.assertAndApply(new SetValue("accepted"));
+            assertEquals(new Model2("accepted"), root.get());
+            var events = fc.eventStore().getEvents(aggregateId).toList();
+            assertEquals(2, events.size());
+            assertFalse(events.getLast().getMetadata().containsKey(fc.correlationDataProvider().getInvocationKey()));
+        });
+    }
+
+    @Test
+    void nestedStandaloneUpdatesCompleteInTheirOwnApplicationContext() {
+        TestFixture otherFixture = TestFixture.create();
+        Fluxzero first = testFixture.getFluxzero();
+        Fluxzero second = otherFixture.getFluxzero();
+        List<Fluxzero> assertionContexts = new ArrayList<>();
+        AtomicInteger checkedBeforeReturning = new AtomicInteger();
+        AtomicInteger storedBeforeReturning = new AtomicInteger();
+        try {
+            testFixture.givenAppliedEvents("outer-context", Model2.class, "outer-initial");
+            otherFixture.givenAppliedEvents("inner-context", Model2.class, "inner-initial");
+            first.execute(ignored -> loadAggregate("outer-context", Model2.class).assertAndApply(
+                    new CallbackUpdate("outer-updated", () -> second.execute(fc -> {
+                        loadAggregate("inner-context", Model2.class).assertAndApply(new CallbackUpdate(
+                                "inner-updated", null, () -> assertionContexts.add(Fluxzero.get())));
+                        checkedBeforeReturning.set(assertionContexts.size());
+                        storedBeforeReturning.set((int) fc.eventStore().getEvents("inner-context").count());
+                    }), null)));
+
+            assertSame(second, assertionContexts.getFirst());
+            assertEquals(1, assertionContexts.size());
+            assertEquals(1, checkedBeforeReturning.get());
+            assertEquals(2, storedBeforeReturning.get());
+            first.execute(fc -> {
+                fc.cache().clear();
+                assertEquals(new Model2("outer-updated"), loadAggregate("outer-context", Model2.class).get());
+                assertEquals(2, fc.eventStore().getEvents("outer-context").count());
+                assertEquals(0, fc.eventStore().getEvents("inner-context").count());
+            });
+            second.execute(fc -> {
+                fc.cache().clear();
+                assertEquals(new Model2("inner-updated"), loadAggregate("inner-context", Model2.class).get());
+                assertEquals(2, fc.eventStore().getEvents("inner-context").count());
+                assertEquals(0, fc.eventStore().getEvents("outer-context").count());
+            });
+        } finally {
+            second.close();
+        }
+    }
+
+    @Test
+    void sameContextNestedRejectionRollsBackBothStandaloneRoots() {
+        testFixture.givenAppliedEvents("outer-rejection", Model2.class, "outer-initial")
+                .givenAppliedEvents("inner-rejection", Model2.class, "inner-initial");
+        testFixture.getFluxzero().execute(fc -> {
+            Entity<Model2> outer = loadAggregate("outer-rejection", Model2.class);
+            Entity<Model2> inner = loadAggregate("inner-rejection", Model2.class);
+            assertThrows(MockException.class, () -> outer.assertAndApply(new CallbackUpdate(
+                    "outer-updated", () -> inner.assertAndApply(new SetValue("rejected")), null)));
+            assertEquals(new Model2("outer-initial"), outer.get());
+            assertEquals(new Model2("inner-initial"), inner.get());
+            assertEquals(1, fc.eventStore().getEvents("outer-rejection").count());
+            assertEquals(1, fc.eventStore().getEvents("inner-rejection").count());
+            inner.assertAndApply(new SetValue("accepted"));
+            assertEquals(new Model2("accepted"), inner.get());
+            assertEquals(2, fc.eventStore().getEvents("inner-rejection").count());
+        });
+    }
+
+    @Test
+    void caughtForeignContextRejectionRestoresTheOuterStandaloneScope() {
+        TestFixture otherFixture = TestFixture.create();
+        Fluxzero first = testFixture.getFluxzero();
+        Fluxzero second = otherFixture.getFluxzero();
+        List<Fluxzero> assertionContexts = new ArrayList<>();
+        try {
+            testFixture.givenAppliedEvents("outer-rejection", Model2.class, "outer-initial");
+            otherFixture.givenAppliedEvents("inner-rejection", Model2.class, "inner-initial");
+            first.execute(ignored -> loadAggregate("outer-rejection", Model2.class).assertAndApply(
+                    new CallbackUpdate("outer-updated", () -> second.execute(fc -> {
+                        Entity<Model2> inner = loadAggregate("inner-rejection", Model2.class);
+                        assertThrows(MockException.class, () -> inner.assertAndApply(new CallbackUpdate(
+                                "rejected", null, () -> {
+                                    assertionContexts.add(Fluxzero.get());
+                                    throw new MockException();
+                                })));
+                        assertEquals(new Model2("inner-initial"), inner.get());
+                        assertEquals(1, fc.eventStore().getEvents("inner-rejection").count());
+                    }), () -> assertionContexts.add(Fluxzero.get()))));
+            assertEquals(List.of(second, first), assertionContexts);
+            first.execute(fc -> {
+                fc.cache().clear();
+                assertEquals(new Model2("outer-updated"), loadAggregate("outer-rejection", Model2.class).get());
+                assertEquals(2, fc.eventStore().getEvents("outer-rejection").count());
+            });
+            second.execute(fc -> {
+                fc.cache().clear();
+                assertEquals(new Model2("inner-initial"), loadAggregate("inner-rejection", Model2.class).get());
+                assertEquals(1, fc.eventStore().getEvents("inner-rejection").count());
+            });
+        } finally {
+            second.close();
+        }
+    }
+
     @Test
     void testBeforeAndAfterHandlerAssertionsAreFilteredSeparately() {
         CommandWithMixedBeforeAndAfterAssertions command = new CommandWithMixedBeforeAndAfterAssertions();
@@ -172,6 +304,11 @@ public class AssertLegalTest {
         @HandleCommand
         void handle(Object command) {
             loadAggregate(aggregateId, TestModel.class).assertLegal(command).apply(command);
+        }
+
+        @HandleCommand
+        void handle(SetValue command) {
+            loadAggregate(aggregateId, Model2.class).apply(new SetValue("intermediate")).assertAndApply(command);
         }
 
         @HandleCommand
@@ -312,6 +449,39 @@ public class AssertLegalTest {
         @Apply
         static Model2 apply(String event) {
             return new Model2(event);
+        }
+    }
+
+    private record CallbackUpdate(String value, @JsonIgnore Runnable duringInterception,
+                                  @JsonIgnore Runnable afterHandler) {
+        @InterceptApply
+        CallbackUpdate intercept() {
+            if (duringInterception != null) { duringInterception.run(); }
+            return this;
+        }
+
+        @Apply
+        Model2 apply(Model2 current) {
+            return new Model2(value);
+        }
+
+        @AssertLegal(afterHandler = true)
+        void check(Model2 current) {
+            if (afterHandler != null) { afterHandler.run(); }
+        }
+    }
+
+    private record SetValue(String value) {
+        @Apply
+        Model2 apply(Model2 current) {
+            return new Model2(value);
+        }
+
+        @AssertLegal(afterHandler = true)
+        void check(Entity<Model2> entity) {
+            if ("rejected".equals(entity.get().getEvent())) {
+                throw new MockException();
+            }
         }
     }
 

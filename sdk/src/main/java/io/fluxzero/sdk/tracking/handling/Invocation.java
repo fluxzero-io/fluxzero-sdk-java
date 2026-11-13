@@ -31,6 +31,7 @@ import lombok.experimental.NonFinal;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -225,12 +226,67 @@ public class Invocation {
         }
     }
 
+    /**
+     * Checks a postcondition after a successful handler return, before ordinary completion callbacks
+     * (including automatic Aggregate commits). Checks run in registration order. Outside an invocation
+     * the check runs immediately.
+     */
+    public static void validateOnHandlerCompletion(Runnable check) {
+        Objects.requireNonNull(check);
+        Invocation invocation = getCurrent();
+        if (invocation == null) {
+            check.run();
+        } else {
+            invocation.addCompletionCheck(check);
+        }
+    }
+
+    private void addCompletionCheck(Runnable check) {
+        if (callbacks == null) {
+            callbacks = new ArrayList<>();
+        }
+        if (!callbacks.isEmpty() && callbacks.getFirst() instanceof CompletionChecks checks) {
+            checks.add(check);
+        } else {
+            // Keep checks ahead of any automatic commit already scheduled by an earlier update.
+            callbacks.addFirst(new CompletionChecks(check));
+        }
+    }
+
     private Registration registerCallback(BiConsumer<Object, Throwable> callback) {
         if (callbacks == null) {
             callbacks = new ArrayList<>();
         }
         callbacks.add(callback);
         return () -> callbacks.remove(callback);
+    }
+
+    private static final class CompletionChecks implements BiConsumer<Object, Throwable> {
+        private final Runnable first;
+        private List<Runnable> additional;
+        private boolean passed;
+
+        CompletionChecks(Runnable first) {
+            this.first = first;
+        }
+
+        void add(Runnable check) {
+            if (additional == null) {
+                additional = new ArrayList<>();
+            }
+            additional.add(check);
+        }
+
+        @Override
+        public void accept(Object result, Throwable error) {
+            if (error == null) {
+                first.run();
+                if (additional != null) {
+                    additional.forEach(Runnable::run);
+                }
+                passed = true;
+            }
+        }
     }
 
     /**
@@ -281,7 +337,16 @@ public class Invocation {
     }
 
     void completeLocal(Object result, Throwable error) {
-        complete(result, error);
+        try {
+            complete(result, error);
+        } catch (Throwable failure) {
+            // Only a failed leading check leaves all ordinary callbacks waiting for the outcome.
+            if (error == null && !callbacks.isEmpty()
+                && callbacks.getFirst() instanceof CompletionChecks checks && !checks.passed) {
+                complete(null, failure);
+            }
+            throw failure;
+        }
     }
 
     private static final class ResultPublicationBarrier {

@@ -252,6 +252,10 @@ assertion logic that also matches it. `@AssertLegal(afterHandler = true)` keeps 
 | New update object           | Rewrite the update                     |
 | Collection / Stream / Optional | Emit multiple updates              |
 
+For Aggregates, `@AssertLegal(afterHandler = true)` checks the final state of the handler before automatic commit.
+A direct `assertAndApply` call outside a handler checks the final state of that call.
+A rejection leaves the stored state and event history unchanged. Checks must remain free of external effects.
+
 <Aside type="tip">
 You can avoid storing unchanged updates by setting `eventPublication = IF_MODIFIED` on the aggregate or apply method.
 </Aside>
