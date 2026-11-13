@@ -14,20 +14,25 @@
 
 package io.fluxzero.sdk.common.websocket;
 
+import io.fluxzero.common.Registration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -35,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -206,6 +212,165 @@ class SessionPoolTest {
         verify(failing).abort(any());
         verify(other).close();
         assertThrows(SessionPool.ClientClosedException.class, pool::get);
+    }
+
+    @Test
+    void observersShareAKeyedConnectionAndIgnoreThePreviousSessionsLateClose() throws Exception {
+        var first = openSession();
+        var replacement = openSession();
+        var attempts = new AtomicInteger();
+        var release = new CountDownLatch(1);
+        try (SessionPool pool = new SessionPool(2, () -> {
+            if (attempts.getAndIncrement() == 0) { return first; }
+            try {
+                assertTrue(release.await(3, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+            return replacement;
+        })) {
+            var events = new LinkedBlockingQueue<Boolean>();
+            var other = new LinkedBlockingQueue<Boolean>();
+            Registration a = pool.maintain("append", events::add);
+            assertNext(events, false, true);
+            Registration b = pool.maintain("append", other::add);
+            assertNext(other, true);
+            when(first.isOpen()).thenReturn(false);
+            pool.disconnected(first);
+            assertNext(events, false);
+            assertNext(other, false);
+            a.cancel();
+            release.countDown();
+            assertNext(other, true);
+            assertSame(replacement, pool.get("append"));
+            pool.disconnected(first);
+            pool.close();
+            assertNext(other, false);
+            assertTrue(other.isEmpty());
+            assertTrue(events.isEmpty());
+            assertEquals(2, attempts.get());
+            b.cancel();
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    void onlyTheLastCancellationInterruptsAnObserverOwnedHandshake() throws Exception {
+        var started = new CompletableFuture<Thread>();
+        var interrupted = new CountDownLatch(1);
+        var attempts = new AtomicInteger();
+        var release = new CountDownLatch(1);
+        try (SessionPool pool = new SessionPool(1, () -> {
+            attempts.incrementAndGet();
+            started.complete(Thread.currentThread());
+            try {
+                release.await();
+                return openSession();
+            } catch (InterruptedException e) {
+                interrupted.countDown();
+                return null; // This factory consumes the interrupt and leaves the slot disconnected.
+            }
+        })) {
+            Registration a = pool.maintain("a", value -> {});
+            Registration b = pool.maintain("b", value -> {});
+            Thread worker = started.get(3, TimeUnit.SECONDS);
+            a.cancel();
+            a.cancel();
+            assertEquals(1L, interrupted.getCount());
+            b.cancel();
+            assertTrue(interrupted.await(3, TimeUnit.SECONDS));
+            assertTrue(worker.join(Duration.ofSeconds(3)));
+            assertEquals(1, attempts.get());
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    void shutdownWhileConnectingCannotPublishALateReadyState() throws Exception {
+        var started = new CountDownLatch(1);
+        var interrupted = new CountDownLatch(1);
+        var session = openSession();
+        var release = new CountDownLatch(1);
+        var closed = new CountDownLatch(1);
+        doAnswer(invocation -> { closed.countDown(); return null; }).when(session).close();
+        try (SessionPool pool = new SessionPool(1, () -> {
+            started.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                interrupted.countDown();
+            }
+            return session;
+        })) {
+            var events = new LinkedBlockingQueue<Boolean>();
+            pool.maintain(null, events::add);
+            assertNext(events, false);
+            assertTrue(started.await(3, TimeUnit.SECONDS));
+            pool.close();
+            assertTrue(interrupted.await(3, TimeUnit.SECONDS));
+            assertTrue(closed.await(3, TimeUnit.SECONDS));
+            assertTrue(events.isEmpty());
+            assertThrows(SessionPool.ClientClosedException.class, () -> pool.maintain(null, events::add));
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    void roundRobinObservationRequiresEachSlotAndDoesNotConsumeATurn() throws Exception {
+        var attempts = new AtomicInteger();
+        try (SessionPool pool = new SessionPool(2, () -> { attempts.incrementAndGet(); return openSession(); })) {
+            var events = new LinkedBlockingQueue<Boolean>();
+            pool.maintain(null, events::add);
+            assertNext(events, false, true);
+            assertSame(pool.get(0), pool.get());
+            assertSame(pool.get(1), pool.get());
+            assertEquals(2, attempts.get());
+        }
+    }
+
+    @Test
+    void aTerminalConnectionFailureDoesNotSpawnAnotherAttempt() throws Exception {
+        var failedWorker = new CompletableFuture<Thread>();
+        var attempts = new AtomicInteger();
+        try (SessionPool pool = new SessionPool(1, () -> {
+            if (attempts.incrementAndGet() == 1) {
+                failedWorker.complete(Thread.currentThread());
+                throw new IllegalStateException("terminal handshake failure");
+            }
+            return openSession();
+        })) {
+            var changes = new LinkedBlockingQueue<Boolean>();
+            var first = pool.maintain(null, changes::add);
+            assertNext(changes, false);
+            Thread worker = failedWorker.get(3, TimeUnit.SECONDS);
+            assertTrue(worker.join(Duration.ofSeconds(3)));
+            assertEquals(1, attempts.get());
+            pool.maintain(null, ignored -> {});
+            assertNext(changes, true);
+            first.cancel();
+        }
+    }
+
+    @Test
+    void listenersCanRegisterAndCancelFromTheirCallback() throws Exception {
+        try (SessionPool pool = new SessionPool(1, SessionPoolTest::openSession)) {
+            var nested = new CompletableFuture<Boolean>();
+            var initial = new CompletableFuture<Registration>();
+            initial.complete(pool.maintain(null, ready -> {
+                if (ready) {
+                    initial.join().cancel();
+                    pool.maintain(null, nested::complete);
+                }
+            }));
+            assertTrue(nested.get(3, TimeUnit.SECONDS));
+        }
+    }
+
+    private static void assertNext(LinkedBlockingQueue<Boolean> events, boolean... expected) throws Exception {
+        for (boolean value : expected) { assertEquals(value, events.poll(3, TimeUnit.SECONDS)); }
     }
 
     private static WebsocketSession openSession() {

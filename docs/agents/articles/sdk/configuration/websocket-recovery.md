@@ -31,3 +31,11 @@ Readiness or correlation logic that requires the exact client ID must use that I
 
 Use `ApplicationProperties` or the component's configured `PropertySource` for these settings. Keep explicit client
 builder configuration near bootstrap; application handlers should use the SDK facade and typed messages.
+
+## Monitor a route
+
+On a concrete `WebSocketClient`, use `monitorPublishing(type, topic, listener)` for the append slot or
+`monitorTracking(type, topic, listener)` for all slots used by round-robin reads. Cached tracking uses its
+existing delegate. Each registration opens its required slots and keeps them warm until cancelled. Multiple
+observers share the pool and its reconnect policy. Consume state notifications promptly and cancel the returned
+`Registration` when the owning component stops. The callback reports connectivity, not storage acknowledgements.

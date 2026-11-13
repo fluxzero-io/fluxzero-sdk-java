@@ -15,13 +15,16 @@
 package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.ConsistentHashing;
+import io.fluxzero.common.Registration;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -60,6 +63,7 @@ public class SessionPool implements AutoCloseable {
     private final Map<Integer, WebsocketSession> sessionMap;
     private final Object[] sessionLocks;
     private final int size;
+    private volatile SessionObservations observations;
     private final AtomicInteger counter = new AtomicInteger();
     private final Function<WebsocketSession, WebsocketSession> sessionFactory;
     private final AtomicBoolean shuttingDown = new AtomicBoolean();
@@ -107,6 +111,10 @@ public class SessionPool implements AutoCloseable {
     }
 
     protected WebsocketSession get(int index) {
+        return get(index, false);
+    }
+
+    private WebsocketSession get(int index, boolean observer) {
         if (shuttingDown.get()) {
             throw new ClientClosedException();
         }
@@ -117,7 +125,7 @@ public class SessionPool implements AutoCloseable {
         synchronized (sessionLocks[index]) {
             WebsocketSession s = sessionMap.get(index);
             while (isClosed(s)) {
-                if (shuttingDown.get()) {
+                if (shuttingDown.get() || observer && !hasObserverDemand(index)) {
                     throw new ClientClosedException();
                 }
                 s = sessionFactory.apply(s);
@@ -126,11 +134,39 @@ public class SessionPool implements AutoCloseable {
             synchronized (shuttingDown) {
                 if (!shuttingDown.get()) {
                     sessionMap.put(index, s);
+                    if (observations != null) { observations.changed(index); }
                     return s;
                 }
             }
             closeSession(s);
             throw new ClientClosedException();
+        }
+    }
+
+    private boolean hasObserverDemand(int slot) {
+        SessionObservations active = observations;
+        return active != null && active.ownsConnectionAttempt(slot);
+    }
+
+    Registration maintain(String routingKey, Consumer<Boolean> listener) {
+        Objects.requireNonNull(listener, "listener");
+        synchronized (shuttingDown) {
+            if (shuttingDown.get()) { throw new ClientClosedException(); }
+            if (observations == null) {
+                observations = new SessionObservations(size, index -> get(index, true),
+                                                       index -> !isClosed(sessionMap.get(index)));
+            }
+            int first = routingKey == null ? 0 : ConsistentHashing.computeSegment(routingKey, size);
+            return observations.subscribe(first, routingKey == null ? size : 1, listener);
+        }
+    }
+
+    void disconnected(WebsocketSession session) {
+        SessionObservations active = observations;
+        if (active != null) {
+            sessionMap.forEach((index, current) -> {
+                if (current == session) { active.changed(index); }
+            });
         }
     }
 
@@ -145,6 +181,10 @@ public class SessionPool implements AutoCloseable {
         synchronized (shuttingDown) {
             if (!shuttingDown.compareAndSet(false, true)) {
                 return;
+            }
+            if (observations != null) {
+                observations.close();
+                observations = null;
             }
             sessions = List.copyOf(sessionMap.values());
             sessionMap.clear();
