@@ -16,6 +16,8 @@
 package io.fluxzero.proxy;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.SerializedMessage;
@@ -27,9 +29,14 @@ import io.fluxzero.sdk.common.websocket.ReadinessTestConnector;
 import io.fluxzero.sdk.common.websocket.WebsocketConnector;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import io.fluxzero.sdk.publishing.client.GatewayClient;
+import io.fluxzero.sdk.publishing.client.WebsocketGatewayClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.client.CachingTrackingClient;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
+import io.fluxzero.sdk.tracking.client.TrackingClient;
+import io.fluxzero.sdk.tracking.client.WebsocketTrackingClient;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
 import io.fluxzero.testserver.websocket.ConsumerEndpoint;
@@ -66,6 +73,8 @@ import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static io.fluxzero.common.ServicePathBuilder.gatewayPath;
 import static io.fluxzero.common.ServicePathBuilder.trackingPath;
+import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.gatewayUrl;
+import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.trackingUrl;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -114,7 +123,45 @@ class ProxyDirectionalReadinessTest {
                 .disableMetrics(true).pingDelay(Duration.ofMillis(50)).build()
                 .withTrackingConfig(WEBREQUEST, tracking).withTrackingConfig(WEBRESPONSE, tracking)
                 .withGatewaySessions(WEBREQUEST, requestPublisherSlots);
-        client = WebSocketClient.newInstance(config);
+        // Keep real transports and the production retry logic, but avoid a fixed second of waiting per failure.
+        // The original delay is asserted before scaling it; disconnect grace and all observation deadlines stay real.
+        client = new WebSocketClient(config, null) {
+            @Override
+            protected GatewayClient createGatewayClient(MessageType type, String topic) {
+                return new WebsocketGatewayClient(gatewayUrl(type, topic, getClientConfig()), this, type, topic) {
+                    @Override
+                    protected RetryConfiguration createConnectionRetryConfiguration(URI uri, Duration delay) {
+                        assertEquals(Duration.ofSeconds(1), delay);
+                        return super.createConnectionRetryConfiguration(uri, Duration.ofMillis(25));
+                    }
+
+                    @Override
+                    protected Duration retryOutstandingRequestsDelay() {
+                        assertEquals(Duration.ofSeconds(1), super.retryOutstandingRequestsDelay());
+                        return Duration.ofMillis(25);
+                    }
+                };
+            }
+
+            @Override
+            protected TrackingClient createTrackingClient(MessageType type, String topic) {
+                var transport = new WebsocketTrackingClient(trackingUrl(type, topic, getClientConfig()), this, type, topic) {
+                    @Override
+                    protected RetryConfiguration createConnectionRetryConfiguration(URI uri, Duration delay) {
+                        assertEquals(Duration.ofSeconds(1), delay);
+                        return super.createConnectionRetryConfiguration(uri, Duration.ofMillis(25));
+                    }
+
+                    @Override
+                    protected Duration retryOutstandingRequestsDelay() {
+                        assertEquals(Duration.ofSeconds(1), super.retryOutstandingRequestsDelay());
+                        return Duration.ofMillis(25);
+                    }
+                };
+                int cacheSize = getClientConfig().getTrackingConfigs().get(type).getCacheSize();
+                return cacheSize > 0 ? new CachingTrackingClient(transport, cacheSize) : transport;
+            }
+        };
         var proxyConfig = ProxyServerConfig.forRuntime(url).withMetricsEnabled(false);
         proxy = ProxyServer.start(proxyConfig, "127.0.0.1", client,
                                   DirectionalReadiness.configuredGrace(ApplicationProperties::getProperty));
