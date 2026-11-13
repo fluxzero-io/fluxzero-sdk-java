@@ -259,7 +259,10 @@ public class ProxyServer implements Registration {
      * @return the started proxy
      */
     public static ProxyServer start(ProxyServerConfig config, String host) {
-        Client client = createClient(config);
+        return start(config, host, createClient(config));
+    }
+
+    static ProxyServer start(ProxyServerConfig config, String host, Client client) {
         ForwardProxyConsumer.Lifecycle forwardProxyConsumer = null;
         try {
             forwardProxyConsumer = ForwardProxyConsumer.startManaged(client);
