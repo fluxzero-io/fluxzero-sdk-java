@@ -31,33 +31,44 @@ final class SessionObservations {
     private final IntConsumer connect;
     private final IntPredicate open;
     private final Thread[] connecting;
+    private final boolean[] connected;
     private final List<Subscription> subscriptions = new ArrayList<>();
+    private int multiSlotSubscriptions;
     private boolean closed;
 
     SessionObservations(int size, IntConsumer connect, IntPredicate open) {
         this.connect = connect;
         this.open = open;
         this.connecting = new Thread[size];
+        this.connected = new boolean[size];
     }
 
     synchronized Registration subscribe(int first, int count, Consumer<Boolean> listener) {
         var subscription = new Subscription(first, count, listener);
         subscriptions.add(subscription);
-        subscription.refresh();
+        if (count > 1) { multiSlotSubscriptions++; }
+        refresh(first, count);
         for (int i = first; i < first + count; i++) { ensureConnected(i); }
         return subscription;
     }
 
     synchronized void changed(int slot) {
         if (closed) { return; }
-        boolean watched = false;
-        for (Subscription subscription : subscriptions) {
-            if (subscription.includes(slot)) {
-                watched = true;
-                subscription.refresh();
-            }
+        if (subscriptions.stream().noneMatch(s -> s.includes(slot))) { return; }
+        refresh(slot, 1);
+        ensureConnected(slot);
+    }
+
+    private void refresh(int first, int count) {
+        // A round-robin group requires every selectable slot. Collect the state once before publishing to anyone.
+        if (multiSlotSubscriptions > 0) {
+            first = 0;
+            count = connected.length;
         }
-        if (watched) { ensureConnected(slot); }
+        for (int i = first; i < first + count; i++) { connected[i] = open.test(i); }
+        for (Subscription subscription : subscriptions) {
+            if (count > 1 || subscription.includes(first)) { subscription.refresh(); }
+        }
     }
 
     synchronized boolean ownsConnectionAttempt(int slot) {
@@ -65,7 +76,7 @@ final class SessionObservations {
     }
 
     private void ensureConnected(int slot) {
-        if (connecting[slot] != null || open.test(slot)) { return; }
+        if (connecting[slot] != null || connected[slot]) { return; }
         Thread worker = Thread.ofVirtual().name("fluxzero-maintain-websocket-" + slot).unstarted(() -> {
             boolean established = false;
             try {
@@ -123,7 +134,7 @@ final class SessionObservations {
 
         void refresh() {
             for (int i = first; i < first + count; i++) {
-                if (!open.test(i)) { offer(false); return; }
+                if (!connected[i]) { offer(false); return; }
             }
             offer(true);
         }
@@ -166,6 +177,7 @@ final class SessionObservations {
                     pending.clear();
                 }
                 if (!subscriptions.remove(this)) { return; }
+                if (count > 1) { multiSlotSubscriptions--; }
                 for (int i = first; i < first + count; i++) {
                     int slot = i;
                     if (subscriptions.stream().noneMatch(s -> s.includes(slot))) { stopConnecting(slot); }

@@ -29,6 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -366,6 +367,78 @@ class SessionPoolTest {
                 }
             }));
             assertTrue(nested.get(3, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void observersShareTheSameSnapshotWhenTheSocketReopensDuringNotification() throws Exception {
+        var open = new AtomicBoolean(true);
+        // Return the closed state once, as when another thread reopens the slot during dispatch.
+        var observations = new SessionObservations(1, slot -> {}, slot -> open.getAndSet(true));
+        try {
+            var first = new LinkedBlockingQueue<Boolean>();
+            var second = new LinkedBlockingQueue<Boolean>();
+            observations.subscribe(0, 1, first::add);
+            observations.subscribe(0, 1, second::add);
+            assertNext(first, true);
+            assertNext(second, true);
+            open.set(false);
+            observations.changed(0);
+            observations.changed(0);
+            assertNext(first, false, true);
+            assertNext(second, false, true);
+        } finally {
+            observations.close();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void aMultiSlotSnapshotCannotReportRecoveryWhileAnotherSlotIsDown(boolean subscribe) throws Exception {
+        var slots = new boolean[]{true, true};
+        var release = new CountDownLatch(1);
+        var down = new CompletableFuture<Thread>();
+        var events = new LinkedBlockingQueue<Boolean>();
+        Runnable waitForRelease = () -> {
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        };
+        var observations = new SessionObservations(2, slot -> waitForRelease.run(), slot -> slots[slot]);
+        try {
+            observations.subscribe(0, 2, value -> {
+                events.add(value);
+                if (!value && down.complete(Thread.currentThread())) { waitForRelease.run(); }
+            });
+            assertNext(events, true);
+            slots[0] = false;
+            observations.changed(0);
+            Thread delivery = down.get(3, TimeUnit.SECONDS);
+            assertNext(events, false);
+
+            // The first slot has recovered but the second slot's close callback is still pending.
+            slots[1] = false;
+            slots[0] = true;
+            if (subscribe) {
+                var added = new LinkedBlockingQueue<Boolean>();
+                observations.subscribe(0, 2, added::add);
+                assertNext(added, false);
+            } else {
+                observations.changed(0);
+            }
+            observations.changed(1); // The delayed close has now arrived.
+            slots[1] = true;
+            observations.changed(1);
+            observations.close();
+            release.countDown();
+            assertTrue(delivery.join(Duration.ofSeconds(3)));
+            assertNext(events, true, false);
+            assertTrue(events.isEmpty(), "The continuously disconnected group must not report an interim recovery");
+        } finally {
+            observations.close();
+            release.countDown();
         }
     }
 
