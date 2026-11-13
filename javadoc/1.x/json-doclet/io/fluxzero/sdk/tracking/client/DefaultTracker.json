@@ -69,6 +69,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "exiting",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.exiting",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "flowRegulator",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.flowRegulator",
     "type" : "io.fluxzero.sdk.tracking.FlowRegulator",
@@ -268,22 +276,6 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "cancellationRegistration",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#cancellationRegistration",
-    "returnType" : "io.fluxzero.common.Registration",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "trackers",
-      "type" : "java.util.List<io.fluxzero.sdk.tracking.client.DefaultTracker>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -815,5 +807,17 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "TrackerRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker$TrackerRegistration",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "WorkerGroup",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker$WorkerGroup",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

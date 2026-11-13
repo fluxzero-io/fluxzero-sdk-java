@@ -86,6 +86,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "addCompletionCheck",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#addCompletionCheck",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "check",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "awaitBeforeResultPublication",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#awaitBeforeResultPublication",
     "returnType" : "void",
@@ -368,6 +384,22 @@
     "varArgs" : false,
     "documentation" : " Returns the barrier that must complete before the supplied message's handler result is published.\n\n @param message message whose result publication barrier should be resolved\n @return completion future, or an already completed future when no post-handler work was registered\n"
   }, {
+    "name" : "validateOnHandlerCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#validateOnHandlerCompletion",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "check",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks a postcondition after a successful handler return, before ordinary completion callbacks\n (including automatic Aggregate commits). Checks run in registration order. Outside an invocation\n the check runs immediately.\n"
+  }, {
     "name" : "whenHandlerCompletes",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#whenHandlerCompletes",
     "returnType" : "io.fluxzero.common.Registration",
@@ -387,6 +419,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "CompletionChecks",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$CompletionChecks",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "ResultPublicationBarrier",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier",
     "kind" : "class",

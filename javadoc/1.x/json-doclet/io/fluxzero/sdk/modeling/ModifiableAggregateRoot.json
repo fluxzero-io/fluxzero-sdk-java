@@ -420,6 +420,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "assertAndApplyUpdate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#assertAndApplyUpdate",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadOrMessage",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "assertLegal",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#assertLegal",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",

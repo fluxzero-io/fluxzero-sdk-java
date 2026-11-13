@@ -907,6 +907,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isTrackingResponses",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#isTrackingResponses",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isWebsocketUpgrade",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#isWebsocketUpgrade",
     "returnType" : "boolean",
@@ -1442,6 +1453,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "startResponseTracking",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#startResponseTracking",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

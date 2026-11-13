@@ -111,6 +111,27 @@
     "varArgs" : false,
     "documentation" : " Validates whether the given value results in a legal state transition for the specified entity. Throws an\n exception if the result would be illegal.\n\n @param value  the value to validate\n @param entity the current entity state\n @param <E>    the type of exception that may be thrown\n @throws E if the value is deemed illegal\n"
   }, {
+    "name" : "assertLegalForApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#assertLegalForApply",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "root",
+      "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
+    "varArgs" : false,
+    "documentation" : " Asserts an update while its Aggregate root is advancing. Existing helpers receive the same\n pre-apply entity as in {@link #assertLegal(Object, Entity)}. A helper with deferred checks\n can resolve the root's delegate again at handler completion.\n"
+  }, {
     "name" : "checkLegality",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#checkLegality",
     "returnType" : "java.util.Optional<E>",

@@ -240,6 +240,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation",
     "kind" : "class"
   }, {
+    "file" : "Invocation.CompletionChecks.json",
+    "name" : "Invocation.CompletionChecks",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$CompletionChecks",
+    "kind" : "class"
+  }, {
     "file" : "Invocation.ResultPublicationBarrier.json",
     "name" : "Invocation.ResultPublicationBarrier",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier",

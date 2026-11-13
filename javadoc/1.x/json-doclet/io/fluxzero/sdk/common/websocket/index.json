@@ -45,6 +45,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest",
     "kind" : "class"
   }, {
+    "file" : "ConnectionMonitor.json",
+    "name" : "ConnectionMonitor",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.ConnectionMonitor",
+    "kind" : "interface"
+  }, {
     "file" : "JdkWebsocketConnector.json",
     "name" : "JdkWebsocketConnector",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector",

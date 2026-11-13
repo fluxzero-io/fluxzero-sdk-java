@@ -1,0 +1,29 @@
+{
+  "name" : "TrackerRegistration",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker$TrackerRegistration",
+  "packageName" : "io.fluxzero.sdk.tracking.client",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "A tracker registration with a local lifecycle query that performs no Runtime I/O. ",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.Registration" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "isRunning",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker$TrackerRegistration#isRunning",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "True while all registered tracker workers are running and have not been asked to stop. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

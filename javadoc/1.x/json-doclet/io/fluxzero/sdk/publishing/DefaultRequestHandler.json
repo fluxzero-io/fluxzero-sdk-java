@@ -253,6 +253,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isTrackingResponses",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#isTrackingResponses",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this handler's response workers are running. Does not start tracking. "
+  }, {
     "name" : "prepareRequest",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#prepareRequest",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.SerializedMessage>",

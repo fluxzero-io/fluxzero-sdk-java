@@ -1495,6 +1495,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "maintainConnections",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#maintainConnections",
+    "returnType" : "io.fluxzero.sdk.common.websocket.ConnectionMonitor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "routingKey",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "listener",
+      "type" : "java.util.function.Consumer<java.lang.Boolean>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Keeps the slot selected by a routing key connected and reports initial availability and subsequent changes.\n A null key covers all round-robin slots. Notifications are asynchronous and ordered per registration.\n Cancel to stop observing and release idle reconnect demand. Existing sessions remain owned by the pool.\n"
+  }, {
     "name" : "metricsMetadata",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#metricsMetadata",
     "returnType" : "io.fluxzero.common.api.Metadata",

@@ -226,6 +226,58 @@
     "varArgs" : false,
     "documentation" : "Whether this client or its owning application has started controlled shutdown. "
   }, {
+    "name" : "monitorPublishing",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#monitorPublishing",
+    "returnType" : "io.fluxzero.sdk.common.websocket.ConnectionMonitor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "listener",
+      "type" : "java.util.function.Consumer<java.lang.Boolean>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Keeps the append route for this client, message type and optional topic connected even when idle.\n Supply a topic for CUSTOM and DOCUMENT and null for other message types.\n The listener receives an initial snapshot and ordered changes on a worker without inherited thread locals.\n Registrations share the same pool slots.\n The callback should return promptly. While a listener is busy, a burst of pending transitions can be\n coalesced to the latest state. Cancelling discards pending callbacks and releases the observation.\n An invocation already in progress may finish. Application requests keep their own delivery and timeout contracts.\n"
+  }, {
+    "name" : "monitorTracking",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#monitorTracking",
+    "returnType" : "io.fluxzero.sdk.common.websocket.ConnectionMonitor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "listener",
+      "type" : "java.util.function.Consumer<java.lang.Boolean>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Keeps all slots used by round-robin tracking reads connected and reports true when all are available.\n Includes cached tracking clients. Topic selection, callback delivery and cancellation follow {@link #monitorPublishing}.\n"
+  }, {
     "name" : "name",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#name",
     "returnType" : "java.lang.String",
@@ -280,6 +332,33 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requireActiveTransport",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#requireActiveTransport",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "transport",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#transport",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

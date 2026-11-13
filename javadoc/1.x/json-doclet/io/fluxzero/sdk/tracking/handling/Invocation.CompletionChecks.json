@@ -1,0 +1,97 @@
+{
+  "name" : "CompletionChecks",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$CompletionChecks",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.util.function.BiConsumer<java.lang.Object,java.lang.Throwable>" ],
+  "fields" : [ {
+    "name" : "additional",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$CompletionChecks.additional",
+    "type" : "java.util.List<java.lang.Runnable>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "first",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$CompletionChecks.first",
+    "type" : "java.lang.Runnable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "passed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$CompletionChecks.passed",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CompletionChecks",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$CompletionChecks#CompletionChecks",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "first",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "accept",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$CompletionChecks#accept",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$CompletionChecks#add",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "check",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
