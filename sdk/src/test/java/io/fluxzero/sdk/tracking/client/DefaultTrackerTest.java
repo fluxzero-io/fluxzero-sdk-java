@@ -483,8 +483,11 @@ class DefaultTrackerTest {
         try {
             assertTrue(fetching.await(1, TimeUnit.SECONDS));
             assertTrue(processing.await(1, TimeUnit.SECONDS));
+            var group = assertInstanceOf(DefaultTracker.TrackerRegistration.class, registration);
+            assertTrue(group.isRunning());
             try (var cancellation = new io.fluxzero.common.TestTask(registration::cancel, releaseWork::countDown)) {
                 cancellation.awaitCompletion(Duration.ofMillis(1_800));
+                assertFalse(group.isRunning());
                 assertEquals(2, activeFetches.get(), "Both fetches must still be blocked");
                 verify(interceptor, never()).shutdown(any());
                 assertFalse(interruptedProcessing.get(), "Cancellation must not interrupt an active handler");

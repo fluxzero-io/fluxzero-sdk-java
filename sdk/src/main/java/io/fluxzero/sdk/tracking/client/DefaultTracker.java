@@ -113,6 +113,7 @@ public class DefaultTracker implements Runnable, Registration {
     private final CompletableFuture<Void> termination = new CompletableFuture<>();
     private volatile Long lastProcessedIndex;
     private volatile boolean processing;
+    private volatile boolean exiting;
 
     /**
      * Starts one or more trackers. Messages will be passed to the given consumer. Once the consumer is done the
@@ -185,7 +186,7 @@ public class DefaultTracker implements Runnable, Registration {
                        format("%s%s-%d", config.getName(),
                               config.getName().contains(messageType.name()) ? "" : "-" + messageType, i)).start();
         }
-        Registration registration = cancellationRegistration(trackers);
+        Registration registration = new WorkerGroup(trackers);
         client.beforeShutdown(registration::cancel);
         return registration;
     }
@@ -207,16 +208,33 @@ public class DefaultTracker implements Runnable, Registration {
                               config.getName().contains(trackingClient.getMessageType().name()) ? "" :
                                       "-" + trackingClient.getMessageType(), i)).start();
         }
-        return cancellationRegistration(trackers);
+        return new WorkerGroup(trackers);
     }
 
-    private static Registration cancellationRegistration(List<DefaultTracker> trackers) {
-        return () -> {
+    /** A tracker registration with a local lifecycle query that performs no Runtime I/O. */
+    public interface TrackerRegistration extends Registration {
+        /** True while all registered tracker workers are running and have not been asked to stop. */
+        boolean isRunning();
+    }
+
+    private record WorkerGroup(List<DefaultTracker> trackers) implements TrackerRegistration {
+        @Override
+        public boolean isRunning() {
+            for (var tracker : trackers) {
+                if (!tracker.running.get() || tracker.cancellationRequested.get() || tracker.exiting || tracker.thread.get() == null) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public void cancel() {
             // Stop every tracker from fetching another batch before awaiting any batch that is already processing.
             trackers.forEach(DefaultTracker::requestCancellation);
             long threadStopDeadline = System.nanoTime() + TRACKER_THREAD_STOP_TIMEOUT.toNanos();
             trackers.forEach(tracker -> tracker.awaitCancellation(threadStopDeadline));
-        };
+        }
     }
 
     private DefaultTracker(Consumer<List<SerializedMessage>> consumer, ConsumerConfiguration config, Tracker tracker,
@@ -283,6 +301,7 @@ public class DefaultTracker implements Runnable, Registration {
                 }
                 throw e;
             } finally {
+                exiting = true;
                 // A canceled consumer may leave the rest of its client connected. Release its reservation only
                 // after the entire processing/interceptor stack has unwound, using reconnect-safe delivery.
                 try {
