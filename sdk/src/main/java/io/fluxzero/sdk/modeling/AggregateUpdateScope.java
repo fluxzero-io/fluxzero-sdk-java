@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import lombok.SneakyThrows;
@@ -27,6 +28,7 @@ import java.util.function.Supplier;
 final class AggregateUpdateScope {
     private static final ThreadLocal<AggregateUpdateScope> current = new ThreadLocal<>();
 
+    private final Fluxzero owner = Fluxzero.getOptionally().orElse(null);
     private final List<Runnable> checks = new ArrayList<>();
     private final List<ModifiableAggregateRoot<?>> roots = new ArrayList<>();
 
@@ -34,7 +36,8 @@ final class AggregateUpdateScope {
     }
 
     static <T> T run(Supplier<T> update) {
-        if (current.get() != null) {
+        AggregateUpdateScope previous = current.get();
+        if (currentScope() != null) {
             return update.get();
         }
         var scope = new AggregateUpdateScope();
@@ -44,7 +47,11 @@ final class AggregateUpdateScope {
             try {
                 result = update.get();
             } finally {
-                current.remove();
+                if (previous == null) {
+                    current.remove();
+                } else {
+                    current.set(previous);
+                }
             }
             scope.checks.forEach(Runnable::run);
         } catch (Throwable failure) {
@@ -56,7 +63,7 @@ final class AggregateUpdateScope {
     }
 
     static void validate(Runnable check) {
-        AggregateUpdateScope scope = current.get();
+        AggregateUpdateScope scope = currentScope();
         if (scope != null && Invocation.getCurrent() == null) {
             scope.checks.add(check);
         } else {
@@ -65,12 +72,17 @@ final class AggregateUpdateScope {
     }
 
     static boolean deferCommit(ModifiableAggregateRoot<?> root) {
-        AggregateUpdateScope scope = current.get();
+        AggregateUpdateScope scope = currentScope();
         if (scope == null || Invocation.getCurrent() != null) {
             return false;
         }
         scope.roots.add(root);
         return true;
+    }
+
+    private static AggregateUpdateScope currentScope() {
+        AggregateUpdateScope scope = current.get();
+        return scope != null && scope.owner == Fluxzero.getOptionally().orElse(null) ? scope : null;
     }
 
     private void complete(Throwable error) {
