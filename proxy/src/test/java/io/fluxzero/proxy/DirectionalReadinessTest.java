@@ -36,8 +36,8 @@ class DirectionalReadinessTest {
 
     @Test
     void continuousLossExpiresAtTheDefaultBoundaryEvenWhenDifferentRoutesAreDown() {
-        var direction = DirectionalReadiness.configured(Map.of(DirectionalReadiness.ENABLED, "true")::get,
-                                                       clock::get).ingress;
+        var grace = DirectionalReadiness.configuredGrace(Map.of(DirectionalReadiness.ENABLED, "true")::get);
+        var direction = new DirectionalReadiness(grace.toNanos(), clock::get).ingress;
         direction.publisherConnected(true);
         assertFalse(direction.isReady());
         direction.trackerConnected(true);
@@ -69,8 +69,20 @@ class DirectionalReadinessTest {
     }
 
     @Test
+    void embeddedInstancesKeepTheirOwnOptInAcrossConfigurationCopies() {
+        var baseline = ProxyServerConfig.forRuntime("ws://localhost");
+        var shortGrace = baseline.withDirectionalReadinessGrace(Duration.ZERO).withPort(0);
+        var longGrace = baseline.withDirectionalReadinessGrace(Duration.ofSeconds(45)).withNamespace("another")
+                .withMetricsEnabled(false);
+        assertNull(baseline.directionalReadinessGrace());
+        assertEquals(Duration.ZERO, shortGrace.directionalReadinessGrace());
+        assertEquals(Duration.ofSeconds(45), longGrace.directionalReadinessGrace());
+        assertThrows(IllegalArgumentException.class, () -> baseline.withDirectionalReadinessGrace(Duration.ofNanos(-1)));
+    }
+
+    @Test
     void disabledByDefault() {
-        assertNull(DirectionalReadiness.configured(key -> null, clock::get));
+        assertNull(DirectionalReadiness.configuredGrace(key -> null));
     }
 
     @ParameterizedTest
@@ -121,7 +133,7 @@ class DirectionalReadinessTest {
     private DirectionalReadiness configured(String value) {
         PropertySource properties = Map.of(DirectionalReadiness.ENABLED, "true",
                                            DirectionalReadiness.DISCONNECT_GRACE, value)::get;
-        return DirectionalReadiness.configured(properties, clock::get);
+        return new DirectionalReadiness(DirectionalReadiness.configuredGrace(properties).toNanos(), clock::get);
     }
 
     private static int status(LocalConnector http, String path) throws Exception {

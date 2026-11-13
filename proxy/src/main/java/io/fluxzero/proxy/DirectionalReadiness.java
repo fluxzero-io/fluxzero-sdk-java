@@ -15,7 +15,9 @@
 
 package io.fluxzero.proxy;
 
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
@@ -25,6 +27,9 @@ import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
+
+import static io.fluxzero.common.MessageType.WEBREQUEST;
+import static io.fluxzero.common.MessageType.WEBRESPONSE;
 
 /** Local readiness of the two forwarding directions. Only transport state changes advance the loss timer. */
 final class DirectionalReadiness {
@@ -36,25 +41,42 @@ final class DirectionalReadiness {
     final Direction ingress;
     final Direction egress;
 
-    private DirectionalReadiness(long graceNanos, LongSupplier nanoTime) {
+    DirectionalReadiness(long graceNanos, LongSupplier nanoTime) {
         ingress = new Direction(graceNanos, nanoTime);
         egress = new Direction(graceNanos, nanoTime);
     }
 
-    static DirectionalReadiness configured(PropertySource properties, LongSupplier nanoTime) {
+    static Duration configuredGrace(PropertySource properties) {
         if (!properties.getBoolean(ENABLED)) {
             return null;
         }
         String value = properties.get(DISCONNECT_GRACE, "PT30S");
         try {
-            long grace = Duration.parse(value).toNanos();
-            if (grace >= 0) {
-                return new DirectionalReadiness(grace, nanoTime);
+            Duration grace = Duration.parse(value);
+            if (grace.toNanos() >= 0) {
+                return grace;
             }
         } catch (DateTimeParseException | ArithmeticException e) {
             throw new IllegalArgumentException(DISCONNECT_GRACE + " must be a non-negative duration: " + value, e);
         }
         throw new IllegalArgumentException(DISCONNECT_GRACE + " must be a non-negative duration: " + value);
+    }
+
+    static boolean usesPath(String path) {
+        return INGRESS_PATH.equals(path) || EGRESS_PATH.equals(path);
+    }
+
+    Registration observe(WebSocketClient client) {
+        Registration routes = Registration.noOp();
+        try {
+            routes = client.monitorPublishing(WEBREQUEST, null, ingress::publisherConnected);
+            routes = routes.merge(client.monitorTracking(WEBRESPONSE, null, ingress::trackerConnected));
+            routes = routes.merge(client.monitorTracking(WEBREQUEST, null, egress::trackerConnected));
+            return routes.merge(client.monitorPublishing(WEBRESPONSE, null, egress::publisherConnected));
+        } catch (RuntimeException | Error e) {
+            routes.cancel();
+            throw e;
+        }
     }
 
     Handler handler(Handler next, BooleanSupplier accepting, BooleanSupplier receivingResponses,

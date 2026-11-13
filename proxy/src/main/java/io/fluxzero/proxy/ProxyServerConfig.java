@@ -15,7 +15,9 @@
 package io.fluxzero.proxy;
 
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,6 +38,7 @@ import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
  * @param supportedCompressionAlgorithms optional compression algorithm preference
  * @param healthEndpoint                 HTTP health endpoint path
  * @param gracefulShutdown               whether Jetty uses the proxy's graceful shutdown timeout
+ * @param directionalReadinessGrace      continuous disconnect tolerance, or null to disable directional endpoints
  */
 public record ProxyServerConfig(
         int port,
@@ -45,12 +48,30 @@ public record ProxyServerConfig(
         boolean metricsEnabled,
         List<CompressionAlgorithm> supportedCompressionAlgorithms,
         String healthEndpoint,
-        boolean gracefulShutdown
+        boolean gracefulShutdown,
+        Duration directionalReadinessGrace
 ) {
     public static final String DEFAULT_APPLICATION_NAME = "$proxy";
     public static final String DEFAULT_HEALTH_ENDPOINT = "/proxy/health";
 
+    /** Creates the original embedded configuration with directional readiness disabled. */
+    public ProxyServerConfig(int port, String runtimeBaseUrl, String applicationName, String namespace,
+                             boolean metricsEnabled, List<CompressionAlgorithm> supportedCompressionAlgorithms,
+                             String healthEndpoint, boolean gracefulShutdown) {
+        this(port, runtimeBaseUrl, applicationName, namespace, metricsEnabled, supportedCompressionAlgorithms,
+             healthEndpoint, gracefulShutdown, null);
+    }
+
     public ProxyServerConfig {
+        if (directionalReadinessGrace != null) {
+            try {
+                if (directionalReadinessGrace.toNanos() < 0) {
+                    throw new IllegalArgumentException("Directional readiness grace must be non-negative");
+                }
+            } catch (ArithmeticException e) {
+                throw new IllegalArgumentException("Directional readiness grace is too long", e);
+            }
+        }
         if (port < 0) {
             throw new IllegalArgumentException("port must be >= 0");
         }
@@ -79,7 +100,7 @@ public record ProxyServerConfig(
                 getBooleanProperty(METRICS_ENABLED_PROPERTY, true),
                 ProxyServer.getConfiguredCompressionAlgorithms().orElse(null),
                 getProperty("PROXY_HEALTH_ENDPOINT", DEFAULT_HEALTH_ENDPOINT),
-                true);
+                true, DirectionalReadiness.configuredGrace(ApplicationProperties::getProperty));
     }
 
     /**
@@ -96,7 +117,7 @@ public record ProxyServerConfig(
      */
     public ProxyServerConfig withPort(int port) {
         return new ProxyServerConfig(port, runtimeBaseUrl, applicationName, namespace, metricsEnabled,
-                                     supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown);
+                                     supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown, directionalReadinessGrace);
     }
 
     /**
@@ -104,7 +125,7 @@ public record ProxyServerConfig(
      */
     public ProxyServerConfig withNamespace(String namespace) {
         return new ProxyServerConfig(port, runtimeBaseUrl, applicationName, namespace, metricsEnabled,
-                                     supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown);
+                                     supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown, directionalReadinessGrace);
     }
 
     /**
@@ -112,6 +133,12 @@ public record ProxyServerConfig(
      */
     public ProxyServerConfig withMetricsEnabled(boolean metricsEnabled) {
         return new ProxyServerConfig(port, runtimeBaseUrl, applicationName, namespace, metricsEnabled,
-                                     supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown);
+                                     supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown, directionalReadinessGrace);
+    }
+
+    /** Enables directional readiness for this proxy with the supplied disconnect tolerance; null disables it. */
+    public ProxyServerConfig withDirectionalReadinessGrace(Duration grace) {
+        return new ProxyServerConfig(port, runtimeBaseUrl, applicationName, namespace, metricsEnabled,
+                                     supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown, grace);
     }
 }

@@ -23,6 +23,7 @@ import io.fluxzero.common.api.tracking.Read;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.common.websocket.ReadinessTestConnector;
 import io.fluxzero.sdk.common.websocket.WebsocketConnector;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
@@ -113,7 +114,9 @@ class ProxyDirectionalReadinessTest {
                 .withTrackingConfig(WEBREQUEST, tracking).withTrackingConfig(WEBRESPONSE, tracking)
                 .withGatewaySessions(WEBREQUEST, requestPublisherSlots);
         client = WebSocketClient.newInstance(config);
-        proxy = ProxyServer.start(ProxyServerConfig.forRuntime(url).withMetricsEnabled(false), "127.0.0.1", client);
+        var proxyConfig = ProxyServerConfig.forRuntime(url).withMetricsEnabled(false)
+                .withDirectionalReadinessGrace(DirectionalReadiness.configuredGrace(ApplicationProperties::getProperty));
+        proxy = ProxyServer.start(proxyConfig, "127.0.0.1", client);
     }
 
     private Server startRuntime(int port) throws Exception {
