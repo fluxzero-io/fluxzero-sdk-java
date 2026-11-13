@@ -822,8 +822,10 @@ public interface Graph<T> {
 
     /**
      * Verifies and applies the supplied update. For an independent {@link Model}, applies are restricted to the
-     * selected Model type and Model-owned handlers retain their target filtering. Assertions on the update payload
-     * run, including assertions that read other Models; their reads participate in the configured conflict policy.
+     * selected Model type and Model-owned handlers retain their target filtering. If multiple Models inherit an
+     * apply that returns the receiver's own Model type, the graph selects the matching registration.
+     * Assertions on the update payload run, including assertions that read other Models; their reads participate
+     * in the configured conflict policy.
      * Returns after the selected model commit is durable; payload IDs do not replace this graph's explicit
      * identity. Interceptor payload transformations retain that identity, while returning an explicit
      * {@link io.fluxzero.sdk.common.Message} starts a separately routed update. Aggregate-backed graphs retain their

@@ -219,6 +219,8 @@ The Graph target restricts writes, not the command's business conditions. A Rese
 `@AssertLegal` that reads `Graph<Product>` still runs, even when only the Reservation is selected. Its Product
 reads participate in RETRY/FAIL conflict checks; before/after assertions and nested validation keep their normal
 timing. This does not widen the apply scope; Model-owned handlers retain their existing target filtering.
+If two Models inherit an `@Apply` that returns the receiver's own Model type, an explicit Graph selects the
+matching registration, regardless of registration order.
 Bind the Product ID normally; a missing or ambiguous required binding is an error, not permission to skip the check.
 
 A successful preflight is not a reservation or guarantee: state may change afterward, and `afterHandler` checks have
