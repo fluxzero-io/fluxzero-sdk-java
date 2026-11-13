@@ -149,6 +149,35 @@ class ProxyServerTest {
     class Basic {
 
         @Test
+        void strictBodyEndpointRejectsDuplicateKeysAndTrailingValuesOverHttp() {
+            var invocations = new java.util.concurrent.atomic.AtomicInteger();
+            testFixture.registerHandlers(new Object() {
+                @HandlePost(value = "/strict-input", strictBody = true)
+                String post(TypedWebInput input) {
+                    invocations.incrementAndGet();
+                    return "accepted";
+                }
+            });
+            for (String body : List.of("{\"count\":1,\"count\":2}", "{\"count\":1} {\"count\":2}",
+                                       "{\"count\":1,\"nested\":{\"x\":1,\"x\":2}}")) {
+                testFixture.whenApplying(fc -> httpClient.send(
+                                newBuilder(URI.create("http://127.0.0.1:" + proxyPort + "/strict-input"))
+                                        .header("Content-Type", "application/json")
+                                        .timeout(Duration.ofSeconds(5)).POST(BodyPublishers.ofString(body)).build(),
+                                BodyHandlers.ofString()))
+                        .verifyResult(response -> assertEquals(400, response.statusCode()));
+                assertEquals(0, invocations.get());
+            }
+            testFixture.whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create("http://127.0.0.1:" + proxyPort + "/strict-input"))
+                                    .header("Content-Type", "application/json")
+                                    .timeout(Duration.ofSeconds(5))
+                                    .POST(BodyPublishers.ofString("{\"count\":1}")).build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> assertEquals(200, response.statusCode()));
+            assertEquals(1, invocations.get());
+        }
+
+        @Test
         void malformedTypedJsonReturnsBadRequestWithoutInvokingHandler() {
             var invocations = new java.util.concurrent.atomic.AtomicInteger();
             testFixture.registerHandlers(new Object() {

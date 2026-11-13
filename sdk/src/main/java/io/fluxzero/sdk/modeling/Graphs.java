@@ -541,6 +541,10 @@ public final class Graphs {
         return withPrevious(graph, null);
     }
 
+    static boolean isApplyResult(Graph<?> graph) {
+        return graph instanceof GraphView<?> view && view.state().isApplyResult();
+    }
+
     static List<GraphMutation> stagedChanges(Graph<?> graph) {
         return graph instanceof GraphView<?> view ? List.copyOf(view.state().stagedChanges().values()) : List.of();
     }
@@ -850,6 +854,8 @@ final class GraphState {
     private final boolean exactBoundary;
     private final ModelReadBoundary boundary;
     private boolean historicalValues;
+    // An eager apply has no replayable mutation, even when a later view or update derives from it.
+    private boolean applyResult;
     private ModelBatchScope.Snapshot initialSnapshot;
     final Map<String, Entity<?>> knownModels;
     final List<ModelGraphEdge> edges;
@@ -1177,11 +1183,8 @@ final class GraphState {
                 return loaded;
             }
             if (overlay.containsKey(data.id()) && overlay.get(data.id()).get() == null) {
-                return GraphState.composed(data.id(), stateIndex(), Map.of(data.id(), overlay.get(data.id())), List.of(),
-                                           repository, historical, boundary(), Map.of())
-                        .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
-                        .retainIdentity(identityRead)
-                        .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root();
+                return inheritSnapshot(GraphState.composed(data.id(), stateIndex(), Map.of(data.id(), overlay.get(data.id())),
+                                                          List.of(), repository, historical, boundary(), Map.of())).root();
             }
             LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>(graph.state().knownModels);
             LinkedHashSet<ModelGraphEdge> mergedEdges = new LinkedHashSet<>(graph.state().edges);
@@ -1197,12 +1200,9 @@ final class GraphState {
                 }
             }
             models.putAll(overlay);
-            return graph.context().decorate(GraphState.composed(
+            return graph.context().decorate(inheritSnapshot(GraphState.composed(
                     data.id(), stateIndex(), models, List.copyOf(mergedEdges),
-                    repository, historical, boundary(), Map.of())
-                    .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
-                    .retainIdentity(identityRead)
-                    .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root());
+                    repository, historical, boundary(), Map.of())).root());
         });
     }
 
@@ -1289,21 +1289,24 @@ final class GraphState {
         GraphMutation addition = new GraphMutation(
                 modelId, entity.type(), expectedStateIndex, readStateIndex, initiallyAbsent, entity.get(), replay);
         changes.merge(modelId, addition, GraphMutation::then);
-        return GraphState.entity(entity, stateIndex(), repository, updated, historical,
-                                 exactBoundary || navigation != null, boundary(), changes)
-                .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
-                .retainIdentity(identityRead)
-                .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root();
+        return inheritSnapshot(GraphState.entity(entity, stateIndex(), repository, updated, historical,
+                                                 exactBoundary || navigation != null, boundary(), changes)).root();
     }
 
-    <T> Graph<T> replaceUnstaged(Entity<T> entity) {
+    <T> Graph<T> replaceUnstaged(Entity<T> entity, boolean fromApply) {
         LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(navigation == null ? knownModels : navigation.staged);
         updated.put(entity.id().toString(), entity);
-        return GraphState.entity(entity, stateIndex(), repository, updated, historical,
-                                 exactBoundary || navigation != null, boundary(), Map.of())
-                .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
+        GraphState result = inheritSnapshot(GraphState.entity(entity, stateIndex(), repository, updated, historical,
+                                                              exactBoundary || navigation != null, boundary(), Map.of()));
+        if (fromApply) { result.applyResult = true; }
+        return result.root();
+    }
+
+    private GraphState inheritSnapshot(GraphState derived) {
+        derived.applyResult = applyResult;
+        return derived.valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
                 .retainIdentity(identityRead)
-                .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root();
+                .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot);
     }
 
     long stateIndex() {
@@ -1640,6 +1643,10 @@ final class GraphState {
 
     Identity identity() {
         return identity;
+    }
+
+    boolean isApplyResult() {
+        return applyResult;
     }
 
     Map<String, GraphMutation> stagedChanges() {
@@ -2852,7 +2859,7 @@ final class GraphView<T> implements Graph<T> {
         Entity<T> next = entityOperation.apply(current);
         Graph<T> result = staged
                 ? state.replace(next, current.isEmpty(), entity -> entityOperation.apply((Entity<T>) entity))
-                : state.replaceUnstaged(next);
+                : state.replaceUnstaged(next, true);
         return Graphs.withReadProof(Graphs.cast(context.decorate(result)), aliasProof);
     }
 
@@ -2865,7 +2872,7 @@ final class GraphView<T> implements Graph<T> {
         }
         Entity<?> entity = node.data().entity();
         Graph<T> result = entity == null ? Graphs.cast(node.data().durable().commit())
-                : state.replaceUnstaged(castEntity(entity).commit());
+                : state.replaceUnstaged(castEntity(entity).commit(), false);
         return Graphs.cast(context.decorate(result));
     }
 
@@ -2899,7 +2906,7 @@ final class GraphView<T> implements Graph<T> {
         } else {
             result = state.replaceUnstaged(metadata == null
                                                    ? entity.assertAndApply(update)
-                                                   : entity.assertAndApply(update, metadata));
+                                                   : entity.assertAndApply(update, metadata), false);
         }
         return Graphs.cast(context.decorate(result));
     }

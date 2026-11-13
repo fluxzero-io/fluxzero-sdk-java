@@ -437,6 +437,42 @@ regardless of defaults version; choose a larger explicit value when required. Ov
 being truncated, and Jetty may close the connection, affecting other streams. The initial buffer setting applies
 to HTTP/1; request-header limits are unchanged.
 
+## Strict JSON input
+
+Set `strictBody = true` on a web handler annotation when duplicate object keys or trailing JSON values should
+reject a typed request. Rejected bodies return HTTP 400 without invoking the handler; a valid body follows normal binding.
+The check includes nested objects. Other endpoints retain their existing parsing behavior.
+
+<Tabs>
+<TabItem label="Java">
+
+```java
+record Submission(String title) {}
+
+@HandlePost(value = "/submissions", strictBody = true)
+String submit(Submission input) {
+    return input.title();
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class Submission(val title: String)
+
+@HandlePost("/submissions", strictBody = true)
+fun submit(input: Submission): String = input.title
+```
+
+</TabItem>
+</Tabs>
+
+For example, `{"title":"first","title":"second"}` and `{"title":"first"} {"title":"second"}` are rejected.
+The `strictBody` option defaults to `false` and is available on all HTTP and WebSocket handler annotations.
+Its current syntax checks apply to typed JSON bodies; other formats retain their configured serializer behavior.
+Raw `String`, `byte[]`, `InputStream` and form parameters keep their existing behavior. Programmatically supplied typed objects have no JSON syntax to check.
+
 ## Error responses and diagnostics
 
 The default response mapper preserves explicit `FunctionalException` messages, including application-defined

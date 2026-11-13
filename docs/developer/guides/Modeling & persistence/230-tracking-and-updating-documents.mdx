@@ -261,3 +261,10 @@ This is a robust and rapid way to **reindex, clean, or refactor your stored docu
 </Tabs>
 
 Once the transformation is complete, the handler can be safely removed.
+
+## Collection names and tracking
+
+DOCUMENT tracking uses the full logical collection name, including names derived from Models. Use that same name
+for indexing, subscriptions, replay and consumer positions. Names are transported as UTF-8; the SDK does not truncate
+them to PostgreSQL's identifier limit. Long names require a Runtime with bounded internal storage identifiers, as
+explained for [custom topic names](/docs/guides/messaging/user-defined-message-logs#topic-names).

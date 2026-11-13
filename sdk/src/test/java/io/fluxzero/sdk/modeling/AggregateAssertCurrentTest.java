@@ -70,7 +70,7 @@ class AggregateAssertCurrentTest {
     @ParameterizedTest @ValueSource(booleans={false,true})
     void sameTypeReplacementHasItsOwnAssertions(boolean async) {
         fixture(async).whenCommand(new Retained("state", true)).expectSuccessfulResult();
-        assertEquals(List.of("retained:true:0", "retain", "retained:false:0", "retained-after:true:1", "retained-after:false:0"), calls);
+        assertEquals(List.of("retained:true:0", "retain", "retained:false:0", "retained-after:true:1", "retained-after:false:1"), calls);
     }
     @ParameterizedTest @ValueSource(booleans={false,true})
     void replacementChainPreservesEveryEnabledInput(boolean async) {

@@ -99,6 +99,19 @@ class MutationPlanTest {
     }
 
     @Test
+    void replayBindsAnInheritedAncestorWriteOnce() {
+        var plan = new MutationPlan.Compiler(List.of(new PayloadParameterResolver()))
+                .compileReplay(UpdateParent.class, ConcreteParent.class);
+        var target = new MutationPlan.ResolvedModel("parent-stream", ConcreteParent.class, READ_WRITE, List.of());
+
+        var replay = plan.targets().resolveReplay(new UpdateParent(), target);
+
+        assertTrue(replay.ancestorDependencies().isEmpty());
+        assertEquals(List.of(new MutationPlan.ResolvedModel(
+                "parent-stream", ConcreteParent.class, READ_WRITE, List.of("parentId"))), replay.models());
+    }
+
+    @Test
     void replayUsesTheStreamIdentityForASingleReference() {
         MutationPlan.TargetPlan plan = MutationPlan.compile(
                 RenameProduct.class, EntityMetadata.of(Product.class).handlerMethods());
@@ -585,6 +598,21 @@ class MutationPlanTest {
         void check(@Association("details/orderId") Graph<Order> order) {
         }
     }
+
+    private interface UpdateParentHandler {
+        @Apply
+        default SharedParent update(UpdateParent event, SharedParent parent) { return parent; }
+    }
+
+    private record UpdateParent() implements UpdateParentHandler {}
+
+    @Model(searchable = false)
+    private interface SharedParent {
+        @EntityId String parentId();
+    }
+
+    @Model(searchable = false)
+    private record ConcreteParent(@EntityId String parentId) implements SharedParent, UpdateParentHandler {}
 
     private record CheckOptionalParent(ChildId childId) {
         @AssertLegal

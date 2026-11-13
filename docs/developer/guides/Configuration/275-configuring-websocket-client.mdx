@@ -172,6 +172,17 @@ isolation across critical workloads.
 
 ---
 
+## Monitor a transport route
+
+An application that needs a warm publisher can call `client.monitorPublishing(MessageType.CUSTOM, "orders", listener)`
+on its `WebSocketClient`. The listener receives the initial connection state and subsequent changes asynchronously.
+Keep the returned `Registration` for the lifetime of the component and call `cancel()` when it stops.
+
+The returned monitor also provides `isConnected()` for a local snapshot. Callbacks on different routes can arrive in either order.
+Use `monitorTracking` to observe the slots used for reads. Both monitors take a topic for `CUSTOM` and `DOCUMENT`. Pass `null` for all other message types.
+Registrations on the same route share the client's existing sockets and reconnect settings. A connected route can
+carry requests; each operation still needs its own acknowledgement or response.
+
 ## Tracking configuration
 
 Tracking clients can use local caches to optimize polling performance when many consumers are tracking the same topic or

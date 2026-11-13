@@ -50,6 +50,17 @@ fixture.whenCommand(trigger)
 
 A passing handler unit test does not prove that production publishes to the same topic.
 
+## Logical names and UTF-8
+
+Use the complete, identical logical name for CUSTOM publication, subscriptions, replay and positions. DOCUMENT uses
+the complete collection name, including Model-derived collections. The SDK sends names as UTF-8 and does not impose
+a 63-byte application-name limit or truncate names. Supplementary characters occupy four UTF-8 bytes. Distinct names
+with a shared long prefix remain distinct topics. Transport-size and resource limits still apply.
+
+Long durable names require the Runtime's bounded internal identifier support. Upgrade Runtime before introducing
+them: older Runtimes may fail during storage creation. Physical names are an implementation detail; never substitute
+an internal hash in SDK gateway, annotation or tracking calls. This contract is identical in Java and Kotlin.
+
 ## Retention, replay, and deletion
 
 `DOCUMENT` and `CUSTOM` logs have topic-specific tracking positions. Read tracker-position management before inspecting

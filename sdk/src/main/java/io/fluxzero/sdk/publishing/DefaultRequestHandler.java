@@ -27,6 +27,7 @@ import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
+import io.fluxzero.sdk.tracking.client.DefaultTracker.TrackerRegistration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -263,6 +264,11 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
     private Throwable timeoutException(SerializedMessage request, int requestId, Duration timeout) {
         return FluxzeroErrors.requestTimeoutException(
                 "message", request.getData().getType(), request.getMessageId(), requestId, resultType.name(), timeout);
+    }
+
+    /** Whether this handler's response workers are running. Does not start tracking. */
+    protected boolean isTrackingResponses() {
+        return registration instanceof TrackerRegistration workers && workers.isRunning();
     }
 
     protected void ensureStarted() {

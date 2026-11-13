@@ -845,10 +845,26 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         }
     }
 
+    void startResponseTracking() {
+        requestHandler.startTracking();
+    }
+
+    boolean isTrackingResponses() {
+        return requestHandler.tracking();
+    }
+
     private static class CancellableRequestHandler extends DefaultRequestHandler {
         CancellableRequestHandler(Client client, MessageType resultType, Duration timeout,
                                   String responseConsumerName) {
             super(client, resultType, timeout, responseConsumerName);
+        }
+
+        void startTracking() {
+            ensureStarted();
+        }
+
+        boolean tracking() {
+            return isTrackingResponses();
         }
 
         void cancelRequest(int requestId, Throwable error) {

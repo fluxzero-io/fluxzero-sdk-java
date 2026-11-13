@@ -51,6 +51,17 @@ import java.lang.annotation.Target;
 @HandleMessage(MessageType.WEBREQUEST)
 public @interface HandleWeb {
     /**
+     * Enables strict body syntax checks. Currently, typed JSON bodies must contain exactly one value without duplicate keys,
+     * including in nested objects. Invalid input fails before handler invocation and the default response mapper
+     * returns HTTP 400. The default is {@code false}, retaining the configured binding behavior.
+     * <p>
+     * Raw String, byte array, InputStream, form and non-JSON bindings retain their existing behavior.
+     * Programmatically supplied typed objects have no JSON syntax to validate. The configured serializer
+     * still performs typed binding after the syntax check.
+     */
+    boolean strictBody() default false;
+
+    /**
      * Determines how the handler responds when referenced protected data is no longer available.
      */
     MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;

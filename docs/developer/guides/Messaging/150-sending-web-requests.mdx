@@ -438,3 +438,24 @@ completion, failure or cancellation; closing the client cancels its limited in-f
 Redirects retain the original request's permit and existing redirect policy. Multiple original origins redirecting
 to the same destination are not a shared destination bulkhead. Use `SAME_ORIGIN` or `NEVER` when that distinction
 matters. These local limits also do not deduplicate replayed requests or replace domain idempotency.
+
+## Check proxy readiness by direction
+
+Enable `fluxzero.proxy.directional-readiness.enabled=true` (`FLUXZERO_PROXY_DIRECTIONAL_READINESS_ENABLED`)
+to expose two local endpoints for the proxy's configured namespace:
+
+- `/proxy/ready/ingress` checks the request publisher and response tracker used by incoming HTTP requests.
+- `/proxy/ready/egress` checks the forward consumer and response publisher used by outgoing HTTP requests.
+
+Namespaces selected by individual incoming requests can have their own connections.
+
+Both endpoints send `Cache-Control: no-store` on ready and unavailable responses.
+A direction starts at HTTP 503. Once ready, it tolerates a continuous transport disconnection for 30 seconds.
+Set `fluxzero.proxy.directional-readiness.disconnect-grace` (`FLUXZERO_PROXY_DIRECTIONAL_READINESS_DISCONNECT_GRACE`)
+to an ISO-8601 duration such as `PT45S`, or `PT0S` for immediate reporting. Recovery restores HTTP 200 as soon as
+the required routes and worker are available. During draining both endpoints return 503. The existing
+`/proxy/ready` reports startup and draining, and `/proxy/health` reports local liveness. Embedded proxies can
+opt in individually using `ProxyServer.start(config, host, grace)`.
+
+Incoming requests retain their normal admission and timeout settings when readiness returns 503.
+The probes share the proxy's HTTP listener and can be delayed if its workers are saturated.

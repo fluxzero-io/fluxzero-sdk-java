@@ -117,3 +117,13 @@ For each static route added or changed:
 For a dynamic property-derived path, drive the actual handler instance through the runtime router and assert the resolved value; do not require a build-time OpenAPI path that cannot be known statically.
 
 A generated path alone does not prove runtime binding, and a direct method call proves neither routing nor OpenAPI. Read routed HTTP endpoint testing and generated API discovery for the two complementary matrices.
+
+## Strict typed JSON bodies
+
+Set `strictBody = true` on `@HandleWeb` or any specialized HTTP/WebSocket handler annotation to reject duplicate
+object keys (including nested keys) and trailing JSON values before invoking a typed endpoint. The default response mapper returns HTTP 400. This is
+per endpoint and defaults to `false`; current strict checks apply to JSON, while other formats retain their
+configured serializer behavior. Other handlers keep their existing binding. It uses the original JSON bytes before permissive tree
+conversion, and works in Java and Kotlin. Raw String/byte-array/InputStream and form bindings are unchanged.
+A TestFixture request with a typed object does not contain ambiguous JSON syntax; use raw JSON input when testing
+syntax rejection. Serialized HTTP-style requests must carry raw JSON bytes rather than a serialized Java byte-array envelope.

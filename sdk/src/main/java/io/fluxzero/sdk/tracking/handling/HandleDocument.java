@@ -97,6 +97,9 @@ public @interface HandleDocument {
      * }
      * }</pre>
      *
+     * The full logical collection name is transported as UTF-8 and also identifies replay and consumer positions.
+     * Long names require Runtime support for bounded internal storage identifiers; do not truncate collection names.
+     *
      * @see Searchable
      */
     String value() default "";

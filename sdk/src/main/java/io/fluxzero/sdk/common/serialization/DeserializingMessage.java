@@ -486,6 +486,15 @@ public class DeserializingMessage implements HasMessage {
     }
 
     /**
+     * Returns an already available serialized envelope without serializing a local message or consuming its payload.
+     * This is useful for checking wire syntax before typed binding. An empty result means no serialized envelope
+     * has been supplied or materialized; callers can still inspect the local payload directly.
+     */
+    public Optional<SerializedMessage> getSerializedObjectIfPresent() {
+        return Optional.ofNullable(delegate == null ? serializedMessage : delegate.getSerializedObject());
+    }
+
+    /**
      * Returns the serialized message using this instance's serializer, serializing a local message when necessary.
      */
     public SerializedMessage getSerializedObject() {

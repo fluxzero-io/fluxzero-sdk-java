@@ -619,7 +619,7 @@ public final class ModelReducer {
         return previousPhase.values().stream().anyMatch(previous ->
                 EntityMetadata.compatibleTypes(targetType, previous.modelType())
                 && context.mayWrite(
-                        previous.modelId(), targetType, handler.executable()));
+                        previous.modelId(), targetType, handler));
     }
 
     private static CommitAttempt withValues(
@@ -1018,7 +1018,7 @@ public final class ModelReducer {
         boolean graphWrite = (handler.collectionApplyResult() || handler.dynamicApplyResult())
                              && target != null && target == beginState.graphReadEntity(targetId);
         if (!creation && !graphWrite && (target == null || !beginState.mayWrite(
-                targetId, targetType, handler.executable()))) {
+                targetId, targetType, handler))) {
             throw new IllegalStateException(
                     "Apply %s returned model '%s', which is not a resolved write target"
                             .formatted(handler.executable().toGenericString(), targetId));
@@ -1538,6 +1538,10 @@ public final class ModelReducer {
                     "@InterceptApply emitted a null element; return null directly to suppress the update");
         }
         if (output instanceof Graph<?> graph) {
+            if (completedPhase != InterceptionPhase.NONE && Graphs.isApplyResult(graph)) {
+                throw new IllegalStateException(
+                        "@InterceptApply cannot return the result of Graph.apply; return the update payload instead.");
+            }
             List<GraphMutation> changes = stagedChanges(graph);
             for (int index = changes.size() - 1; index >= 0; index--) {
                 pending.addFirst(new PendingSubstep(
@@ -1835,7 +1839,7 @@ public final class ModelReducer {
         }
         if (graph.get() != null) {
             throw new IllegalStateException(
-                    "@InterceptApply returned an unchanged Graph; call apply(), update(), or delete() first");
+                    "Graph has no staged changes; use update() or delete() to stage a change");
         }
         String modelId = Objects.requireNonNull(
                 graph.id(), "A staged graph deletion must have a model ID").toString();

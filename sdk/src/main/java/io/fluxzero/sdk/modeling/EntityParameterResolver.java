@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -363,7 +364,13 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     private static CommitAttempt modelContext(
             DeserializingMessage message, EntityMetadata.ExecutableParameters plan) {
-        return resolvedModelBinding(message, plan).orElseThrow().context(message);
+        var binding = resolvedModelBinding(message, plan);
+        if (binding.isEmpty() && message instanceof HasEntity && Entity.isApplying()) {
+            throw new NoSuchElementException("No Model context for " + plan.executable().toGenericString()
+                    + ". When composing updates in @InterceptApply, return the update payload"
+                    + " instead of calling Graph.apply.");
+        }
+        return binding.orElseThrow().context(message);
     }
 
     private static Optional<ModelBinding> resolvedModelBinding(

@@ -49,6 +49,7 @@ import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
@@ -322,6 +323,60 @@ class ModelCommitHandlerIntegrationTest {
                     fluxzero.cache().clear();
                     assertEquals(41, Fluxzero.loadModel(id).get().balance());
                 });
+    }
+
+    @Test
+    void explainsGraphApplyInsideAnInterceptor() {
+        AccountId id = new AccountId("credit");
+        TestFixture.create(Account.class)
+                .givenCommands(new CreateAccount(id, 10))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id).assertAndApply(new ApplyCreditInsideInterceptor(id)))
+                .expectNoEvents()
+                .expectThat(fc -> assertEquals(10, fc.modelRepository().load(id).get().balance()))
+                .verifyExceptionalResult(error -> assertTrue(
+                        error.toString().contains("Graph.apply") && error.toString().contains("@InterceptApply"),
+                        error::toString));
+    }
+
+    @ParameterizedTest
+    @EnumSource(AppliedGraphResult.class)
+    void anAppliedDeletionCannotBeReturnedAsAStagedGraphDeletion(AppliedGraphResult result) {
+        AccountId id = new AccountId("deletion");
+        TestFixture.create(Account.class)
+                .givenCommands(new CreateAccount(id, 10))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id).assertAndApply(new ReturnAppliedDeletion(id, result)))
+                .expectNoEvents()
+                .expectThat(fc -> {
+                    assertEquals(1L, fc.eventStore().getEvents(id.toString()).count());
+                    fc.cache().clear();
+                    assertEquals(10, fc.modelRepository().load(id).get().balance());
+                })
+                .verifyExceptionalResult(error -> assertTrue(error.getMessage().contains("return the update payload"),
+                                                            error::toString));
+    }
+
+    @Test
+    void appliedPreviewCanStillBeUsedForASeparateExplicitUpdate() {
+        AccountId id = new AccountId("outside-interceptor");
+        TestFixture.create(Account.class)
+                .givenCommands(new CreateAccount(id, 10))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id).apply(new ClearAccount())
+                        .update(value -> new Account(id, 20)).commit())
+                .expectNoErrors()
+                .expectThat(fc -> {
+                    fc.cache().clear();
+                    assertEquals(20, fc.modelRepository().load(id).get().balance());
+                });
+    }
+
+    @Test
+    void interceptorMayInspectAnAppliedGraphAndReturnAnUpdatePayload() {
+        AccountId id = new AccountId("preview");
+        TestFixture.create(Account.class)
+                .givenCommands(new CreateAccount(id, 10))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id).assertAndApply(new PreviewCredit(id)))
+                .expectOnlyEvents(new ApplyTargetedCredit(id, 3))
+                .expectThat(fc -> assertEquals(13, fc.modelRepository().load(id).get().balance()));
     }
 
     @Test
@@ -3079,6 +3134,11 @@ class ModelCommitHandlerIntegrationTest {
     @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record Account(@EntityId AccountId accountId, int balance) {
         @Apply
+        Account apply(ClearAccount ignored) {
+            return null;
+        }
+
+        @Apply
         Account apply(SetExplicitValue command) {
             return new Account(accountId, balance + command.amount());
         }
@@ -3203,6 +3263,43 @@ class ModelCommitHandlerIntegrationTest {
         @Apply(eventPublication = EventPublication.ALWAYS)
         Account apply(Account account) {
             return account;
+        }
+    }
+
+    private record ApplyCreditInsideInterceptor(AccountId accountId) {
+        @InterceptApply
+        Graph<Account> intercept(Graph<Account> account) {
+            return account.apply(new ApplyTargetedCredit(accountId, 1));
+        }
+    }
+
+    private enum AppliedGraphResult { DIRECT, FILTERED, UPDATED, COMMITTED, UPDATED_COMMITTED, EXPLICIT_COMMIT }
+
+    private record ReturnAppliedDeletion(AccountId accountId, AppliedGraphResult result) {
+        @InterceptApply
+        Graph<Account> intercept(Graph<Account> account) {
+            Graph<Account> preview = account.apply(new ClearAccount());
+            return switch (result) {
+                case DIRECT -> preview;
+                case FILTERED -> preview.filterBranches(branch -> true);
+                case UPDATED -> preview.update(value -> value);
+                case COMMITTED -> preview.commit();
+                case UPDATED_COMMITTED -> preview.update(value -> value).commit();
+                case EXPLICIT_COMMIT -> {
+                    Fluxzero.assertAndApply(preview.update(value -> value));
+                    yield preview;
+                }
+            };
+        }
+    }
+
+    private record ClearAccount() {}
+
+    private record PreviewCredit(AccountId accountId) {
+        @InterceptApply
+        ApplyTargetedCredit intercept(Graph<Account> account) {
+            int balance = account.apply(new SetExplicitValue(3)).get().balance();
+            return new ApplyTargetedCredit(accountId, balance - account.get().balance());
         }
     }
 

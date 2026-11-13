@@ -540,8 +540,8 @@ including every intercepted output and automatic child deletion. This includes o
 assertions as well as retained current-input and cascading checks. Immediate assertions still run before their own
 step and see earlier staged changes. Each deferred check retains its own payload, metadata and user context;
 a refusal rolls back the whole operation. Splitting an action does not introduce intermediate after-handler phases.
-This boundary covers one Model operation, not separate commands or commits. Aggregate/Entity keeps its existing
-handler-completion phase. These checks are pure validation and must not perform external effects.
+This boundary covers one Model operation, not separate commands or commits. For Aggregates, `@AssertLegal(afterHandler = true)` checks the final state of the handler before automatic commit.
+A direct `assertAndApply` call outside a handler checks the final state of that call. These checks are pure validation and must not perform external effects.
 Immediate-only Model `assertLegal` does not run after-handler assertions. Apply-only legacy paths and replay do not
 start running assertions. Interceptors and assertions must remain free of external side effects.
 
@@ -625,7 +625,8 @@ checking; a concurrent creation cannot be blindly overwritten. Reading an existi
 interceptor alone does not make it writable. Existing results still need a resolved write target or a tracked Graph read.
 
 Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(...)` or `graph.delete()` operations.
-Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection
+Return those changed Graphs so their identity and read boundary travel with the mutation. To run an update’s own handlers,
+return the payload from the interceptor. Returning the result of `graph.apply(payload)` is unsupported. Use an ordered collection
 of ordinary command payloads when each child operation deserves its own domain command; later parts see earlier staged
 changes and all parts commit atomically. The commit shares a commit ID, not one Model revision or state index.
 Each stored event retains its exact commit substep during replay, including when a later part updates the same Model

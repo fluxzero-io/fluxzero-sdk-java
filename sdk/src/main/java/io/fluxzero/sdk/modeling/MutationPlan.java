@@ -1061,10 +1061,10 @@ public final class MutationPlan {
         List<Slot> slots = new ArrayList<>();
         List<Deferred> deferred = new ArrayList<>();
         Set<PlannedAncestor> ancestors = new LinkedHashSet<>();
-        Map<String, EntityMetadata.HandlerMethod> handlerMethods = new LinkedHashMap<>();
+        Set<EntityMetadata.HandlerMethod> handlerMethods = new LinkedHashSet<>();
         Objects.requireNonNull(handlers, "handlerMethods").forEach(handler -> {
             compile(payload, handler, slots, deferred, ancestors);
-            handlerMethods.put(handler.executable().toGenericString(), handler);
+            handlerMethods.add(handler);
         });
         embedded.forEach(plan -> slots.add(new Slot(plan.rootType(),
                 payload.required(plan.rootType(), "@Member owner"), false,
@@ -1072,7 +1072,7 @@ public final class MutationPlan {
         embedded.stream().flatMap(plan -> plan.methods().stream()).filter(method -> !method.modelParameters().isEmpty())
                 .distinct().forEach(method -> {
                     compile(payload, method, slots, deferred, ancestors);
-                    handlerMethods.put(method.executable().toGenericString(), method);
+                    handlerMethods.add(method);
                 });
         if (!assertionModels.isEmpty()) {
             assertionModels.stream()
@@ -1084,7 +1084,7 @@ public final class MutationPlan {
         List<EntityMetadata.HandlerMethod> immutableHandlers = List.copyOf(handlers);
         return new TargetPlan(
                 payloadType, List.copyOf(slots), List.copyOf(deferred), List.copyOf(ancestors),
-                Map.copyOf(handlerMethods),
+                List.copyOf(handlerMethods),
                 ancestors.stream().noneMatch(ancestor -> ancestor.dependency().access().writes())
                         ? null : memoize(() -> ancestorSelectionRoots(payload, immutableHandlers, slots, ancestors)));
     }
@@ -1132,14 +1132,14 @@ public final class MutationPlan {
             List<Slot> slots,
             List<Deferred> deferred,
             Set<PlannedAncestor> ancestors) {
-        String signature = handler.executable().toGenericString();
+        String signature = HandlerSignatures.of(handler.executable());
         boolean apply = handler.kind() == EntityMetadata.HandlerKind.APPLY;
         List<Slot> local = new ArrayList<>();
         List<AncestorDependency> localAncestors = new ArrayList<>();
         if (handler.receiverModelType() != null) {
             local.add(new Slot(
                     handler.receiverModelType(), payload.required(handler.receiverModelType(), signature),
-                    false, Access.READ_ONLY, signature, true, apply, null));
+                    false, Access.READ_ONLY, handler, true, apply, null));
         }
         for (EntityMetadata.ModelParameter parameter : handler.modelParameters()) {
             Property property = parameter.collectionWrapped()
@@ -1148,13 +1148,13 @@ public final class MutationPlan {
             if (property != null) {
                 local.add(new Slot(
                         parameter.modelType(), property, parameter.collectionWrapped(),
-                        Access.READ_ONLY, signature, false, apply, parameter));
+                        Access.READ_ONLY, handler, false, apply, parameter));
             } else if (parameter.collectionWrapped()) {
                 local.add(new Slot(
                         parameter.modelType(), Property.missing(
                                 "Payload %s has no model ID collection property '%s' required by %s".formatted(
                                 payload.type.getName(), parameter.associationProperty(), signature)),
-                        true, Access.READ_ONLY, signature, false, apply, parameter));
+                        true, Access.READ_ONLY, handler, false, apply, parameter));
             } else {
                 localAncestors.add(new AncestorDependency(
                         parameter.modelType(), parameter.associationProperty(), signature,
@@ -1166,9 +1166,9 @@ public final class MutationPlan {
                 local.forEach(Slot::write);
             }
             handler.targetModelTypes().forEach(type ->
-                    writeSlot(payload, handler, type, local, localAncestors, deferred));
+                    writeSlot(payload, handler, type, local, localAncestors, deferred, signature));
         }
-        localAncestors.forEach(dependency -> ancestors.add(new PlannedAncestor(dependency, apply)));
+        localAncestors.forEach(dependency -> ancestors.add(new PlannedAncestor(dependency, handler)));
         slots.addAll(local);
     }
 
@@ -1178,8 +1178,7 @@ public final class MutationPlan {
             Class<?> type,
             List<Slot> slots,
             List<AncestorDependency> ancestors,
-            List<Deferred> deferred) {
-        String signature = handler.executable().toGenericString();
+            List<Deferred> deferred, String signature) {
         List<Slot> candidates = slots.stream().filter(slot -> slot.modelType.equals(type)).toList();
         Slot receiver = candidates.stream().filter(slot -> slot.receiver).findFirst().orElse(null);
         if (receiver != null || candidates.size() == 1) {
@@ -1194,7 +1193,7 @@ public final class MutationPlan {
                 } else {
                     slots.add(new Slot(
                             type, direct == null ? payload.required(type, signature) : direct, false,
-                            Access.WRITE_ONLY, signature, false, true, null));
+                            Access.WRITE_ONLY, handler, false, true, null));
                 }
             }
         } else {
@@ -1204,9 +1203,9 @@ public final class MutationPlan {
             if (exactSlot != null) {
                 exactSlot.write();
             } else if (exact != null) {
-                slots.add(new Slot(type, exact, false, Access.WRITE_ONLY, signature, false, true, null));
+                slots.add(new Slot(type, exact, false, Access.WRITE_ONLY, handler, false, true, null));
             } else {
-                deferred.add(new Deferred(type, candidates, signature, true));
+                deferred.add(new Deferred(type, candidates, handler, DeferredWriteTarget.writeKey(handler, signature)));
             }
         }
     }
@@ -1298,7 +1297,8 @@ public final class MutationPlan {
         private final List<Slot> slots;
         private final List<Deferred> deferred;
         private final List<PlannedAncestor> ancestors;
-        private final Map<String, EntityMetadata.HandlerMethod> handlerMethods;
+        private final boolean sharedAncestorDependencies;
+        private final List<EntityMetadata.HandlerMethod> handlerMethods;
         private final Supplier<List<Slot>> ancestorRoots;
         private final Slot routingTarget;
         private volatile ReplayBinding replayBinding;
@@ -1308,22 +1308,24 @@ public final class MutationPlan {
                 List<Slot> slots,
                 List<Deferred> deferred,
                 List<PlannedAncestor> ancestors,
-                Map<String, EntityMetadata.HandlerMethod> handlerMethods,
+                List<EntityMetadata.HandlerMethod> handlerMethods,
                 Supplier<List<Slot>> ancestorRoots) {
             this.payloadType = payloadType;
             this.slots = slots;
             this.deferred = deferred;
             this.ancestors = ancestors;
+            sharedAncestorDependencies = ancestors.size() > 1
+                    && ancestors.stream().map(PlannedAncestor::dependency).distinct().count() < ancestors.size();
             this.handlerMethods = handlerMethods;
             this.ancestorRoots = ancestorRoots;
-            List<EntityMetadata.HandlerMethod> applies = handlerMethods.values().stream()
+            List<EntityMetadata.HandlerMethod> applies = handlerMethods.stream()
                     .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY).toList();
             List<Slot> writes = slots.stream().filter(slot -> slot.access.writes()).toList();
             routingTarget = applies.size() == 1 && !applies.getFirst().collectionApplyResult()
                             && !applies.getFirst().dynamicApplyResult() && deferred.isEmpty()
                             && writes.size() == 1 && !writes.getFirst().collection
                             && !writes.getFirst().property.missing()
-                            && handlerMethods.values().stream().noneMatch(
+                            && handlerMethods.stream().noneMatch(
                                     handler -> handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY)
                     ? writes.getFirst() : null;
         }
@@ -1457,7 +1459,7 @@ public final class MutationPlan {
                             "At least one non-empty alias selector is required for " + slot.modelType.getName()); }
                     if (aliasTargets.isEmpty()) { aliasTargets = new ArrayList<>(); }
                     aliasTargets.add(new AliasTarget(slot.modelType, slot.access, List.copyOf(values),
-                                                     slot.parameter, slot.handler));
+                                                     slot.parameter, slot.signature));
                     if (!deferred.isEmpty()) { slotIds.put(slot, List.of()); }
                     continue;
                 }
@@ -1482,7 +1484,6 @@ public final class MutationPlan {
             List<DeferredWriteTarget> unresolved = new ArrayList<>();
             for (Deferred target : deferred) {
                 if (!acceptsExplicitTarget(target.handler, explicitType)
-                    || appliesOnly && !target.apply
                     || compatibleExplicit(target.modelType, explicitType)) {
                     continue;
                 }
@@ -1493,10 +1494,10 @@ public final class MutationPlan {
                             candidates.iterator().next(), target.modelType, Access.WRITE_ONLY, List.of()));
                 } else {
                     unresolved.add(new DeferredWriteTarget(
-                            target.modelType, List.copyOf(candidates), target.handler));
+                            target.modelType, List.copyOf(candidates), target.writeKey));
                 }
             }
-            if (explicitId != null && (handlerMethods.values().stream()
+            if (explicitId != null && (handlerMethods.stream()
                     .anyMatch(handler -> bindsExplicitTarget(handler, explicitType))
                                       || slots.stream().anyMatch(slot ->
                     (!appliesOnly || slot.apply) &&
@@ -1509,14 +1510,16 @@ public final class MutationPlan {
                 merge(result, new ResolvedModel(
                         explicitId, explicitType, Access.READ_WRITE, sources));
             }
-            List<AncestorDependency> unresolvedAncestors = ancestors.stream()
-                    .filter(dependency -> !appliesOnly || dependency.apply)
-                    .filter(dependency -> acceptsExplicitTarget(
-                            dependency.dependency.handler(), explicitType))
-                    .map(PlannedAncestor::dependency)
-                    .filter(dependency -> !compatibleExplicit(
-                            dependency.modelType(), explicitType))
-                    .filter(dependency -> !bindMetadataReference(input, dependency, result, references)).toList();
+            List<AncestorDependency> unresolvedAncestors = ancestors.isEmpty() ? List.of() : ancestors.stream()
+                    .filter(ancestor -> !appliesOnly || ancestor.apply())
+                    .filter(ancestor -> acceptsExplicitTarget(ancestor.handler, explicitType))
+                    .filter(ancestor -> !compatibleExplicit(ancestor.dependency.modelType(), explicitType))
+                    .filter(ancestor -> !bindMetadataReference(input, ancestor, result, references))
+                    .map(PlannedAncestor::dependency).toList();
+            if (sharedAncestorDependencies && unresolvedAncestors.size() > 1) {
+                // Different receivers can resolve to the same stored parent after metadata binding.
+                unresolvedAncestors = List.copyOf(new LinkedHashSet<>(unresolvedAncestors));
+            }
             if (replayTarget != null && ancestorRoots != null) {
                 List<AncestorDependency> matching = unresolvedAncestors.stream()
                         .filter(dependency -> EntityMetadata.compatibleTypes(
@@ -1536,7 +1539,7 @@ public final class MutationPlan {
                     Object raw = root.property.read(payload);
                     if (raw != null) {
                         List<String> ids = root.collection
-                                ? ids(raw, root.modelType, root.property.name(), root.handler, payload)
+                                ? ids(raw, root.modelType, root.property.name(), root.signature, payload)
                                 : List.of(repositoryId(raw, root, payload));
                         for (String id : ids) {
                             merge(result, new ResolvedModel(
@@ -1548,7 +1551,7 @@ public final class MutationPlan {
             if (!ancestors.isEmpty()) {
                 addProspectiveParents(payload, result);
             }
-            if (replayTarget != null && (handlerMethods.values().stream()
+            if (replayTarget != null && (handlerMethods.stream()
                     .anyMatch(handler -> handler.dynamicApplyResult() || handler.collectionApplyResult())
                     || slots.stream().anyMatch(slot -> slot.handler == null && slot.apply
                     && compatibleExplicit(slot.modelType, replayTarget.modelType())))) {
@@ -1575,7 +1578,7 @@ public final class MutationPlan {
         private Property computeReplayBinding(Class<?> modelType) {
             // A single stream-bound reference may have been selected through Graph.assertAndApply.
             // Do not collapse distinct same-type readers or collections onto that write target.
-            if (handlerMethods.values().stream().anyMatch(
+            if (handlerMethods.stream().anyMatch(
                     handler -> handler.dynamicApplyResult() || handler.collectionApplyResult())) {
                 return null;
             }
@@ -1595,13 +1598,12 @@ public final class MutationPlan {
         private record ReplayBinding(Class<?> modelType, Property property) {
         }
 
-        private boolean bindMetadataReference(Object input, AncestorDependency dependency,
+        private boolean bindMetadataReference(Object input, PlannedAncestor ancestor,
                                                Map<String, ResolvedModel> models,
                                                Map<EntityMetadata.ModelParameter, DirectReferences> references) {
+            AncestorDependency dependency = ancestor.dependency;
             if (!(input instanceof HasMessage message) || dependency.association() == null) { return false; }
-            EntityMetadata.HandlerMethod handler = handlerMethods.get(dependency.handler());
-            if (handler == null) { return false; }
-            for (EntityMetadata.ModelParameter parameter : handler.modelParameters()) {
+            for (EntityMetadata.ModelParameter parameter : ancestor.handler.modelParameters()) {
                 if (parameter.modelType() != dependency.modelType()
                     || !Objects.equals(parameter.associationProperty(), dependency.association())
                     || !metadataContains(message, parameter)) { continue; }
@@ -1674,7 +1676,7 @@ public final class MutationPlan {
                 throw nullId(slot);
             }
             return slot.collection
-                    ? ids(raw, slot.modelType, slot.property.name(), slot.handler, payload)
+                    ? ids(raw, slot.modelType, slot.property.name(), slot.signature, payload)
                     : List.of(repositoryId(raw, slot, payload));
         }
 
@@ -1705,10 +1707,6 @@ public final class MutationPlan {
             return this;
         }
 
-        private boolean acceptsExplicitTarget(String handler, Class<?> explicitType) {
-            return explicitType == null || handler == null || MutationPlan.acceptsExplicitTarget(
-                    handlerMethods.get(handler), explicitType);
-        }
     }
 
     record DirectReferences(boolean present, String modelId, List<String> modelIds) {
@@ -1833,13 +1831,42 @@ public final class MutationPlan {
         }
     }
 
-    /** Runtime-selected write target among already loaded candidates. */
+    /**
+     * Runtime-selected write target among already loaded candidates.
+     * SDK-generated handler descriptors qualify the method signature with its registration.
+     * Resolutions built with an unqualified method signature retain the original matching behavior.
+     */
     public record DeferredWriteTarget(
             Class<?> modelType,
             List<String> candidateModelIds,
             String handler) {
         public DeferredWriteTarget {
             candidateModelIds = List.copyOf(candidateModelIds);
+        }
+
+        boolean permits(EntityMetadata.HandlerMethod source) {
+            String signature = HandlerSignatures.of(source.executable());
+            // Callers constructing their own Resolution may supply an unqualified signature.
+            return handler.equals(signature) || handler.equals(writeKey(source, signature));
+        }
+
+        private static String writeKey(EntityMetadata.HandlerMethod source, String signature) {
+            Class<?> receiver = source.receiverModelType();
+            if (receiver == null) {
+                return (source.modelHandler() ? "static model::" : "payload::") + signature;
+            }
+            String modelName = EntityMetadata.of(receiver).localModelName();
+            return "model " + receiver.getName() + " " + modelName + "::" + signature;
+        }
+    }
+
+    private static final class HandlerSignatures {
+        private final Map<Executable, String> signatures = new ConcurrentHashMap<>();
+
+        static String of(Executable method) {
+            return ReflectionUtils.getTypeMetadata(method.getDeclaringClass())
+                    .specializedMetadata(HandlerSignatures.class, ignored -> new HandlerSignatures())
+                    .signatures.computeIfAbsent(method, Executable::toGenericString);
         }
     }
 
@@ -1872,7 +1899,8 @@ public final class MutationPlan {
         private final EntityMetadata metadata;
         private final Property property;
         private final boolean collection;
-        private final String handler;
+        private final EntityMetadata.HandlerMethod handler;
+        private final String signature;
         private final boolean receiver;
         private final boolean apply;
         private final EntityMetadata.ModelParameter parameter;
@@ -1883,7 +1911,7 @@ public final class MutationPlan {
                 Property property,
                 boolean collection,
                 Access access,
-                String handler,
+                EntityMetadata.HandlerMethod handler,
                 boolean receiver,
                 boolean apply,
                 EntityMetadata.ModelParameter parameter) {
@@ -1896,6 +1924,7 @@ public final class MutationPlan {
             this.collection = collection;
             this.access = access;
             this.handler = handler;
+            this.signature = handler == null ? null : HandlerSignatures.of(handler.executable());
             this.receiver = receiver;
             this.apply = apply;
             this.parameter = parameter;
@@ -1910,13 +1939,17 @@ public final class MutationPlan {
         }
     }
 
-    private record Deferred(Class<?> modelType, List<Slot> candidates, String handler, boolean apply) {
+    private record Deferred(Class<?> modelType, List<Slot> candidates, EntityMetadata.HandlerMethod handler,
+                            String writeKey) {
         private Deferred {
             candidates = List.copyOf(candidates);
         }
     }
 
-    private record PlannedAncestor(AncestorDependency dependency, boolean apply) {
+    private record PlannedAncestor(AncestorDependency dependency, EntityMetadata.HandlerMethod handler) {
+        private boolean apply() {
+            return handler.kind() == EntityMetadata.HandlerKind.APPLY;
+        }
     }
 
     private record AliasInput(EntityMetadata.AliasProperty alias, Property property) {
@@ -2149,7 +2182,7 @@ public final class MutationPlan {
     private static IllegalArgumentException nullId(Slot slot) {
         return new IllegalArgumentException(
                 "Payload property '%s' resolved to null for %s model required by %s".formatted(
-                        slot.property.name(), slot.modelType.getName(), slot.handler));
+                        slot.property.name(), slot.modelType.getName(), slot.signature));
     }
 
     private static String repositoryId(Object id, Slot slot, Object source) {
@@ -2157,7 +2190,7 @@ public final class MutationPlan {
             return slot.metadata.parentScopedEntityId()
                     ? slot.metadata.repositoryId(id, source) : slot.metadata.repositoryId(id);
         } catch (RuntimeException e) {
-            throw invalidId(slot.property.name(), slot.modelType, slot.handler, e);
+            throw invalidId(slot.property.name(), slot.modelType, slot.signature, e);
         }
     }
 

@@ -16,6 +16,16 @@ In this example the application defines `MeteringPoint(String meterId, double va
 `data class MeteringPoint(val meterId: String, val value: Double)` in Kotlin. Both sender and handler use the
 `metering-points` topic.
 
+## Topic names
+
+Use the exact same logical name for publication, `@HandleCustom`, replay and position management. Names travel as
+UTF-8; the SDK does not shorten them or impose PostgreSQL's 63-byte identifier limit. Multibyte characters can occupy
+more than one byte. Keep names stable across deployments: changing a name selects a different log and its positions.
+
+Long durable names require a Runtime with bounded internal storage names. That Runtime hashes oversized physical
+identifiers while retaining the full logical topic. Upgrade Runtime before introducing long names; older Runtimes
+can fail while creating their storage. Existing transport-size and resource limits still apply.
+
 ## Handling messages from a custom log
 
 To receive messages from a custom log, annotate your handler with `@HandleCustom` and specify the topic name.

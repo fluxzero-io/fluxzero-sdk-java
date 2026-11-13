@@ -15,6 +15,8 @@
 
 package io.fluxzero.sdk.web;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -27,12 +29,14 @@ import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 
 import java.io.InputStream;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.assertAuthorized;
@@ -60,6 +64,9 @@ import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.ignor
  */
 @AllArgsConstructor
 public class WebPayloadParameterResolver implements PreparedParameterResolver<HasMessage> {
+    private static final JsonFactory strictJson = JsonFactory.builder()
+            .enable(com.fasterxml.jackson.core.StreamReadFeature.STRICT_DUPLICATE_DETECTION).build();
+
     private final boolean validatePayload;
     private final boolean authoriseUser;
 
@@ -73,8 +80,13 @@ public class WebPayloadParameterResolver implements PreparedParameterResolver<Ha
      */
     @Override
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
+        return resolve(p, requiresStrictBody(p));
+    }
+
+    private Function<HasMessage, Object> resolve(Parameter p, boolean strict) {
+        Type type = p.getParameterizedType();
         return m -> {
-            Object payload = resolvePayload(m, p, p.getParameterizedType());
+            Object payload = resolvePayload(m, p, type, strict);
             if (payload != null) {
                 if (validatePayload) {
                     assertValid(payload);
@@ -104,8 +116,12 @@ public class WebPayloadParameterResolver implements PreparedParameterResolver<Ha
 
     @Override
     public boolean test(HasMessage m, Parameter p) {
+        return test(m, p, requiresStrictBody(p));
+    }
+
+    private boolean test(HasMessage m, Parameter p, boolean strict) {
         if (authoriseUser && !hasStreamingPayload(m)) {
-            Object payload = resolvePayload(m, p, p.getParameterizedType());
+            Object payload = resolvePayload(m, p, p.getParameterizedType(), strict);
             if (payload != null && ignoreSilently(payload.getClass(), User.getCurrent())) {
                 return false;
             }
@@ -136,12 +152,22 @@ public class WebPayloadParameterResolver implements PreparedParameterResolver<Ha
         return ReflectionUtils.isMethodAnnotationPresent(method, HandleWeb.class);
     }
 
+    private static boolean requiresStrictBody(Parameter parameter) {
+        Class<?> type = parameter.getType();
+        return type != String.class && type != byte[].class && !InputStream.class.isAssignableFrom(type)
+               && ReflectionUtils.getAnnotationAs(parameter.getDeclaringExecutable(), HandleWeb.class, Map.class)
+                       .map(options -> Boolean.TRUE.equals(options.get("strictBody"))).orElse(false);
+    }
+
     @SneakyThrows
-    Object resolvePayload(HasMessage message, Parameter parameter, Type type) {
+    private Object resolvePayload(HasMessage message, Parameter parameter, Type type, boolean strict) {
         try {
             if (message instanceof DeserializingMessage m && shouldBindFormPayload(m, parameter)) {
                 var formObject = DefaultWebRequestContext.getWebRequestContext(m).formObject();
                 return formObject.isEmpty() ? null : JsonUtils.convertValue(formObject, type);
+            }
+            if (strict) {
+                return resolveStrictJson(message, type);
             }
             return message.getPayloadAs(type);
         } catch (Exception e) {
@@ -152,6 +178,54 @@ public class WebPayloadParameterResolver implements PreparedParameterResolver<Ha
                 throw new DeserializationException("Could not deserialize web request body", e);
             }
             throw e;
+        }
+    }
+
+    private static Object resolveStrictJson(HasMessage message, Type type) throws IOException {
+        // Inspect existing wire bytes before a permissive tree conversion can discard duplicate keys.
+        // Do not materialize a wire envelope for local objects or consume a local stream during selection.
+        var wire = message instanceof DeserializingMessage serialized
+                ? serialized.getSerializedObjectIfPresent().orElse(null) : null;
+        if (wire != null) {
+            if (WebUtils.isJsonContentType(wire.getData().getFormat()) && wire.getData().getValue() != null) {
+                try (JsonParser parser = strictJson.createParser(wire.getData().getValue())) {
+                    validateSingleValue(parser);
+                }
+            }
+            // A wire payload is already bound by its configured serializer, including non-JSON formats.
+            return message.getPayloadAs(type);
+        }
+        String contentType = WebRequest.getHeader(message.getMetadata(), "Content-Type").orElse(null);
+        if (contentType != null && !WebUtils.isJsonContentType(contentType)) {
+            return message.getPayloadAs(type);
+        }
+        Object payload = message.getPayload();
+        if (payload instanceof InputStream stream) {
+            byte[] bytes = stream.readAllBytes();
+            try (JsonParser parser = strictJson.createParser(bytes)) {
+                validateSingleValue(parser);
+            }
+            return message.toMessage().withPayload(bytes).getPayloadAs(type);
+        }
+        if (payload instanceof byte[] bytes) {
+            try (JsonParser parser = strictJson.createParser(bytes)) {
+                validateSingleValue(parser);
+            }
+        } else if (payload instanceof String text) {
+            try (JsonParser parser = strictJson.createParser(text)) {
+                validateSingleValue(parser);
+            }
+        }
+        return message.getPayloadAs(type);
+    }
+
+    private static void validateSingleValue(JsonParser parser) throws IOException {
+        if (parser.nextToken() == null) {
+            throw new DeserializationException("Expected one JSON value in web request body");
+        }
+        parser.skipChildren();
+        if (parser.nextToken() != null) {
+            throw new DeserializationException("Trailing JSON value in web request body");
         }
     }
 

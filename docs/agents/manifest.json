@@ -3827,7 +3827,8 @@
         "route binding",
         "leading slash",
         "Kotlin handler binding",
-        "@field:NotBlank"
+        "@field:NotBlank",
+        "strictBody"
       ],
       "links": [
         {

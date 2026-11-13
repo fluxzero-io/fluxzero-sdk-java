@@ -25,7 +25,6 @@ import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 
-import java.lang.reflect.Executable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -1026,7 +1025,7 @@ public final class CommitAttempt {
         return resolution.references().get(parameter);
     }
 
-    boolean mayWrite(String modelId, Class<?> modelType, Executable handler) {
+    boolean mayWrite(String modelId, Class<?> modelType, EntityMetadata.HandlerMethod handler) {
         MutationPlan.ResolvedModel target = target(modelId);
         if (target == null) {
             return false;
@@ -1034,11 +1033,12 @@ public final class CommitAttempt {
         if (target.access().writes()) {
             return true;
         }
-        String handlerSignature = handler == null ? null : handler.toGenericString();
+        if (handler == null || resolution.deferredWrites().isEmpty()) {
+            return false;
+        }
         for (MutationPlan.DeferredWriteTarget deferred : resolution.deferredWrites()) {
-            if (deferred.handler().equals(handlerSignature)
-                && deferred.modelType().isAssignableFrom(modelType)
-                && deferred.candidateModelIds().contains(modelId)) {
+            if (deferred.modelType().isAssignableFrom(modelType) && deferred.candidateModelIds().contains(modelId)
+                && deferred.permits(handler)) {
                 return true;
             }
         }

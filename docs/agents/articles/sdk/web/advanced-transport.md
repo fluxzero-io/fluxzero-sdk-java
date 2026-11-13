@@ -136,3 +136,13 @@ The built-in `/proxy/health` and `/proxy/ready` responses already have tiny fixe
 the same HTTP response generator as application responses. These options do not change their
 payloads or readiness semantics and do not define the proxy's overall process-memory limit. The
 same environment settings apply to Java and Kotlin applications.
+
+## Directional readiness
+
+Enable `fluxzero.proxy.directional-readiness.enabled=true` to expose local ingress and egress readiness for the
+proxy's configured namespace. `/proxy/ready/ingress` checks the incoming request publisher and response
+tracker. `/proxy/ready/egress` checks the outgoing request consumer and response publisher. The SDK keeps the required transport routes connected while idle.
+Change the continuous disconnect grace via `fluxzero.proxy.directional-readiness.disconnect-grace` (default
+`PT30S`). The probes perform no remote calls. Existing HTTP exchanges, forwarding and client WebSockets keep their
+ordinary timeout and shutdown semantics. For a separately configured embedded instance use
+`ProxyServer.start(config, host, grace)`.

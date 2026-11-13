@@ -30,6 +30,8 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -104,10 +106,12 @@ class ProxyServerLifecycleTest {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     @Timeout(20)
-    void failedHttpStartupStopsTheAlreadyStartedForwardConsumer() throws Exception {
+    void failedHttpStartupStopsTheAlreadyStartedConsumers(boolean directional) throws Exception {
         Server runtime = null;
+        var unexpectedlyStarted = new java.util.concurrent.atomic.AtomicReference<ProxyServer>();
         String previousFluxzeroProxyPort = System.getProperty("FLUXZERO_PROXY_PORT");
         String previousFluxzeroBaseUrl = System.getProperty("FLUXZERO_BASE_URL");
         String previousProxyMetricsEnabled = System.getProperty(ForwardProxyConsumer.METRICS_ENABLED_PROPERTY);
@@ -119,10 +123,16 @@ class ProxyServerLifecycleTest {
             configureProxy("ws://127.0.0.1:" + localPort(runtime), 0L, 1_000L);
             System.setProperty("FLUXZERO_PROXY_PORT", Integer.toString(occupiedPort.getLocalPort()));
 
-            assertThrows(IllegalStateException.class, ProxyServerLifecycleTest::startLocalProxy);
+            var config = ProxyServerConfig.fromProperties();
+            assertThrows(IllegalStateException.class, () -> unexpectedlyStarted.set(ProxyServer.start(
+                    config, "127.0.0.1", directional ? Duration.ZERO : null)));
+            assertEventuallyNoThread(config.applicationName() + "_$proxy-request-handler-WEBRESPONSE-");
 
             assertEventuallyNoThread("forward-proxy-WEBREQUEST-");
         } finally {
+            if (unexpectedlyStarted.get() != null) {
+                unexpectedlyStarted.get().cancel();
+            }
             if (runtime != null) {
                 runtime.stop();
             }

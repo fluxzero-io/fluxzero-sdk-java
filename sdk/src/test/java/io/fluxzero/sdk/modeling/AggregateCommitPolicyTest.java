@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -51,6 +52,58 @@ class AggregateCommitPolicyTest {
 
     private static final JacksonSerializer serializer = new JacksonSerializer();
     private static final EntityHelper entityHelper = new DefaultEntityHelper(List.of(), true);
+
+    @Test
+    void standaloneCommitFailureRollsBackTheRemainingRoots() {
+        var commits = new CommitProbe();
+        var failure = new IllegalStateException("commit failed");
+        commits.fail(0, failure);
+        var first = aggregate("first", AggregateCommitPolicy.SYNC_AFTER_HANDLER, commits);
+        var second = aggregate("second", AggregateCommitPolicy.SYNC_AFTER_HANDLER, new CommitProbe(true));
+
+        var previous = second.get();
+        var thrown = assertThrows(RuntimeException.class, () -> AggregateUpdateScope.run(() -> {
+            first.update(value -> null);
+            return second.update(value -> null);
+        }));
+
+        assertTrue(hasCause(thrown, failure));
+        assertEquals(1, commits.started.get());
+        assertEquals(previous, second.get());
+        second.update(value -> null);
+        assertNull(second.get());
+    }
+
+    @Test
+    void nestedHandlerCompletesIndependentlyOfStandaloneAggregateChecks() {
+        List<String> calls = new ArrayList<>();
+        AggregateUpdateScope.run(() -> {
+            AggregateUpdateScope.validate(() -> calls.add("aggregate check"));
+            Invocation.whenHandlerCompletes((r, e) -> calls.add("outside handler"));
+            Invocation.performInvocation(() -> {
+                AggregateUpdateScope.validate(() -> calls.add("handler check"));
+                return null;
+            });
+            calls.add("update returned");
+            return null;
+        });
+        assertEquals(List.of("outside handler", "handler check", "update returned", "aggregate check"), calls);
+    }
+
+    @Test
+    void customLegalityCheckReceivesThePreApplySnapshot() {
+        AtomicReference<Entity<?>> checked = new AtomicReference<>();
+        var custom = new DefaultEntityHelper(List.of(), true) {
+            @Override
+            public <E extends Exception> void assertLegal(Object value, Entity<?> entity) {
+                checked.set(entity);
+            }
+        };
+        var root = (ModifiableAggregateRoot<?>) aggregate("custom", AggregateCommitPolicy.SYNC_AFTER_HANDLER,
+                                                         new CommitProbe(true));
+        custom.assertLegalForApply("update", root);
+        assertSame(root.getDelegate(), checked.get());
+    }
 
     @Test
     void asyncAfterHandlerAwaitAfterBatchStartsAfterHandlerAndAwaitsAfterBatch() {
