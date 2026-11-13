@@ -496,15 +496,18 @@ public class ProxyServer implements Registration {
                 }
                 if (readinessEndpoint.equals(Request.getPathInContext(request))) {
                     boolean ready = lifecycleState.get() == LifecycleState.READY;
-                    writeStatus(response, callback, ready ? HttpStatus.OK_200 : HttpStatus.SERVICE_UNAVAILABLE_503,
-                                ready ? READY_PAYLOAD : NOT_READY_PAYLOAD,
-                                ready ? READY_PAYLOAD_LENGTH : NOT_READY_PAYLOAD_LENGTH);
+                    writeReadiness(response, callback, ready);
                     return true;
                 }
                 return super.handle(request, response, callback);
             }
         });
         return context;
+    }
+
+    static void writeReadiness(Response response, org.eclipse.jetty.util.Callback callback, boolean ready) {
+        writeStatus(response, callback, ready ? HttpStatus.OK_200 : HttpStatus.SERVICE_UNAVAILABLE_503,
+                    ready ? READY_PAYLOAD : NOT_READY_PAYLOAD, ready ? READY_PAYLOAD_LENGTH : NOT_READY_PAYLOAD_LENGTH);
     }
 
     private static void writeStatus(Response response, org.eclipse.jetty.util.Callback callback, int status,
