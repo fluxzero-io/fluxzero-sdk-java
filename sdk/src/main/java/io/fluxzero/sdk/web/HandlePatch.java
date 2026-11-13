@@ -35,6 +35,14 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @HandleWeb(value = "", method = HttpRequestMethod.PATCH)
 public @interface HandlePatch {
+    /**
+     * Enables strict body syntax checks. Currently checks typed JSON for one value without duplicate keys.
+     * Raw, form and non-JSON bindings retain their existing behavior.
+     *
+     * @see HandleWeb#strictBody()
+     */
+    boolean strictBody() default false;
+
     /** Determines how the handler responds when referenced protected data is no longer available. */
     MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;
 

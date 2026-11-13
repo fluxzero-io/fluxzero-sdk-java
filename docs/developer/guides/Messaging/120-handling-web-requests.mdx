@@ -439,8 +439,8 @@ to HTTP/1; request-header limits are unchanged.
 
 ## Strict JSON input
 
-Add `@StrictJson` to a typed endpoint when duplicate object keys or trailing JSON values should reject the
-request. Rejected bodies return HTTP 400 without invoking the handler; a valid body follows normal binding.
+Set `strictBody = true` on a web handler annotation when duplicate object keys or trailing JSON values should
+reject a typed request. Rejected bodies return HTTP 400 without invoking the handler; a valid body follows normal binding.
 The check includes nested objects. Other endpoints retain their existing parsing behavior.
 
 <Tabs>
@@ -449,8 +449,7 @@ The check includes nested objects. Other endpoints retain their existing parsing
 ```java
 record Submission(String title) {}
 
-@StrictJson
-@HandlePost("/submissions")
+@HandlePost(value = "/submissions", strictBody = true)
 String submit(Submission input) {
     return input.title();
 }
@@ -462,8 +461,7 @@ String submit(Submission input) {
 ```kotlin
 data class Submission(val title: String)
 
-@StrictJson
-@HandlePost("/submissions")
+@HandlePost("/submissions", strictBody = true)
 fun submit(input: Submission): String = input.title
 ```
 
@@ -471,8 +469,9 @@ fun submit(input: Submission): String = input.title
 </Tabs>
 
 For example, `{"title":"first","title":"second"}` and `{"title":"first"} {"title":"second"}` are rejected.
-This option applies to typed JSON body binding. Raw `String`, `byte[]`, `InputStream` and form parameters keep
-their existing behavior. Programmatically supplied typed objects have no JSON syntax to check.
+The `strictBody` option defaults to `false` and is available on all HTTP and WebSocket handler annotations.
+Its current syntax checks apply to typed JSON bodies; other formats retain their configured serializer behavior.
+Raw `String`, `byte[]`, `InputStream` and form parameters keep their existing behavior. Programmatically supplied typed objects have no JSON syntax to check.
 
 ## Error responses and diagnostics
 

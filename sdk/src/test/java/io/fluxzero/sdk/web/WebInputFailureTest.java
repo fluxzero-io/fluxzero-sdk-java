@@ -190,8 +190,7 @@ class WebInputFailureTest {
 
     static class StrictEndpoint extends Endpoint {
         @Override
-        @StrictJson
-        @HandlePost("/typed")
+        @HandlePost(value = "/typed", strictBody = true)
         String handle(Input input) {
             return super.handle(input);
         }

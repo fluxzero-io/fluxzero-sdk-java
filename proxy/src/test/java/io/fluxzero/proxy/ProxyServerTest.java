@@ -149,11 +149,10 @@ class ProxyServerTest {
     class Basic {
 
         @Test
-        void strictJsonEndpointRejectsDuplicateKeysAndTrailingValuesOverHttp() {
+        void strictBodyEndpointRejectsDuplicateKeysAndTrailingValuesOverHttp() {
             var invocations = new java.util.concurrent.atomic.AtomicInteger();
             testFixture.registerHandlers(new Object() {
-                @io.fluxzero.sdk.web.StrictJson
-                @HandlePost("/strict-input")
+                @HandlePost(value = "/strict-input", strictBody = true)
                 String post(TypedWebInput input) {
                     invocations.incrementAndGet();
                     return "accepted";

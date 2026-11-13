@@ -36,6 +36,7 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.assertAuthorized;
@@ -79,8 +80,13 @@ public class WebPayloadParameterResolver implements PreparedParameterResolver<Ha
      */
     @Override
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
+        return resolve(p, requiresStrictBody(p));
+    }
+
+    private Function<HasMessage, Object> resolve(Parameter p, boolean strict) {
+        Type type = p.getParameterizedType();
         return m -> {
-            Object payload = resolvePayload(m, p, p.getParameterizedType());
+            Object payload = resolvePayload(m, p, type, strict);
             if (payload != null) {
                 if (validatePayload) {
                     assertValid(payload);
@@ -110,8 +116,12 @@ public class WebPayloadParameterResolver implements PreparedParameterResolver<Ha
 
     @Override
     public boolean test(HasMessage m, Parameter p) {
+        return test(m, p, requiresStrictBody(p));
+    }
+
+    private boolean test(HasMessage m, Parameter p, boolean strict) {
         if (authoriseUser && !hasStreamingPayload(m)) {
-            Object payload = resolvePayload(m, p, p.getParameterizedType());
+            Object payload = resolvePayload(m, p, p.getParameterizedType(), strict);
             if (payload != null && ignoreSilently(payload.getClass(), User.getCurrent())) {
                 return false;
             }
@@ -142,16 +152,21 @@ public class WebPayloadParameterResolver implements PreparedParameterResolver<Ha
         return ReflectionUtils.isMethodAnnotationPresent(method, HandleWeb.class);
     }
 
+    private static boolean requiresStrictBody(Parameter parameter) {
+        Class<?> type = parameter.getType();
+        return type != String.class && type != byte[].class && !InputStream.class.isAssignableFrom(type)
+               && ReflectionUtils.getAnnotationAs(parameter.getDeclaringExecutable(), HandleWeb.class, Map.class)
+                       .map(options -> Boolean.TRUE.equals(options.get("strictBody"))).orElse(false);
+    }
+
     @SneakyThrows
-    Object resolvePayload(HasMessage message, Parameter parameter, Type type) {
+    private Object resolvePayload(HasMessage message, Parameter parameter, Type type, boolean strict) {
         try {
             if (message instanceof DeserializingMessage m && shouldBindFormPayload(m, parameter)) {
                 var formObject = DefaultWebRequestContext.getWebRequestContext(m).formObject();
                 return formObject.isEmpty() ? null : JsonUtils.convertValue(formObject, type);
             }
-            if (parameter.getType() != String.class && parameter.getType() != byte[].class
-                && !InputStream.class.isAssignableFrom(parameter.getType())
-                && ReflectionUtils.isMethodAnnotationPresent(parameter.getDeclaringExecutable(), StrictJson.class)) {
+            if (strict) {
                 return resolveStrictJson(message, type);
             }
             return message.getPayloadAs(type);
@@ -171,11 +186,17 @@ public class WebPayloadParameterResolver implements PreparedParameterResolver<Ha
         // Do not materialize a wire envelope for local objects or consume a local stream during selection.
         var wire = message instanceof DeserializingMessage serialized
                 ? serialized.getSerializedObjectIfPresent().orElse(null) : null;
-        if (wire != null && WebUtils.isJsonContentType(wire.getData().getFormat())
-            && wire.getData().getValue() != null) {
-            try (JsonParser parser = strictJson.createParser(wire.getData().getValue())) {
-                validateSingleValue(parser);
+        if (wire != null) {
+            if (WebUtils.isJsonContentType(wire.getData().getFormat()) && wire.getData().getValue() != null) {
+                try (JsonParser parser = strictJson.createParser(wire.getData().getValue())) {
+                    validateSingleValue(parser);
+                }
             }
+            // A wire payload is already bound by its configured serializer, including non-JSON formats.
+            return message.getPayloadAs(type);
+        }
+        String contentType = WebRequest.getHeader(message.getMetadata(), "Content-Type").orElse(null);
+        if (contentType != null && !WebUtils.isJsonContentType(contentType)) {
             return message.getPayloadAs(type);
         }
         Object payload = message.getPayload();

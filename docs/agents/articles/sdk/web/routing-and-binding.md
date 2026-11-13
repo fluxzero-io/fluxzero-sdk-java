@@ -120,9 +120,10 @@ A generated path alone does not prove runtime binding, and a direct method call 
 
 ## Strict typed JSON bodies
 
-Add `@StrictJson` alongside a web handler annotation to reject duplicate object keys (including nested keys) and
-trailing JSON values before invoking a typed endpoint. The default response mapper returns HTTP 400. This is
-per endpoint; other handlers keep their existing binding. It uses the original JSON bytes before permissive tree
+Set `strictBody = true` on `@HandleWeb` or any specialized HTTP/WebSocket handler annotation to reject duplicate
+object keys (including nested keys) and trailing JSON values before invoking a typed endpoint. The default response mapper returns HTTP 400. This is
+per endpoint and defaults to `false`; current strict checks apply to JSON, while other formats retain their
+configured serializer behavior. Other handlers keep their existing binding. It uses the original JSON bytes before permissive tree
 conversion, and works in Java and Kotlin. Raw String/byte-array/InputStream and form bindings are unchanged.
 A TestFixture request with a typed object does not contain ambiguous JSON syntax; use raw JSON input when testing
 syntax rejection. Serialized HTTP-style requests must carry raw JSON bytes rather than a serialized Java byte-array envelope.
