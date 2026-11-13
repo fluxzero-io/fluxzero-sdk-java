@@ -28,7 +28,6 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
-import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationUtils;
 import lombok.Value;
 
@@ -38,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -132,6 +130,11 @@ public class DefaultEntityHelper implements EntityHelper {
     private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> interceptMatchers;
     private final BiFunction<Class<?>, Boolean, HandlerMatcher<Object, DeserializingMessage>> applyMatchers;
     private final Function<Class<?>, HandlerMatcher<Object, MessageWithEntity>> assertLegalMatchers;
+    // Preserve the established override point when a custom helper owns legality checks.
+    private final boolean customLegalityCheck = getClass() != DefaultEntityHelper.class
+            && ReflectionUtils.getAllMethods(getClass()).stream().anyMatch(method ->
+                    method.getDeclaringClass() != DefaultEntityHelper.class && method.getName().equals("assertLegal")
+                    && Arrays.equals(method.getParameterTypes(), new Class<?>[]{Object.class, Entity.class}));
     private final boolean disablePayloadValidation;
     private final boolean assertCurrentDefault;
     private final ThreadLocal<InterceptionAssertions> interceptionAssertions = new ThreadLocal<>();
@@ -416,11 +419,17 @@ public class DefaultEntityHelper implements EntityHelper {
     @Override
     public <E extends Exception> void assertLegal(Object value, Entity<?> entity) throws E {
         assertLegal(value, entity, false);
-        Invocation.whenHandlerCompletes((r, e) -> {
-            if (e == null) {
-                assertLegal(value, entity, true);
-            }
-        });
+        AggregateUpdateScope.validate(() -> assertLegal(value, entity, true));
+    }
+
+    @Override
+    public <E extends Exception> void assertLegalForApply(Object value, ModifiableAggregateRoot<?> root) throws E {
+        if (customLegalityCheck) {
+            EntityHelper.super.assertLegalForApply(value, root);
+            return;
+        }
+        assertLegal(value, root.getDelegate(), false);
+        AggregateUpdateScope.validate(() -> assertLegal(value, root.getDelegate(), true));
     }
 
     private void assertLegal(Object value, Entity<?> entity, boolean afterHandler) {
@@ -456,20 +465,33 @@ public class DefaultEntityHelper implements EntityHelper {
             return;
         }
         MessageWithEntity message = new MessageWithEntity(value, entity, afterHandler);
-        Collection<Object> additionalProperties = new HashSet<>(getAnnotatedPropertyValues(target, AssertLegal.class));
-        assertLegalMatchers.apply(targetType).getInvoker(target, message)
-                .ifPresent(s -> {
-                    Object additionalObject = s.invoke((first, second) -> Stream.concat(
-                            first instanceof Collection<?> c ? c.stream() : Stream.of(first),
-                            second instanceof Collection<?> c ? c.stream() : Stream.of(second)).toList());
-                    if (additionalObject instanceof Collection<?>) {
-                        additionalProperties.addAll((Collection<?>) additionalObject);
-                    } else {
-                        additionalProperties.add(additionalObject);
-                    }
-                });
-        additionalProperties.stream().filter(Objects::nonNull)
-                .forEach(p -> assertLegalValue(p.getClass(), p, value, entity, afterHandler));
+        Collection<Object> properties = getAnnotatedPropertyValues(target, AssertLegal.class);
+        // Snapshot field delegates before invoking application code. Most checks have no delegates.
+        Collection<Object> delegates = properties.isEmpty() ? null : new HashSet<>(properties);
+        HandlerInvoker invoker = assertLegalMatchers.apply(targetType).getInvokerOrNull(target, message);
+        if (invoker != null) {
+            Object result = invoker.invoke((first, second) -> Stream.concat(
+                    first instanceof Collection<?> c ? c.stream() : Stream.of(first),
+                    second instanceof Collection<?> c ? c.stream() : Stream.of(second)).toList());
+            if (delegates == null) {
+                if (result == null) {
+                    return;
+                }
+                delegates = new HashSet<>(properties);
+            }
+            if (result instanceof Collection<?> collection) {
+                delegates.addAll(collection);
+            } else {
+                delegates.add(result);
+            }
+        }
+        if (delegates != null) {
+            for (Object delegate : delegates) {
+                if (delegate != null) {
+                    assertLegalValue(delegate.getClass(), delegate, value, entity, afterHandler);
+                }
+            }
+        }
     }
 
     /**

@@ -37,6 +37,8 @@ import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import jakarta.validation.constraints.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,6 +80,34 @@ class PreparedLocalGatewayTest {
             assertNotNull(result.invocationId());
             assertTrue(handler.invocationCompleted.get());
             assertTrue(handler.batchCompleted.get());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void deliversLocalCompletionOnceAndClosesTheBatchOnRejection(boolean rejectInCheck) {
+        var rejection = new IllegalStateException("rejected");
+        List<Throwable> completions = new ArrayList<>();
+        List<Throwable> batches = new ArrayList<>();
+        var handler = new Object() {
+            @LocalHandler
+            @HandleCommand
+            void handle(ValueCommand ignored) {
+                Invocation.whenHandlerCompletes((r, e) -> completions.add(e));
+                DeserializingMessage.whenBatchCompletes(batches::add);
+                if (rejectInCheck) {
+                    Invocation.validateOnHandlerCompletion(() -> { throw rejection; });
+                } else {
+                    Invocation.whenHandlerCompletes((r, e) -> { throw rejection; });
+                }
+            }
+        };
+        try (Fluxzero fluxzero = createFluxzero(builderWithUser("completion"), handler)) {
+            assertSame(rejection, assertThrows(IllegalStateException.class,
+                                               () -> fluxzero.commandGateway().sendAndWait(new ValueCommand())));
+            assertEquals(1, completions.size());
+            assertSame(rejectInCheck ? rejection : null, completions.getFirst());
+            assertEquals(List.of(rejection), batches);
         }
     }
 

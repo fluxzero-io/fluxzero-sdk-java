@@ -344,14 +344,20 @@ public final class LocalExecution implements LocalHandlerInput {
             error = e;
             throw e;
         } finally {
-            if (invocation != null) {
-                invocation.completeLocal(result, error);
+            try {
+                if (invocation != null) {
+                    invocation.completeLocal(result, error);
+                }
+            } catch (Throwable completionFailure) {
+                error = completionFailure;
+                throw completionFailure;
+            } finally {
+                if (batchContextUsed) {
+                    DeserializingMessage.completeLocalBatch(error);
+                }
+                handler = null;
+                invocation = null;
             }
-            if (batchContextUsed) {
-                DeserializingMessage.completeLocalBatch(error);
-            }
-            handler = null;
-            invocation = null;
         }
     }
 }

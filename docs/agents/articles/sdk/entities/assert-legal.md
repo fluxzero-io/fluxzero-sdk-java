@@ -15,7 +15,7 @@ Assertion methods can inject the current entity, ancestors, the payload, metadat
 
 If an assertion returns a non-null object, Fluxzero inspects that object for further `@AssertLegal` methods. Use this only when it makes nested legality reusable; otherwise return `void`.
 
-Use `priority` and `afterHandler` only when assertion ordering changes behavior. Most domains should keep assertions independent enough that ordering does not matter.
+For Aggregates, `afterHandler = true` validates the final state before automatic commit, including updates made later in the same handler. A direct `assertAndApply` call outside a handler checks its own final state. Most domains should keep assertions independent enough that ordering does not matter.
 
 Throw domain errors built from Fluxzero `FunctionalException` helpers/constants so callers receive functional failures instead of infrastructure errors.
 
