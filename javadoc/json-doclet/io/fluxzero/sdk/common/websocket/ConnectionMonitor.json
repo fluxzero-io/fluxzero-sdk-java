@@ -1,0 +1,29 @@
+{
+  "name" : "ConnectionMonitor",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.ConnectionMonitor",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : "A cancellable observation of one WebSocket route on a concrete client. ",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.Registration" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "isConnected",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.ConnectionMonitor#isConnected",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether every slot used by the route is currently open. Reads local transport state\n without opening a session or waiting for a listener. Returns false after cancellation or shutdown.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

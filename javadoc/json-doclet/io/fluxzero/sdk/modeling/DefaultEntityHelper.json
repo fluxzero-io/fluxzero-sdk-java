@@ -34,6 +34,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "customLegalityCheck",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.customLegalityCheck",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "defaultAggregateAnnotation",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.defaultAggregateAnnotation",
     "type" : "io.fluxzero.sdk.modeling.Aggregate",
@@ -233,6 +241,30 @@
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertLegalForApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#assertLegalForApply",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "root",
+      "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
     "varArgs" : false,
     "documentation" : null
   }, {

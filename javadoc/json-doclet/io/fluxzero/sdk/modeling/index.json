@@ -920,6 +920,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan",
     "kind" : "record"
   }, {
+    "file" : "MutationPlan.HandlerSignatures.json",
+    "name" : "MutationPlan.HandlerSignatures",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerSignatures",
+    "kind" : "class"
+  }, {
     "file" : "MutationPlan.Payload.json",
     "name" : "MutationPlan.Payload",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Payload",

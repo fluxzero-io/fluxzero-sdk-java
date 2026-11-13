@@ -21,6 +21,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "strictJson",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver.strictJson",
+    "type" : "com.fasterxml.jackson.core.JsonFactory",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "validatePayload",
     "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver.validatePayload",
     "type" : "boolean",
@@ -126,6 +134,43 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "requiresStrictBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#requiresStrictBody",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#resolve",
+    "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.HasMessage,java.lang.Object>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "p",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "strict",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#resolve",
     "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.HasMessage,java.lang.Object>",
@@ -182,7 +227,7 @@
     "name" : "resolvePayload",
     "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#resolvePayload",
     "returnType" : "java.lang.Object",
-    "modifiers" : [ ],
+    "modifiers" : [ "private" ],
     "annotations" : [ {
       "annotationType" : "lombok.SneakyThrows",
       "values" : {}
@@ -203,8 +248,34 @@
       "type" : "java.lang.reflect.Type",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "strict",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveStrictJson",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#resolveStrictJson",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
     "documentation" : null
   }, {
@@ -250,6 +321,48 @@
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "test",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#test",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "m",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "p",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "strict",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateSingleValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#validateSingleValue",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parser",
+      "type" : "com.fasterxml.jackson.core.JsonParser",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
     "documentation" : null
   } ],

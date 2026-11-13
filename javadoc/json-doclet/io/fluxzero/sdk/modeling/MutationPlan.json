@@ -1031,6 +1031,11 @@
       "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.Deferred>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "signature",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -1175,6 +1180,12 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan",
     "kind" : "record",
     "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "HandlerSignatures",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerSignatures",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   }, {
     "name" : "Payload",

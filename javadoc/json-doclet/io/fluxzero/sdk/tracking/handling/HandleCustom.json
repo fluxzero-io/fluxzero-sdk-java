@@ -83,7 +83,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Specifies the topic name.\n"
+    "documentation" : " Specifies the complete logical topic name, exactly matching the publishing gateway and replay/position calls.\n Names are transported as UTF-8 without truncation; PostgreSQL's identifier limit is not an SDK topic limit.\n Long durable names require Runtime support for bounded internal storage identifiers.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

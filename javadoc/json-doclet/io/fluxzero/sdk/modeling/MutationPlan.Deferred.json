@@ -10,14 +10,6 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "apply",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred.apply",
-    "type" : "boolean",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "candidates",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred.candidates",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.Slot>",
@@ -28,7 +20,7 @@
   }, {
     "name" : "handler",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred.handler",
-    "type" : "java.lang.String",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -37,6 +29,14 @@
     "name" : "modelType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred.modelType",
     "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "writeKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred.writeKey",
+    "type" : "java.lang.String",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -60,12 +60,12 @@
       "annotations" : [ ]
     }, {
       "name" : "handler",
-      "type" : "java.lang.String",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "apply",
-      "type" : "boolean",
+      "name" : "writeKey",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -74,17 +74,6 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "apply",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred#apply",
-    "returnType" : "boolean",
-    "modifiers" : [ "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "candidates",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred#candidates",
     "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.Slot>",
@@ -114,7 +103,7 @@
   }, {
     "name" : "handler",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred#handler",
-    "returnType" : "java.lang.String",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -155,26 +144,37 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "writeKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred#writeKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
-    "name" : "apply",
-    "type" : "boolean",
-    "annotations" : [ ],
-    "documentation" : null
-  }, {
     "name" : "candidates",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.Slot>",
     "annotations" : [ ],
     "documentation" : null
   }, {
     "name" : "handler",
-    "type" : "java.lang.String",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
     "annotations" : [ ],
     "documentation" : null
   }, {
     "name" : "modelType",
     "type" : "java.lang.Class<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "writeKey",
+    "type" : "java.lang.String",
     "annotations" : [ ],
     "documentation" : null
   } ],

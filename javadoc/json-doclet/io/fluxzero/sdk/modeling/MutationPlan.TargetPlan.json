@@ -36,7 +36,7 @@
   }, {
     "name" : "handlerMethods",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$TargetPlan.handlerMethods",
-    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -61,6 +61,14 @@
     "name" : "routingTarget",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$TargetPlan.routingTarget",
     "type" : "io.fluxzero.sdk.modeling.MutationPlan.Slot",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "sharedAncestorDependencies",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$TargetPlan.sharedAncestorDependencies",
+    "type" : "boolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -102,7 +110,7 @@
       "annotations" : [ ]
     }, {
       "name" : "handlerMethods",
-      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -116,27 +124,6 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "acceptsExplicitTarget",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$TargetPlan#acceptsExplicitTarget",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "handler",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "explicitType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "addProspectiveParents",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$TargetPlan#addProspectiveParents",
     "returnType" : "void",
@@ -170,8 +157,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "dependency",
-      "type" : "io.fluxzero.sdk.modeling.MutationPlan.AncestorDependency",
+      "name" : "ancestor",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.PlannedAncestor",
       "varArgs" : false,
       "annotations" : [ ]
     }, {

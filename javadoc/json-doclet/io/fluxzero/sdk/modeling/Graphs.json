@@ -632,6 +632,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isApplyResult",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#isApplyResult",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "lazy",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#lazy",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",

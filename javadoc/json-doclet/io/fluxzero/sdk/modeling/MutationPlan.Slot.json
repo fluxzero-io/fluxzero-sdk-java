@@ -36,7 +36,7 @@
   }, {
     "name" : "handler",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.handler",
-    "type" : "java.lang.String",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -89,6 +89,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "signature",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.signature",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "Slot",
@@ -118,7 +126,7 @@
       "annotations" : [ ]
     }, {
       "name" : "handler",
-      "type" : "java.lang.String",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
       "varArgs" : false,
       "annotations" : [ ]
     }, {

@@ -21,6 +21,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "observations",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.observations",
+    "type" : "io.fluxzero.sdk.common.websocket.SessionObservations",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "sessionFactory",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.sessionFactory",
     "type" : "java.util.function.Function<io.fluxzero.sdk.common.websocket.WebsocketSession,io.fluxzero.sdk.common.websocket.WebsocketSession>",
@@ -31,7 +39,7 @@
   }, {
     "name" : "sessionLocks",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.sessionLocks",
-    "type" : "java.lang.Object[]",
+    "type" : "java.util.concurrent.locks.ReentrantLock[]",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -144,6 +152,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "disconnected",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#disconnected",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "get",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#get",
     "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
@@ -174,6 +198,27 @@
     "name" : "get",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#get",
     "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "index",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "observer",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#get",
+    "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -187,6 +232,22 @@
     "varArgs" : false,
     "documentation" : " Returns an open session selected by consistent hashing of the routing key; a null key uses round-robin\n selection. Calls after shutdown fail with {@link IllegalStateException}.\n"
   }, {
+    "name" : "hasObserverDemand",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#hasObserverDemand",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "slot",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isClosed",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#isClosed",
     "returnType" : "boolean",
@@ -196,6 +257,27 @@
     "parameters" : [ {
       "name" : "session",
       "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maintain",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#maintain",
+    "returnType" : "io.fluxzero.sdk.common.websocket.ConnectionMonitor",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "routingKey",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "listener",
+      "type" : "java.util.function.Consumer<java.lang.Boolean>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

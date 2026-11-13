@@ -107,6 +107,17 @@
     "varArgs" : false,
     "documentation" : " If {@code true}, indexed web request messages whose effective timeout has already expired may be skipped before\n this handler is invoked.\n <p>\n Defaults to {@code true} for HTTP handlers because stale responses are usually no longer useful. WebSocket\n lifecycle annotations opt out because those messages represent connection events rather than ordinary requests.\n"
   }, {
+    "name" : "strictBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.HandleWeb#strictBody",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Enables strict body syntax checks. Currently, typed JSON bodies must contain exactly one value without duplicate keys,\n including in nested objects. Invalid input fails before handler invocation and the default response mapper\n returns HTTP 400. The default is {@code false}, retaining the configured binding behavior.\n <p>\n Raw String, byte array, InputStream, form and non-JSON bindings retain their existing behavior.\n Programmatically supplied typed objects have no JSON syntax to validate. The configured serializer\n still performs typed binding after the syntax check.\n"
+  }, {
     "name" : "value",
     "qualifiedName" : "io.fluxzero.sdk.web.HandleWeb#value",
     "returnType" : "java.lang.String[]",

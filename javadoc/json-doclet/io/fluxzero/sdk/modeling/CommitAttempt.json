@@ -1480,7 +1480,7 @@
       "annotations" : [ ]
     }, {
       "name" : "handler",
-      "type" : "java.lang.reflect.Executable",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

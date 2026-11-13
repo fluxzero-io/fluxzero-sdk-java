@@ -20,6 +20,16 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker",
     "kind" : "class"
   }, {
+    "file" : "DefaultTracker.TrackerRegistration.json",
+    "name" : "DefaultTracker.TrackerRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker$TrackerRegistration",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultTracker.WorkerGroup.json",
+    "name" : "DefaultTracker.WorkerGroup",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker$WorkerGroup",
+    "kind" : "record"
+  }, {
     "file" : "InMemoryMessageStore.json",
     "name" : "InMemoryMessageStore",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.InMemoryMessageStore",

@@ -106,7 +106,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Applies one update to this graph's current model and returns the staged resulting graph. "
+    "documentation" : " Applies the update to this graph's current model and returns the resulting graph.\n To compose domain updates in {@code @InterceptApply}, return the update payload itself.\n"
   }, {
     "name" : "apply",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#apply",
@@ -175,7 +175,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Verifies and applies the supplied update. For an independent {@link Model}, applies are restricted to the\n selected Model type and Model-owned handlers retain their target filtering. Assertions on the update payload\n run, including assertions that read other Models; their reads participate in the configured conflict policy.\n Returns after the selected model commit is durable; payload IDs do not replace this graph's explicit\n identity. Interceptor payload transformations retain that identity, while returning an explicit\n {@link io.fluxzero.sdk.common.Message} starts a separately routed update. Aggregate-backed graphs retain their\n surrounding aggregate lifecycle.\n"
+    "documentation" : " Verifies and applies the supplied update. For an independent {@link Model}, applies are restricted to the\n selected Model type and Model-owned handlers retain their target filtering. If multiple Models inherit an\n apply that returns the receiver's own Model type, the graph selects the matching registration.\n Assertions on the update payload run, including assertions that read other Models; their reads participate\n in the configured conflict policy.\n Returns after the selected model commit is durable; payload IDs do not replace this graph's explicit\n identity. Interceptor payload transformations retain that identity, while returning an explicit\n {@link io.fluxzero.sdk.common.Message} starts a separately routed update. Aggregate-backed graphs retain their\n surrounding aggregate lifecycle.\n"
   }, {
     "name" : "assertAndApply",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#assertAndApply",
@@ -1566,7 +1566,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Updates the current value directly. When returned by an apply interceptor, the staged update joins that\n interceptor's atomic model commit and is replayed against fresh state after an accepted conflict. The operator\n must therefore be deterministic and free of external side effects. Prefer {@link #apply(Object)} for domain\n updates whose apply-specific event publication settings should govern the transition.\n"
+    "documentation" : " Updates the current value directly. When returned by an apply interceptor, the staged update joins that\n interceptor's atomic model commit and is replayed against fresh state after an accepted conflict. The operator\n must therefore be deterministic and free of external side effects. Return a domain update payload from the\n interceptor when its apply handler should govern event publication.\n"
   }, {
     "name" : "updateAndGet",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#updateAndGet",

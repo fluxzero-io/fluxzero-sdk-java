@@ -65,6 +65,17 @@
     "varArgs" : false,
     "documentation" : " If {@code true}, the handler will not publish a response to the {@code WebResponse} log.\n"
   }, {
+    "name" : "strictBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.HandleSocketOpen#strictBody",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Enables strict body syntax checks. Currently checks typed JSON for one value without duplicate keys.\n Raw, form and non-JSON bindings retain their existing behavior.\n\n @see HandleWeb#strictBody()\n"
+  }, {
     "name" : "value",
     "qualifiedName" : "io.fluxzero.sdk.web.HandleSocketOpen#value",
     "returnType" : "java.lang.String[]",

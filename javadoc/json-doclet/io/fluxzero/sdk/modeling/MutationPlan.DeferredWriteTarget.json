@@ -5,7 +5,7 @@
   "kind" : "record",
   "modifiers" : [ "final", "public", "static" ],
   "annotations" : [ ],
-  "documentation" : "Runtime-selected write target among already loaded candidates. ",
+  "documentation" : " Runtime-selected write target among already loaded candidates.\n SDK-generated handler descriptors qualify the method signature with its registration.\n Resolutions built with an unqualified method signature retain the original matching behavior.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
@@ -121,6 +121,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "permits",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DeferredWriteTarget#permits",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DeferredWriteTarget#toString",
     "returnType" : "java.lang.String",
@@ -128,6 +144,27 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "writeKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DeferredWriteTarget#writeKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "signature",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

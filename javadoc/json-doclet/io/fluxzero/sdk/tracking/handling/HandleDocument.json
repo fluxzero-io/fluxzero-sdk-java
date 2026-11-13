@@ -94,7 +94,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Optional name of the document collection. If provided, {@link #documentClass()} is ignored.\n\n <p>\n If neither documentClass nor value are specified, the first parameter of the method is used to determine the\n collection:\n\n <pre>{@code\n class OrganisationHandler {\n     @HandleDocument\n     void on(Organisation organisation, Metadata metadata) { ... }\n }\n }</pre>\n\n @see Searchable\n"
+    "documentation" : " Optional name of the document collection. If provided, {@link #documentClass()} is ignored.\n\n <p>\n If neither documentClass nor value are specified, the first parameter of the method is used to determine the\n collection:\n\n <pre>{@code\n class OrganisationHandler {\n     @HandleDocument\n     void on(Organisation organisation, Metadata metadata) { ... }\n }\n }</pre>\n\n The full logical collection name is transported as UTF-8 and also identifies replay and consumer positions.\n Long names require Runtime support for bounded internal storage identifiers; do not truncate collection names.\n\n @see Searchable\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
