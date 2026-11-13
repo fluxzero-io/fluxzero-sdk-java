@@ -851,6 +851,28 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
+    void documentVersionFiltersRoundTripForGraphAndStreamRequests() throws Exception {
+        var graph = GetModelGraph.ancestors(List.of("child"), ModelReadBoundary.at(7L), 2, 3, 0, 0);
+        var types = Set.of("Document", "OtherDocument");
+        var filtered = graph.withDocumentVersionTypes(types);
+        assertFalse(graph.isIncludeDocumentVersions());
+        assertFalse(filtered.withDocumentVersionTypes(Set.of()).isIncludeDocumentVersions());
+        var events = new GetModelEvents(List.of(new ModelEventStreamRequest("child", -1L, 0, true)),
+                                        graph.getBoundary(), 0, types);
+        for (var codec : List.of(jsonCodec, cborCodec)) {
+            var decoded = assertInstanceOf(GetModelGraph.class, roundTrip(codec, filtered));
+            assertEquals(filtered.getRequestId(), decoded.getRequestId());
+            assertTrue(decoded.isIncludeDocumentVersions());
+            assertEquals(types, decoded.getDocumentVersionTypes());
+            var streams = assertInstanceOf(GetModelEvents.class, roundTrip(codec, events));
+            assertEquals(events.getRequestId(), streams.getRequestId());
+            assertTrue(streams.getRequests().getFirst().isIncludeDocumentVersion());
+            assertTrue(streams.includesDocumentVersionFor("Document"));
+            assertFalse(streams.includesDocumentVersionFor("Other"));
+        }
+    }
+
+    @Test
     void modelGraphBeforeBoundaryRoundTripsOnRegularGraphRequest() throws Exception {
         GetModelGraph request = new GetModelGraph(
                 "order-1", ModelReadBoundary.commit("commit-991", 3).asBefore(),

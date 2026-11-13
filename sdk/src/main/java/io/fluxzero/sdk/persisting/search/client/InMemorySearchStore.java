@@ -490,9 +490,71 @@ public class InMemorySearchStore implements SearchClient {
             throw new IllegalStateException("Model document body no longer matches its durable version: " + request.getId()
                                             + "; use a Model commit to update state, not an ordinary document write");
         }
+        if (request.isIncludeDocumentVersion() && document != null) {
+            var snapshot = snapshotForCache(document);
+            if (snapshot != null) {
+                String key = asIdentifier(request.getCollection(), request.getId());
+                modelDocumentVersions.replace(key, version, version.observed(document));
+                document = snapshot;
+                head = head.withDocumentVersion(cacheVersion(snapshot, head));
+            }
+        }
         return new GetDocumentResult(
                 request.getRequestId(), document, head, request.isVerifyModelState(),
                 document == null ? null : modelStorageIndices.get(asIdentifier(request.getCollection(), request.getId())));
+    }
+
+    private static SerializedDocument snapshotForCache(SerializedDocument source) {
+        // The persisted proof predates interval minima and response-only continuation keys.
+        try {
+            if (!source.getCollectionSortKeys().isEmpty() || source.getIndexes() != null
+                && source.getIndexes().stream().anyMatch(i -> i.getMinimum() != null)) { return null; }
+            boolean supplied = source.serializedDataIfPresent().isPresent();
+            if (supplied && !source.hasDerivedDocumentView()) { return null; }
+            var data = source.getDocument();
+            var bytes = new Data<>(data.getValue().clone(), data.getType(), data.getRevision(), data.getFormat());
+            if (!supplied) {
+                // A native LocalClient envelope can have a separate logical view or custom binary encoding.
+                // Reuse only the standard representation. Never attempt to decode opaque application bytes.
+                if (!io.fluxzero.common.search.DefaultDocumentSerializer.INSTANCE.canDeserialize(bytes)) { return null; }
+                var view = source.deserializeDocument();
+                if (!Objects.equals(source.getId(), view.getId()) || !Objects.equals(source.getCollection(), view.getCollection())
+                    || !Objects.equals(view.getTimestamp(), source.getTimestamp() == null ? null : Instant.ofEpochMilli(source.getTimestamp()))
+                    || !Objects.equals(view.getEnd(), source.getEnd() == null ? null : Instant.ofEpochMilli(source.getEnd()))
+                    || !bytes.equals(io.fluxzero.common.search.DefaultDocumentSerializer.INSTANCE.serialize(view))
+                    || !Objects.equals(source.getSummary(), view.getSummary())
+                    || !Objects.equals(source.getFacets(), view.getFacets()) || !Objects.equals(source.getIndexes(), view.getSortables())) {
+                    return null;
+                }
+            }
+            var snapshot = new SerializedDocument(source.getId(), source.getTimestamp(), source.getEnd(), source.getCollection(),
+                    bytes, source.getSummary(),
+                    source.getFacets() == null ? null : java.util.Collections.unmodifiableSet(new LinkedHashSet<>(source.getFacets())),
+                    source.getIndexes() == null ? null : java.util.Collections.unmodifiableSet(new LinkedHashSet<>(source.getIndexes())));
+            return supplied ? snapshot : snapshot.withData(() -> bytes);
+        } catch (RuntimeException unavailable) {
+            return null; // Optional evidence cannot change the ordinary reader's errors or behavior.
+        }
+    }
+
+    private static String cacheVersion(SerializedDocument snapshot, ModelHeadState head) {
+        String proof = of(snapshot, head);
+        // A custom document serializer may select a different decoder for a native envelope.
+        return snapshot.serializedDataIfPresent().isPresent() ? proof : "native-" + proof;
+    }
+
+    /** Returns a body validator only for a source previously observed by a document reader. */
+    public ModelHeadState attestDocumentVersion(String collection, ModelHeadState selected) {
+        String key = asIdentifier(collection, selected.getModelId());
+        DirectDocumentVersion version = modelDocumentVersions.get(key);
+        if (version == null || version.observedSource() == null || !selected.equals(version.head())) { return selected; }
+        SerializedDocument document = documents.get(key);
+        if (document == null || version.observedSource().get() != document) { return selected; }
+        var snapshot = snapshotForCache(document);
+        if (snapshot == null) { return selected; }
+        String proof = cacheVersion(snapshot, selected);
+        return modelDocumentVersions.get(key) == version && documents.get(key) == document
+                ? selected.withDocumentVersion(proof) : selected;
     }
 
     private java.util.function.BiConsumer<String, String> modelSchemaInvalidation = (id, type) -> { };
@@ -1101,7 +1163,17 @@ public class InMemorySearchStore implements SearchClient {
         }
     }
 
-    private record DirectDocumentVersion(String collection, ModelHeadState head, String proof, boolean projection) {
+    private record DirectDocumentVersion(String collection, ModelHeadState head, String proof, boolean projection,
+                                         java.lang.ref.WeakReference<SerializedDocument> observedSource) {
+        private DirectDocumentVersion(String collection, ModelHeadState head, String proof, boolean projection) {
+            this(collection, head, proof, projection, null);
+        }
+
+        DirectDocumentVersion observed(SerializedDocument document) {
+            return observedSource != null && observedSource.get() == document ? this
+                    : new DirectDocumentVersion(collection, head, proof, projection, new java.lang.ref.WeakReference<>(document));
+        }
+
         private DirectDocumentVersion(String collection, ModelHeadState head, SerializedDocument document) {
             this(collection, head, of(document, head), false);
         }

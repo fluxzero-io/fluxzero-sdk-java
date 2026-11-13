@@ -50,6 +50,10 @@ public class GetDocument extends Request {
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     boolean verifyModelState;
 
+    /** Ask the store to attach the materialized body version to the returned Model head. */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean includeDocumentVersion;
+
     public GetDocument(String id, String collection) {
         this(id, collection, false);
     }
@@ -58,8 +62,14 @@ public class GetDocument extends Request {
         this(id, collection, includeModelHead, false);
     }
 
-    @ConstructorProperties({"id", "collection", "includeModelHead", "verifyModelState"})
     public GetDocument(String id, String collection, boolean includeModelHead, boolean verifyModelState) {
+        this(id, collection, includeModelHead, verifyModelState, false);
+    }
+
+    @ConstructorProperties({"id", "collection", "includeModelHead", "verifyModelState", "includeDocumentVersion"})
+    public GetDocument(String id, String collection, boolean includeModelHead, boolean verifyModelState,
+                       boolean includeDocumentVersion) {
+        this.includeDocumentVersion = includeDocumentVersion;
         this.id = id;
         this.collection = collection;
         this.includeModelHead = includeModelHead;

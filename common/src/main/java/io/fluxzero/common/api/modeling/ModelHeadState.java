@@ -16,7 +16,12 @@
 
 package io.fluxzero.common.api.modeling;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.EqualsAndHashCode;
 import lombok.Value;
+import lombok.With;
+
+import java.beans.ConstructorProperties;
 
 /**
  * Coordination head observed for one model at the response boundary.
@@ -32,4 +37,27 @@ public class ModelHeadState {
     long stateIndex;
     boolean historyComplete;
     boolean deleted;
+
+    /** Optional read evidence for the exact current source body. Independent of durable Model revision equality. */
+    @With
+    @EqualsAndHashCode.Exclude
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    String documentVersion;
+
+    public ModelHeadState(String modelId, String modelType, long sequenceNumber, long stateIndex,
+                          boolean historyComplete, boolean deleted) {
+        this(modelId, modelType, sequenceNumber, stateIndex, historyComplete, deleted, null);
+    }
+
+    @ConstructorProperties({"modelId", "modelType", "sequenceNumber", "stateIndex", "historyComplete", "deleted", "documentVersion"})
+    public ModelHeadState(String modelId, String modelType, long sequenceNumber, long stateIndex,
+                          boolean historyComplete, boolean deleted, String documentVersion) {
+        this.modelId = modelId;
+        this.modelType = modelType;
+        this.sequenceNumber = sequenceNumber;
+        this.stateIndex = stateIndex;
+        this.historyComplete = historyComplete;
+        this.deleted = deleted;
+        this.documentVersion = documentVersion;
+    }
 }

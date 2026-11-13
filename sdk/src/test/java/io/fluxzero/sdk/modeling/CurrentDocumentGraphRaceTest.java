@@ -29,6 +29,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -172,6 +174,9 @@ class CurrentDocumentGraphRaceTest {
         try (var test = new Harness()) {
             write(test.writer, new CreateDocument("doc"));
             var old = test.reader.apply(fc -> Fluxzero.loadCurrentGraph("doc", CurrentDocument.class));
+            // Force a body read so the concurrent write still exercises retry between the head and body reads.
+            ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository) test.reader.modelRepository())
+                    .invalidateModels(List.of("doc"));
             test.afterHead.set(() -> write(test.writer, new ReplaceDocument("doc")));
             var current = old.current();
             assertEquals(new CurrentDocument("doc", 2), current.get());

@@ -78,6 +78,13 @@ relationships and history. Incomplete historical heads retain their replay error
 Historical-only reads do not start the update tracker: a remote erasure cannot be served by a fresh head-validated
 read, but a dormant cached body can remain until cache eviction or clearing.
 
+Use one `loadCurrentGraph` and navigate its relationships when a read needs several current Model values
+at a common storage boundary. A new Graph can reuse a cached DOCUMENT body only after the selected head
+and current materialized source version match the cached decode. The storage check covers a lagging or
+disconnected cache tracker and same-head source rewrites. Missing evidence falls back to reading the source.
+DOCUMENT-only Models keep one direct value. A historical Graph may have a predecessor *view* even when
+the previous document body is unavailable.
+
 Current Model loads can use cache entries whose state has been validated against the model store. The SDK starts
 boundary observation asynchronously and maintains one tracking loop per cache tracker; concurrent first loads do
 not create additional loops or reset its cursor. A transient initial failure leaves current loads on the ordinary

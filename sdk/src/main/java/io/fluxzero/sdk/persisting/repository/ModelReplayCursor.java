@@ -581,7 +581,8 @@ final class ModelReplayCursor {
                 Math.max(1, settings.maxMembershipsPerRequest() / active.size()));
         List<ModelEventStreamRequest> requests = new ArrayList<>(active.size());
         for (String modelId : active) {
-            requests.add(new ModelEventStreamRequest(modelId, cursors.get(modelId), perStreamLimit));
+            requests.add(new ModelEventStreamRequest(modelId, cursors.get(modelId), perStreamLimit,
+                    headsOnly && modelCache instanceof ModelCache cache && cache.hasDocumentVersion(modelId)));
         }
         return new PageRequest(
                 active, perStreamLimit,
@@ -1215,7 +1216,7 @@ final class ModelReplayCursor {
                         ? entity.id().toString() : target.modelId();
                 if (modelCache instanceof ModelCache guarded) {
                     ModelCache.Stamp stamp = readToken != null && readToken.forId(resolvedId)
-                            ? guarded.publish(readToken, entity, documentCacheBoundary) : null;
+                            ? guarded.publish(readToken, entity, documentCacheBoundary, document.head()) : null;
                     if (stamp != null) {
                         cachePublications.put(resolvedId, stamp);
                     }
@@ -1776,7 +1777,7 @@ final class ModelReplayCursor {
                 modelIds, boundary, direction == ModelRelationshipRead.Direction.CHILDREN && !recursive ? 1 : -1, -1, 0, 0L,
                 direction == ModelRelationshipRead.Direction.CHILDREN
                         ? GetModelGraph.TraversalDirection.DESCENDANTS : GetModelGraph.TraversalDirection.ANCESTORS,
-                false));
+                false).withDocumentVersionTypes(documentVersionTypes()));
         long stateIndex = response.getEvents().getStateIndex();
         if (boundary.stateIndex() != null && boundary.stateIndex() != stateIndex) {
             throw new GraphBoundaryMovedException("Graph metadata changed its pinned state boundary");
@@ -1954,7 +1955,7 @@ final class ModelReplayCursor {
             String rootId, Class<T> rootType, Graph.Options options, ModelReadBoundary boundary,
             String namespace, Map<String, Entity<?>> staged, boolean historicalBoundary, Entity<?> resolvedRoot) {
         GetModelGraph request = new GetModelGraph(
-                rootId, boundary, options.maxDepth(), options.maxModels(), 0, 0L, false);
+                rootId, boundary, options.maxDepth(), options.maxModels(), 0, 0L, false).withDocumentVersionTypes(documentVersionTypes());
         GetModelGraphResult response = getModelGraph(request);
         GetModelEventsResult graphEvents = response.getEvents();
         long stateIndex = graphEvents.getStateIndex();
@@ -2106,7 +2107,7 @@ final class ModelReplayCursor {
         }
         for (MutationPlan.ResolvedModel target : documentTargets) {
             ModelHeadState expected = heads.get(target.modelId());
-            result.put(target.modelId(), loadGraphDocument(target, expected));
+            result.put(target.modelId(), loadGraphDocument(target, expected, stateIndex));
         }
         return result;
     }
@@ -2150,24 +2151,53 @@ final class ModelReplayCursor {
 
     private Entity<?> loadGraphDocument(
             MutationPlan.ResolvedModel target,
-            ModelHeadState expected) {
-        DocumentVersion document = documentReader.load(
-                target.modelId(), target.modelType(), false);
+            ModelHeadState expected, long stateIndex) {
+        DocumentVersion document = graphDocument(target, expected, stateIndex);
         ModelHeadState actual = document.head();
         if (!Objects.equals(expected, actual)
             && expected != null && !expected.isHistoryComplete()
             && (actual == null || actual.getStateIndex() < expected.getStateIndex())
             && awaitMaterializedBoundary(expected.getStateIndex())
                >= expected.getStateIndex()) {
-            document = documentReader.load(
-                    target.modelId(), target.modelType(), false);
+            document = graphDocument(target, expected, stateIndex);
         }
-        if (!Objects.equals(expected, document.head())) {
+        if (!matchesDocumentHead(expected, document.head())) {
             throw new GraphBoundaryMovedException(
                     "Document model '%s' moved while reconstructing graph boundary"
                             .formatted(target.modelId()), target.modelId());
         }
         return document.entity();
+    }
+
+    private static boolean matchesDocumentHead(ModelHeadState expected, ModelHeadState actual) {
+        return Objects.equals(expected, actual) && (expected == null || expected.getDocumentVersion() == null
+                || actual.getDocumentVersion() == null || expected.getDocumentVersion().equals(actual.getDocumentVersion()));
+    }
+
+    private Set<String> documentVersionTypes() {
+        return modelCache instanceof ModelCache cache ? cache.documentVersionTypes() : Set.of();
+    }
+
+    private DocumentVersion graphDocument(MutationPlan.ResolvedModel target, ModelHeadState expected, long stateIndex) {
+        String id = target.modelId();
+        Class<?> type = target.modelType();
+        if (expected == null || expected.isDeleted() || !id.equals(expected.getModelId())
+            || !(modelCache instanceof ModelCache cache) || !EntityMetadata.of(type).rootConfiguration().orElseThrow().cached()) {
+            return documentReader.load(id, type, false);
+        }
+        var stamp = cache.stamp(id);
+        if (stamp != null && expected.getDocumentVersion() != null
+            && expected.getDocumentVersion().equals(stamp.documentVersion)) {
+            Entity<?> cached = cache.get(id, stamp);
+            if (matchesRevision(cached, type, expected)) { return new DocumentVersion(cached, expected); }
+        }
+        try (var token = cache.beginRead(id)) {
+            DocumentVersion loaded = documentReader.load(id, type, false);
+            if (matchesDocumentHead(expected, loaded.head()) && loaded.head().getDocumentVersion() != null) {
+                cache.publish(token, loaded.entity(), stateIndex, loaded.head());
+            }
+            return loaded;
+        }
     }
 
     static final class GraphBoundaryMovedException extends EventSourcingException {

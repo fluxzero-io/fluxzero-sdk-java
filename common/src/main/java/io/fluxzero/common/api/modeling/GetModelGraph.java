@@ -16,12 +16,14 @@
 
 package io.fluxzero.common.api.modeling;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.fluxzero.common.api.Request;
 import lombok.Value;
 
 import java.beans.ConstructorProperties;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Resolves one bounded independent-model relationship graph and optionally includes the first page of every selected
@@ -70,9 +72,15 @@ public class GetModelGraph extends Request {
      */
     boolean composableOnly;
 
-    @ConstructorProperties({
-            "modelIds", "boundary", "maxDepth", "maxModels",
-            "maxEventsPerModel", "maxBytes", "direction", "composableOnly"})
+    /** Request materialized document versions alongside the selected graph heads. */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    @lombok.With
+    boolean includeDocumentVersions;
+
+    /** Stored model types eligible for document versions. An empty set allows every type on an explicit request. */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    Set<String> documentVersionTypes;
+
     public GetModelGraph(
             List<String> modelIds,
             ModelReadBoundary boundary,
@@ -82,6 +90,31 @@ public class GetModelGraph extends Request {
             long maxBytes,
             TraversalDirection direction,
             boolean composableOnly) {
+        this(modelIds, boundary, maxDepth, maxModels, maxEventsPerModel, maxBytes, direction, composableOnly, false);
+    }
+
+    public GetModelGraph(
+            List<String> modelIds, ModelReadBoundary boundary, int maxDepth, int maxModels,
+            int maxEventsPerModel, long maxBytes, TraversalDirection direction, boolean composableOnly,
+            boolean includeDocumentVersions) {
+        this(modelIds, boundary, maxDepth, maxModels, maxEventsPerModel, maxBytes, direction, composableOnly,
+             includeDocumentVersions, Set.of());
+    }
+
+    @ConstructorProperties({
+            "modelIds", "boundary", "maxDepth", "maxModels", "maxEventsPerModel", "maxBytes",
+            "direction", "composableOnly", "includeDocumentVersions", "documentVersionTypes"})
+    public GetModelGraph(
+            List<String> modelIds,
+            ModelReadBoundary boundary,
+            int maxDepth,
+            int maxModels,
+            int maxEventsPerModel,
+            long maxBytes,
+            TraversalDirection direction,
+            boolean composableOnly, boolean includeDocumentVersions, Set<String> documentVersionTypes) {
+        this.includeDocumentVersions = includeDocumentVersions;
+        this.documentVersionTypes = documentVersionTypes == null ? Set.of() : Set.copyOf(documentVersionTypes);
         this.modelIds = modelIds == null ? null : List.copyOf(modelIds);
         ModelReadBoundary selectedBoundary = Objects.requireNonNull(boundary, "boundary");
         ModelReadBoundary requestBoundary = selectedBoundary.forRequest();
@@ -93,6 +126,14 @@ public class GetModelGraph extends Request {
         this.maxBytes = maxBytes;
         this.direction = Objects.requireNonNull(direction, "direction");
         this.composableOnly = composableOnly;
+    }
+
+    /** Requests versions only for the listed stored model types. An empty set disables version lookup. */
+    public GetModelGraph withDocumentVersionTypes(Set<String> types) {
+        boolean include = !types.isEmpty();
+        if (includeDocumentVersions == include && documentVersionTypes.equals(types)) { return this; }
+        return new GetModelGraph(modelIds, boundary, maxDepth, maxModels, maxEventsPerModel, maxBytes, direction,
+                                 composableOnly, include, types);
     }
 
     /** Creates the ordinary single-root descendant query used by public Graph loads. */

@@ -42,6 +42,7 @@ import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
+import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
@@ -86,7 +87,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -1856,8 +1859,54 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
     }
 
+    private volatile BiFunction<String, ModelHeadState, ModelHeadState> documentVersionReader;
+
+    /** Attaches read evidence from the namespace's materialized document store to opted-in heads. */
+    public synchronized void setDocumentVersionReader(
+            BiFunction<String, ModelHeadState, ModelHeadState> reader) {
+        this.documentVersionReader = reader;
+    }
+
     @Override
-    public synchronized GetModelEventsResult getModelEvents(GetModelEvents request) {
+    public GetModelEventsResult getModelEvents(GetModelEvents request) {
+        var result = selectModelEvents(request);
+        var reader = documentVersionReader;
+        if (reader == null || request.getRequests().stream().noneMatch(ModelEventStreamRequest::isIncludeDocumentVersion)) {
+            return result;
+        }
+        return withDocumentVersions(result, reader, request.getDocumentVersionTypes(), i -> request.getRequests().get(i).isIncludeDocumentVersion());
+    }
+
+    private GetModelEventsResult withDocumentVersions(GetModelEventsResult result,
+            BiFunction<String, ModelHeadState, ModelHeadState> reader, Set<String> types, IntPredicate requested) {
+        var streams = result.getStreams();
+        var ids = new java.util.LinkedHashSet<String>();
+        for (int i = 0; i < streams.size(); i++) {
+            var head = streams.get(i).getHead();
+            if (requested.test(i) && head != null && !head.isDeleted()
+                && (types.isEmpty() || types.contains(head.getModelType()))) {
+                ids.add(head.getModelId());
+            }
+        }
+        if (ids.isEmpty()) { return result; }
+        var collections = resolveModelDocumentCollections(ids);
+        if (collections.isEmpty()) { return result; }
+        Map<String, ModelHeadState> attested = new HashMap<>();
+        for (int i = 0; i < streams.size(); i++) {
+            var head = streams.get(i).getHead();
+            String collection = head == null ? null : collections.get(head.getModelId());
+            if (requested.test(i) && collection != null && !head.isDeleted()) {
+                try {
+                    attested.put(head.getModelId(), reader.apply(collection, head));
+                } catch (RuntimeException unavailable) {
+                    // The head is still valid. A value read without evidence goes through the document store.
+                }
+            }
+        }
+        return result.withDocumentVersions(attested);
+    }
+
+    private synchronized GetModelEventsResult selectModelEvents(GetModelEvents request) {
         ModelCommitValidator.validate(request);
         ModelRelationshipQueries.ResolvedBoundary resolved =
                 modelBoundary(request.getBoundary());
@@ -1920,12 +1969,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     : modelHeadHistory.getOrDefault(resolvedModelId, List.of()).stream()
                             .filter(candidate -> candidate.stateIndex() <= stateIndex)
                             .reduce((first, second) -> second).orElse(null);
-            streams.add(new ModelEventStream(
-                    streamRequest.getModelId(),
-                    head == null ? null : new ModelHeadState(
-                            resolvedModelId, head.modelType(),
-                            head.sequenceNumber(), head.stateIndex(),
-                            head.historyComplete(), head.deleted()),
+            ModelHeadState selected = head == null ? null : new ModelHeadState(
+                    resolvedModelId, head.modelType(), head.sequenceNumber(), head.stateIndex(), head.historyComplete(), head.deleted());
+            streams.add(new ModelEventStream(streamRequest.getModelId(), selected,
                     candidateMemberships.get(streamRequest.getModelId()).stream()
                             .filter(membership -> selectedStateIndices.contains(membership.getStateIndex()))
                             .toList()));
@@ -1961,7 +2007,17 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     @Override
-    public synchronized GetModelGraphResult getModelGraph(GetModelGraph request) {
+    public GetModelGraphResult getModelGraph(GetModelGraph request) {
+        if (!request.isIncludeDocumentVersions()) { return selectModelGraph(request); }
+        // Keep stream selection under the graph lock and consult the optional document store after releasing it.
+        var selected = selectModelGraph(request.withIncludeDocumentVersions(false));
+        var reader = documentVersionReader;
+        var events = reader == null ? selected.getEvents() : withDocumentVersions(selected.getEvents(), reader,
+                request.getDocumentVersionTypes(), ignored -> true);
+        return new GetModelGraphResult(request.getRequestId(), selected.getEdges(), events);
+    }
+
+    private synchronized GetModelGraphResult selectModelGraph(GetModelGraph request) {
         ModelCommitValidator.validate(request);
         ModelRelationshipQueries.ResolvedBoundary resolved =
                 modelBoundary(request.getBoundary());

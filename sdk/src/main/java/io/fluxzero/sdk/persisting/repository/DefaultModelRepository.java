@@ -2077,7 +2077,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         modelId,
                         migration
                                 ? ModelDocumentMutation.MIGRATION_COLLECTION
-                                : collection, true, verifyState));
+                                : collection, true, verifyState, !migration && !verifyState && modelCache instanceof ModelCache
+                                && !metadata.rootConfiguration().orElseThrow().eventSourced()
+                                && metadata.rootConfiguration().orElseThrow().cached()));
         if (verifyState && !result.isModelStateVerified()) {
             throw new EventSourcingException(
                     "Current-state read for Model '%s' (%s) requires body/head verification from the Runtime; "

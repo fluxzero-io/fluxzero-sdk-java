@@ -21,6 +21,10 @@ import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.modeling.AssertLegal;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.EventPublication;
+import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.persisting.search.client.SearchClient;
+import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.modeling.ModelCommitConflictException;
@@ -28,6 +32,7 @@ import io.fluxzero.sdk.modeling.ModelConflictResolver;
 import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import jakarta.annotation.Nullable;
 import org.eclipse.jetty.server.Server;
@@ -46,6 +51,8 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.UUID;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -186,6 +193,150 @@ class ModelAssertionConflictTest {
     }
     record UpdateAliasAccount(String email, int number) {
         @Apply AliasAccount apply(AliasAccount before) { return new AliasAccount(before.accountId(), email, number); }
+    }
+
+    @Test
+    void currentGraphReusesEventlessDocumentBodiesAndSeesIndependentParentUpdates() {
+        String namespace = "document-cache-" + UUID.randomUUID();
+        var client = new DocumentReaderClient(config(namespace, "reader"));
+        try (var reader = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             var writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                     .build(WebSocketClient.newInstance(config(namespace, "writer")))) {
+            execute(writer, new SetGroup("group", true), false);
+            execute(writer, new SetEntry("entry", "group"), false);
+            reader.registerHandlers(Group.class, Entry.class);
+            assertTrue(canReadEntry(reader));
+            assertEquals(2, client.bodies.get());
+            client.documentReads.set(0);
+            for (int i = 0; i < 100; i++) { assertTrue(canReadEntry(reader)); }
+            assertEquals(0, client.documentReads.get(), "Storage head and relationship reads attest the cached bodies");
+
+            var eventRead = new CompletableFuture<Boolean>();
+            reader.registerHandlers(new Object() {
+                @HandleEvent
+                void read(CheckEntry event) {
+                    var graph = Fluxzero.loadGraph("entry", Entry.class);
+                    eventRead.complete(graph.get() != null && graph.parentModel(Group.class).orElseThrow().enabled());
+                }
+            });
+            execute(writer, new CheckEntry("check"), false);
+            assertTrue(eventRead.orTimeout(5, TimeUnit.SECONDS).join());
+            assertEquals(0, client.documentReads.get(), "An event-bound Graph uses the confirmed materialized revisions");
+            execute(writer, new SetGroup("group", false), false);
+            assertFalse(canReadEntry(reader));
+            assertEquals(1, client.documentReads.get(), "Only the changed parent needs its new body");
+            assertFalse(canReadEntry(reader));
+            assertEquals(1, client.documentReads.get(), "The new parent revision is reusable");
+            execute(writer, new DeleteEntry("entry"), false);
+            assertFalse(canReadEntry(reader));
+        }
+    }
+
+    @Test
+    void laggingEventHandlerReadsCurrentDocumentValuesThroughHistoricalRelationships() throws Exception {
+        String namespace = "lagging-document-reader-" + UUID.randomUUID();
+        var client = new DocumentReaderClient(config(namespace, "reader"));
+        try (var reader = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             var writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                     .build(WebSocketClient.newInstance(config(namespace, "writer")))) {
+            execute(writer, new SetGroup("original", true), false);
+            execute(writer, new SetGroup("replacement", true), false);
+            execute(writer, new SetEntry("entry", "original"), false);
+            reader.registerHandlers(Group.class, Entry.class);
+            assertTrue(canReadEntry(reader));
+
+            record Observation(Entry entry, Group parent) {}
+            var handlerStarted = new CompletableFuture<Void>();
+            var writesCommitted = new CompletableFuture<Void>();
+            var observed = new CompletableFuture<Observation>();
+            reader.registerHandlers(new Object() {
+                @HandleEvent
+                void read(CheckEntry event) {
+                    handlerStarted.complete(null);
+                    try {
+                        writesCommitted.join();
+                        var graph = Fluxzero.loadGraph("entry", Entry.class);
+                        observed.complete(new Observation(graph.get(), graph.parentModel(Group.class).orElseThrow()));
+                    } catch (RuntimeException e) {
+                        observed.completeExceptionally(e);
+                    }
+                }
+            });
+            try {
+                execute(writer, new CheckEntry("check"), false);
+                handlerStarted.get(5, TimeUnit.SECONDS);
+                execute(writer, new SetGroup("original", false), false);
+                execute(writer, new SetEntry("entry", "replacement"), false);
+            } finally {
+                writesCommitted.complete(null);
+            }
+            assertEquals(new Observation(new Entry("entry", "replacement"), new Group("original", false)),
+                         observed.get(5, TimeUnit.SECONDS));
+        }
+    }
+
+    private static boolean canReadEntry(Fluxzero app) {
+        return app.apply(fc -> {
+            var graph = Fluxzero.loadCurrentGraph("entry", Entry.class);
+            return graph.get() != null && graph.parentModel(Group.class).map(Group::enabled).orElse(false);
+        });
+    }
+
+    @Model(persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER, cachingDepth = 0)
+    record Group(@EntityId String id, boolean enabled) {}
+
+    @Model(persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER, cachingDepth = 0)
+    record Entry(@EntityId String id, @Parent(Group.class) String groupId) {}
+
+    @Model record Check(@EntityId String id) {}
+    record CheckEntry(String id) {
+        @Apply Check apply() { return new Check(id); }
+    }
+
+    record SetGroup(String id, boolean enabled) {
+        @Apply Group apply(@Nullable Group previous) { return new Group(id, enabled); }
+    }
+
+    record SetEntry(String id, String groupId) {
+        @Apply Entry apply(@Nullable Entry previous) { return new Entry(id, groupId); }
+    }
+
+    record DeleteEntry(String id) {
+        @Apply Entry apply(Entry previous) { return null; }
+    }
+
+    private static class DocumentReaderClient extends WebSocketClient {
+        final AtomicInteger documentReads = new AtomicInteger(), bodies = new AtomicInteger();
+
+        DocumentReaderClient(ClientConfig config) { super(config, null); }
+
+        @Override protected SearchClient createSearchClient() {
+            var delegate = super.createSearchClient();
+            return (SearchClient) Proxy.newProxyInstance(SearchClient.class.getClassLoader(), new Class<?>[]{SearchClient.class},
+                    (proxy, method, arguments) -> {
+                        try {
+                            Object result = method.invoke(delegate, arguments);
+                            if (result instanceof GetDocumentResult document) {
+                                documentReads.incrementAndGet();
+                                if (document.getDocument() != null) { bodies.incrementAndGet(); }
+                            }
+                            return result;
+                        } catch (InvocationTargetException e) { throw e.getCause(); }
+                    });
+        }
+
+        @Override protected EventStoreClient createEventStoreClient() {
+            var delegate = super.createEventStoreClient();
+            return (EventStoreClient) Proxy.newProxyInstance(EventStoreClient.class.getClassLoader(),
+                    new Class<?>[]{EventStoreClient.class}, (proxy, method, arguments) -> {
+                        if (method.getName().equals("trackModelUpdates")) {
+                            // This client receives no update notifications, including after a successful remote write.
+                            return new CompletableFuture<>();
+                        }
+                        try { return method.invoke(delegate, arguments); }
+                        catch (InvocationTargetException e) { throw e.getCause(); }
+                    });
+        }
     }
 
     private static WebSocketClient.ClientConfig config(String namespace, String name) {

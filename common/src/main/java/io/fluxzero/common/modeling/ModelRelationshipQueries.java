@@ -130,26 +130,11 @@ public final class ModelRelationshipQueries {
                 },
                 relation -> ancestors ? relation.parentId() : relation.childId(),
                 Relationship::edge);
-        return result(
-                request.getRequestId(), boundary, graph,
-                request.getMaxEventsPerModel(), request.getMaxBytes(), exactBoundary, events);
-    }
-
-    private static GetModelGraphResult result(
-            long requestId,
-            long boundary,
-            ModelRelationshipTraversal.Result graph,
-            int maxEventsPerModel,
-            long maxBytes,
-            boolean exactBoundary,
-            Function<GetModelEvents, GetModelEventsResult> eventLoader) {
-        GetModelEventsResult events = eventLoader.apply(new GetModelEvents(
-                graph.modelIds().stream()
-                        .map(id -> new ModelEventStreamRequest(id, -1L, maxEventsPerModel))
-                        .toList(),
-                ModelReadBoundary.state(boundary, false), maxBytes));
-        return new GetModelGraphResult(
-                requestId, graph.edges(), events.withExactBoundary(exactBoundary));
+        GetModelEventsResult page = events.apply(new GetModelEvents(
+                graph.modelIds().stream().map(id -> new ModelEventStreamRequest(
+                        id, -1L, request.getMaxEventsPerModel(), request.isIncludeDocumentVersions())).toList(),
+                ModelReadBoundary.state(boundary, false), request.getMaxBytes(), request.getDocumentVersionTypes()));
+        return new GetModelGraphResult(request.getRequestId(), graph.edges(), page.withExactBoundary(exactBoundary));
     }
 
     /** State selected for a read and whether it came from the requested selector rather than an allowed fallback. */
