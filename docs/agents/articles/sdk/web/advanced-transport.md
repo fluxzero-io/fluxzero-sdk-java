@@ -138,3 +138,15 @@ The built-in `/proxy/health` and `/proxy/ready` responses already have tiny fixe
 the same HTTP response generator as application responses. These options do not change their
 payloads or readiness semantics and do not define the proxy's overall process-memory limit. The
 same environment settings apply to Java and Kotlin applications.
+
+## Proxy readiness
+
+`/proxy/health` reports local HTTP liveness. `/proxy/ready` requires a successful Runtime tracking probe
+and becomes unavailable while draining or after five seconds without another successful probe. A short reconnect
+within that grace period does not change readiness. The single background probe runs once per second;
+readiness requests only inspect its local timestamp, even when the probe is blocked. Recovery restores readiness.
+
+Set `fluxzero.proxy.readinessGraceMillis` (`FLUXZERO_PROXY_READINESS_GRACE_MILLIS`, default `5000`) and
+`fluxzero.proxy.readinessIntervalMillis` (`FLUXZERO_PROXY_READINESS_INTERVAL_MILLIS`, default `1000`) at proxy
+startup to tune this policy. The grace period must exceed the positive probe interval. The same properties apply
+to Java and Kotlin deployments. HTTP-only test proxies without an owned Runtime retain their explicit ready state.

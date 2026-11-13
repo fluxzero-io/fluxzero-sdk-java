@@ -67,10 +67,14 @@ class ProxyServerLifecycleTest {
     void explicitConfigStartsEmbeddedProxyWithoutConnectionProperties() throws Exception {
         Server runtime = null;
         ProxyServer proxyServer = null;
+        String previousGrace = System.getProperty(ProxyServer.READINESS_GRACE_PROPERTY);
+        String previousInterval = System.getProperty(ProxyServer.READINESS_INTERVAL_PROPERTY);
         String previousFluxzeroBaseUrl = System.getProperty("FLUXZERO_BASE_URL");
         String previousFluxBaseUrl = System.getProperty("FLUX_BASE_URL");
         String previousFluxUrl = System.getProperty("FLUX_URL");
         try {
+            System.setProperty(ProxyServer.READINESS_GRACE_PROPERTY, "200");
+            System.setProperty(ProxyServer.READINESS_INTERVAL_PROPERTY, "20");
             runtime = TestServer.startServer(new InetSocketAddress("127.0.0.1", 0));
             String runtimeUrl = "ws://127.0.0.1:" + localPort(runtime);
             System.clearProperty("FLUXZERO_BASE_URL");
@@ -85,6 +89,15 @@ class ProxyServerLifecycleTest {
             assertEventuallyReady(proxyServer,
                                   "http://127.0.0.1:" + proxyServer.getPort()
                                   + ProxyServer.DEFAULT_READINESS_ENDPOINT);
+            int runtimePort = localPort(runtime);
+            runtime.stop();
+            assertEventuallyStatus("http://127.0.0.1:" + proxyServer.getPort()
+                                   + ProxyServer.DEFAULT_READINESS_ENDPOINT, 503, "Not ready");
+            assertLocalHealth("http://127.0.0.1:" + proxyServer.getPort()
+                              + ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT);
+            runtime = TestServer.startServer(new InetSocketAddress("127.0.0.1", runtimePort));
+            assertEventuallyReady(proxyServer, "http://127.0.0.1:" + proxyServer.getPort()
+                                                + ProxyServer.DEFAULT_READINESS_ENDPOINT);
         } finally {
             if (proxyServer != null) {
                 proxyServer.cancel();
@@ -92,6 +105,8 @@ class ProxyServerLifecycleTest {
             if (runtime != null) {
                 runtime.stop();
             }
+            restoreProperty(ProxyServer.READINESS_GRACE_PROPERTY, previousGrace);
+            restoreProperty(ProxyServer.READINESS_INTERVAL_PROPERTY, previousInterval);
             restoreProperty("FLUXZERO_BASE_URL", previousFluxzeroBaseUrl);
             restoreProperty("FLUX_BASE_URL", previousFluxBaseUrl);
             restoreProperty("FLUX_URL", previousFluxUrl);
