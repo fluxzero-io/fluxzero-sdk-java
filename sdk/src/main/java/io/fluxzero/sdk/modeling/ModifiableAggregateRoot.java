@@ -248,6 +248,13 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     @Override
     public Entity<T> assertAndApply(Object payloadOrMessage) {
+        if (Invocation.getCurrent() == null) {
+            return AggregateUpdateScope.run(() -> assertAndApplyUpdate(payloadOrMessage));
+        }
+        return assertAndApplyUpdate(payloadOrMessage);
+    }
+
+    private Entity<T> assertAndApplyUpdate(Object payloadOrMessage) {
         entityHelper.intercept(payloadOrMessage, this).forEach(m -> apply(Message.asMessage(m), true));
         return this;
     }
@@ -277,7 +284,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                     .filter(er -> er != AggregateEventRouting.DEFAULT).orElse(this.aggregateEventRouting);
 
             if (assertLegal) {
-                entityHelper.assertLegal(message, a);
+                entityHelper.assertLegalForApply(message, this);
             }
 
             boolean interceptBeforeApply = shouldInterceptDispatchBeforeApply(eventPublication);
@@ -376,7 +383,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             try {
                 delegate = update.apply(getDelegate());
             } finally {
-                if (firstUpdate) {
+                if (firstUpdate && !AggregateUpdateScope.deferCommit(this)) {
                     Invocation.whenHandlerCompletes((r, e) -> whenHandlerCompletes(e));
                 }
             }

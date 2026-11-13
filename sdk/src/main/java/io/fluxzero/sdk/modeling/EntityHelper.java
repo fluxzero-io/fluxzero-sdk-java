@@ -92,6 +92,15 @@ public interface EntityHelper {
     <E extends Exception> void assertLegal(Object value, Entity<?> entity) throws E;
 
     /**
+     * Asserts an update while its Aggregate root is advancing. Existing helpers receive the same
+     * pre-apply entity as in {@link #assertLegal(Object, Entity)}. A helper with deferred checks
+     * can resolve the root's delegate again at handler completion.
+     */
+    default <E extends Exception> void assertLegalForApply(Object value, ModifiableAggregateRoot<?> root) throws E {
+        assertLegal(value, root.getDelegate());
+    }
+
+    /**
      * Checks if the given value would be considered legal for the specified entity. Does not throw but instead returns
      * an exception if illegal.
      *

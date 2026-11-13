@@ -333,7 +333,7 @@ child entity and parent aggregate in the same method. Parent injection is option
 Interception selects the payloads to which assertions apply. A retained payload runs its matching immediate assertions;
 a suppressed payload runs neither assertions nor apply methods; a replacement runs only the replacement's assertions
 and apply methods. Split payloads run their immediate assertions and apply methods in encounter order, so every later
-part sees state changed by earlier parts. `@AssertLegal(afterHandler = true)` retains its deferred handler-completion
+part sees state changed by earlier parts. `@AssertLegal(afterHandler = true)` checks final Aggregate state before automatic persistence and retains its deferred handler-completion
 timing.
 
 Never assume an `@AssertLegal` method that only matches the original payload will run after replacement. Put an
