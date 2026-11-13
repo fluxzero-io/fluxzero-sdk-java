@@ -15,8 +15,10 @@
 
 package io.fluxzero.proxy;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.sdk.common.websocket.ConnectionMonitor;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Request;
@@ -52,14 +54,22 @@ final class DirectionalReadiness {
         }
         String value = properties.get(DISCONNECT_GRACE, "PT30S");
         try {
-            Duration grace = Duration.parse(value);
-            if (grace.toNanos() >= 0) {
-                return grace;
-            }
-        } catch (DateTimeParseException | ArithmeticException e) {
+            return validateGrace(Duration.parse(value));
+        } catch (DateTimeParseException | IllegalArgumentException e) {
             throw new IllegalArgumentException(DISCONNECT_GRACE + " must be a non-negative duration: " + value, e);
         }
-        throw new IllegalArgumentException(DISCONNECT_GRACE + " must be a non-negative duration: " + value);
+    }
+
+    static Duration validateGrace(Duration grace) {
+        if (grace.isNegative()) {
+            throw new IllegalArgumentException("Disconnect grace must be non-negative");
+        }
+        try {
+            grace.toNanos();
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Disconnect grace is too long", e);
+        }
+        return grace;
     }
 
     static boolean usesPath(String path) {
@@ -67,14 +77,11 @@ final class DirectionalReadiness {
     }
 
     Registration observe(WebSocketClient client) {
-        Registration routes = Registration.noOp();
+        Registration incoming = ingress.observe(client, WEBREQUEST, WEBRESPONSE);
         try {
-            routes = client.monitorPublishing(WEBREQUEST, null, ingress::publisherConnected);
-            routes = routes.merge(client.monitorTracking(WEBRESPONSE, null, ingress::trackerConnected));
-            routes = routes.merge(client.monitorTracking(WEBREQUEST, null, egress::trackerConnected));
-            return routes.merge(client.monitorPublishing(WEBRESPONSE, null, egress::publisherConnected));
+            return incoming.merge(egress.observe(client, WEBRESPONSE, WEBREQUEST));
         } catch (RuntimeException | Error e) {
-            routes.cancel();
+            incoming.cancel();
             throw e;
         }
     }
@@ -101,7 +108,8 @@ final class DirectionalReadiness {
     static final class Direction {
         private final long graceNanos;
         private final LongSupplier nanoTime;
-        private boolean publisher, tracker, previouslyConnected;
+        private ConnectionMonitor publisher, tracker;
+        private boolean connected, previouslyConnected;
         private long disconnectedAt;
 
         private Direction(long graceNanos, LongSupplier nanoTime) {
@@ -109,26 +117,31 @@ final class DirectionalReadiness {
             this.nanoTime = nanoTime;
         }
 
-        synchronized void publisherConnected(boolean connected) {
-            update(connected, tracker);
+        synchronized Registration observe(WebSocketClient client, MessageType publishType, MessageType trackType) {
+            publisher = client.monitorPublishing(publishType, null, ignored -> refresh());
+            try {
+                tracker = client.monitorTracking(trackType, null, ignored -> refresh());
+                refresh();
+                return publisher.merge(tracker);
+            } catch (RuntimeException | Error e) {
+                publisher.cancel();
+                if (tracker != null) { tracker.cancel(); }
+                throw e;
+            }
         }
 
-        synchronized void trackerConnected(boolean connected) {
-            update(publisher, connected);
-        }
-
-        private void update(boolean publishing, boolean tracking) {
-            if (publishing && tracking) {
-                previouslyConnected = true;
-            } else if (publisher && tracker) {
+        // Independent listeners can arrive out of order. Reconcile the current pair before declaring recovery.
+        private synchronized void refresh() {
+            boolean available = tracker != null && publisher.isConnected() && tracker.isConnected();
+            if (connected && !available) {
                 disconnectedAt = nanoTime.getAsLong();
             }
-            publisher = publishing;
-            tracker = tracking;
+            connected = available;
+            previouslyConnected |= available;
         }
 
         synchronized boolean isReady() {
-            return publisher && tracker || previouslyConnected && nanoTime.getAsLong() - disconnectedAt < graceNanos;
+            return connected || previouslyConnected && nanoTime.getAsLong() - disconnectedAt < graceNanos;
         }
     }
 }

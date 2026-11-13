@@ -452,4 +452,10 @@ Set `fluxzero.proxy.directional-readiness.disconnect-grace` (`FLUXZERO_PROXY_DIR
 to an ISO-8601 duration such as `PT45S`, or `PT0S` for immediate reporting. Recovery restores HTTP 200 as soon as
 the required routes and worker are available. During draining both endpoints return 503. The existing
 `/proxy/ready` reports startup and draining, and `/proxy/health` reports local liveness. Embedded proxies can
-opt in individually using `ProxyServerConfig.withDirectionalReadinessGrace(Duration)`.
+opt in individually using `ProxyServer.start(config, host, grace)`.
+
+Readiness signals when a load balancer should stop sending new requests. Requests sent directly to the proxy still
+use its ordinary admission and timeout settings. To bound open ingress exchanges, configure
+`FLUXZERO_PROXY_MAX_IN_FLIGHT_WEB_REQUESTS`; excess requests receive HTTP 503. With the default unlimited setting,
+waiting exchanges can occupy Jetty workers and delay the probes themselves. A caller timeout does not establish
+whether its request reached the destination.

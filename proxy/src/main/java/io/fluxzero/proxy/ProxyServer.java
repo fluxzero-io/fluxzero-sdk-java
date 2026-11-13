@@ -36,6 +36,7 @@ import org.eclipse.jetty.server.Response;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.ContextHandler;
+import org.eclipse.jetty.util.Callback;
 import org.eclipse.jetty.util.VirtualThreads;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.websocket.server.ServerWebSocketContainer;
@@ -191,6 +192,7 @@ public class ProxyServer implements Registration {
     public static void main(final String[] args) {
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> log.error("Uncaught error", e));
         ProxyServerConfig config = ProxyServerConfig.fromProperties();
+        Duration grace = DirectionalReadiness.configuredGrace(ApplicationProperties::getProperty);
         Client client = createClient(config);
 
         Fluxzero fluxzero = DefaultFluxzero.builder()
@@ -204,7 +206,7 @@ public class ProxyServer implements Registration {
             proxyServer = startHttpProxyOnly(
                     getConfiguredPort(), new ProxyRequestHandler(client), forwardProxy, forwardProxy::force,
                     Registration.noOp(), true, LifecycleState.STARTING,
-                    config.healthEndpoint(), "0.0.0.0", client, forwardProxy, config.directionalReadinessGrace());
+                    config.healthEndpoint(), "0.0.0.0", client, forwardProxy, grace);
             proxyServer.probeRuntimeReadiness(client);
         } catch (RuntimeException | Error e) {
             forwardProxy.force();
@@ -234,7 +236,8 @@ public class ProxyServer implements Registration {
      * @return a ProxyServer instance representing the started proxy server and owned embedded resources
      */
     public static ProxyServer start() {
-        return start(ProxyServerConfig.fromProperties());
+        return start(ProxyServerConfig.fromProperties(), "0.0.0.0",
+                     DirectionalReadiness.configuredGrace(ApplicationProperties::getProperty));
     }
 
     /**
@@ -260,17 +263,33 @@ public class ProxyServer implements Registration {
      * @return the started proxy
      */
     public static ProxyServer start(ProxyServerConfig config, String host) {
-        return start(config, host, createClient(config));
+        return start(config, host, null);
     }
 
-    static ProxyServer start(ProxyServerConfig config, String host, Client client) {
+    /**
+     * Starts an embedded proxy with local ingress and egress readiness probes for its configured namespace.
+     *
+     * @param config proxy configuration
+     * @param host interface address to bind
+     * @param grace continuous disconnect tolerance, or null to disable the directional probes
+     * @return the started proxy
+     */
+    public static ProxyServer start(ProxyServerConfig config, String host, Duration grace) {
+        if (grace != null) {
+            DirectionalReadiness.validateGrace(grace);
+        }
+        return start(config, host, createClient(config), grace);
+    }
+
+    static ProxyServer start(ProxyServerConfig config, String host, Client client, Duration grace) {
         ForwardProxyConsumer.Lifecycle forwardProxyConsumer = null;
         try {
             forwardProxyConsumer = ForwardProxyConsumer.startManaged(client);
             ProxyServer proxyServer = startHttpProxyOnly(
                     config.port(), new ProxyRequestHandler(client), forwardProxyConsumer,
                     forwardProxyConsumer::force, idempotent(client::shutDown), config.gracefulShutdown(),
-                    LifecycleState.STARTING, config.healthEndpoint(), host, client, forwardProxyConsumer, config.directionalReadinessGrace());
+                    LifecycleState.STARTING, config.healthEndpoint(), host, client, forwardProxyConsumer,
+                    grace);
             proxyServer.probeRuntimeReadiness(client);
             logStarted(proxyServer);
             return proxyServer;
@@ -510,14 +529,14 @@ public class ProxyServer implements Registration {
         webSocketHandler.setHandler(new Handler.Abstract() {
             @Override
             public boolean handle(Request request, Response response,
-                                  org.eclipse.jetty.util.Callback callback) throws Exception {
+                                  Callback callback) throws Exception {
                 return proxyHandler.handle(request, response, callback);
             }
         });
         context.setHandler(new Handler.Wrapper(webSocketHandler) {
             @Override
             public boolean handle(Request request, Response response,
-                                  org.eclipse.jetty.util.Callback callback) throws Exception {
+                                  Callback callback) throws Exception {
                 if (healthEndpoint.equals(Request.getPathInContext(request))) {
                     writeStatus(response, callback, HttpStatus.OK_200, HEALTH_PAYLOAD, HEALTH_PAYLOAD_LENGTH);
                     return true;
@@ -533,12 +552,12 @@ public class ProxyServer implements Registration {
         return context;
     }
 
-    static void writeReadiness(Response response, org.eclipse.jetty.util.Callback callback, boolean ready) {
+    static void writeReadiness(Response response, Callback callback, boolean ready) {
         writeStatus(response, callback, ready ? HttpStatus.OK_200 : HttpStatus.SERVICE_UNAVAILABLE_503,
                     ready ? READY_PAYLOAD : NOT_READY_PAYLOAD, ready ? READY_PAYLOAD_LENGTH : NOT_READY_PAYLOAD_LENGTH);
     }
 
-    private static void writeStatus(Response response, org.eclipse.jetty.util.Callback callback, int status,
+    private static void writeStatus(Response response, Callback callback, int status,
                                     byte[] payload, String payloadLength) {
         response.setStatus(status);
         response.getHeaders().put(HttpHeader.CONTENT_TYPE, "text/plain");

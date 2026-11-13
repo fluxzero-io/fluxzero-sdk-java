@@ -110,7 +110,6 @@ class ProxyServerLifecycleTest {
     @ValueSource(booleans = {false, true})
     @Timeout(20)
     void failedHttpStartupStopsTheAlreadyStartedConsumers(boolean directional) throws Exception {
-        String previousDirectional = System.getProperty(DirectionalReadiness.ENABLED);
         Server runtime = null;
         String previousFluxzeroProxyPort = System.getProperty("FLUXZERO_PROXY_PORT");
         String previousFluxzeroBaseUrl = System.getProperty("FLUXZERO_BASE_URL");
@@ -123,14 +122,13 @@ class ProxyServerLifecycleTest {
             configureProxy("ws://127.0.0.1:" + localPort(runtime), 0L, 1_000L);
             System.setProperty("FLUXZERO_PROXY_PORT", Integer.toString(occupiedPort.getLocalPort()));
 
-            System.setProperty(DirectionalReadiness.ENABLED, Boolean.toString(directional));
             var config = ProxyServerConfig.fromProperties();
-            assertThrows(IllegalStateException.class, () -> ProxyServer.start(config, "127.0.0.1"));
+            assertThrows(IllegalStateException.class, () -> ProxyServer.start(
+                    config, "127.0.0.1", directional ? Duration.ZERO : null));
             assertEventuallyNoThread(config.applicationName() + "_$proxy-request-handler-WEBRESPONSE-");
 
             assertEventuallyNoThread("forward-proxy-WEBREQUEST-");
         } finally {
-            restoreProperty(DirectionalReadiness.ENABLED, previousDirectional);
             if (runtime != null) {
                 runtime.stop();
             }

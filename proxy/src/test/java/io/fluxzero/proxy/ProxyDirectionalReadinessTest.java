@@ -114,9 +114,9 @@ class ProxyDirectionalReadinessTest {
                 .withTrackingConfig(WEBREQUEST, tracking).withTrackingConfig(WEBRESPONSE, tracking)
                 .withGatewaySessions(WEBREQUEST, requestPublisherSlots);
         client = WebSocketClient.newInstance(config);
-        var proxyConfig = ProxyServerConfig.forRuntime(url).withMetricsEnabled(false)
-                .withDirectionalReadinessGrace(DirectionalReadiness.configuredGrace(ApplicationProperties::getProperty));
-        proxy = ProxyServer.start(proxyConfig, "127.0.0.1", client);
+        var proxyConfig = ProxyServerConfig.forRuntime(url).withMetricsEnabled(false);
+        proxy = ProxyServer.start(proxyConfig, "127.0.0.1", client,
+                                  DirectionalReadiness.configuredGrace(ApplicationProperties::getProperty));
     }
 
     private Server startRuntime(int port) throws Exception {
@@ -182,7 +182,6 @@ class ProxyDirectionalReadinessTest {
 
     static Stream<Route> requiredRoutes() {
         return Stream.of(new Route(gatewayPath(WEBREQUEST), INGRESS, EGRESS),
-                         new Route(trackingPath(WEBRESPONSE), INGRESS, EGRESS),
                          new Route(trackingPath(WEBREQUEST), EGRESS, INGRESS),
                          new Route(gatewayPath(WEBRESPONSE), EGRESS, INGRESS));
     }
@@ -191,6 +190,35 @@ class ProxyDirectionalReadinessTest {
     @MethodSource("requiredRoutes")
     void onlyTheAffectedDirectionDropsAndIdleConnectionsRecover(Route route) throws Exception {
         start(1, Duration.ofMillis(200));
+        checkRouteRecovery(route, () -> {});
+    }
+
+    @Test
+    void restoresResponseTrackingAndCompletesAnAcceptedExchange() throws Exception {
+        start(1, Duration.ofMillis(200));
+        awaitStatus(INGRESS, 200);
+        var stored = new CompletableFuture<SerializedMessage>();
+        var capture = requests.registerMonitor(batch -> stored.complete(batch.getFirst()));
+        try {
+            var pending = send("/pending");
+            var request = stored.get(4, TimeUnit.SECONDS);
+            var response = WebResponse.builder().payload("completed".getBytes(UTF_8)).build()
+                    .serialize(new ProxySerializer());
+            response.setRequestId(request.getRequestId());
+            response.setTarget(request.getSource());
+            checkRouteRecovery(new Route(trackingPath(WEBRESPONSE), INGRESS, EGRESS), () -> {
+                responses.append(List.of(response)).join();
+                assertFalse(pending.isDone());
+            });
+            var result = pending.get(4, TimeUnit.SECONDS);
+            assertEquals(200, result.statusCode());
+            assertEquals("completed", result.body());
+        } finally {
+            capture.cancel();
+        }
+    }
+
+    private void checkRouteRecovery(Route route, Runnable whileDisconnected) throws Exception {
         var first = connections.awaitConnection(route.path());
         awaitStatus(INGRESS, 200);
         awaitStatus(EGRESS, 200);
@@ -203,10 +231,11 @@ class ProxyDirectionalReadinessTest {
             awaitStatus(route.affected(), 503);
             assertEquals(200, status(route.independent()));
             assertEquals(200, status("/proxy/health"));
+            whileDisconnected.run();
         } finally {
             connections.allow(route.path());
         }
-        // No status read or customer request may be needed to trigger the replacement handshake.
+        // No probe or new customer request triggers the replacement handshake.
         var replacement = connections.awaitConnection(route.path());
         assertNotSame(first.session(), replacement.session());
         awaitStatus(route.affected(), 200);

@@ -145,4 +145,4 @@ proxy's configured namespace. Point the HTTP load balancer at `/proxy/ready/ingr
 Change the continuous disconnect grace via `fluxzero.proxy.directional-readiness.disconnect-grace` (default
 `PT30S`). The probes perform no remote calls. Existing HTTP exchanges, forwarding and client WebSockets keep their
 ordinary timeout and shutdown semantics. For a separately configured embedded instance use
-`ProxyServerConfig.withDirectionalReadinessGrace`.
+`ProxyServer.start(config, host, grace)`.

@@ -16,6 +16,8 @@
 package io.fluxzero.proxy;
 
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.sdk.common.websocket.ConnectionMonitor;
+import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.eclipse.jetty.http.HttpTester;
 import org.eclipse.jetty.server.LocalConnector;
 import org.eclipse.jetty.server.Server;
@@ -28,40 +30,82 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
+import static io.fluxzero.common.MessageType.WEBREQUEST;
+import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class DirectionalReadinessTest {
     private final AtomicLong clock = new AtomicLong();
+
+    private static class Route implements ConnectionMonitor {
+        boolean connected;
+        Consumer<Boolean> listener;
+
+        void signal(boolean value) {
+            connected = value;
+            listener.accept(value);
+        }
+
+        @Override
+        public boolean isConnected() {
+            return connected;
+        }
+        @Override
+        public void cancel() {}
+    }
+
+    private final Route publisher = new Route(), tracker = new Route();
+
+    private void observe(DirectionalReadiness.Direction direction, Route writer, Route reader) {
+        var client = mock(WebSocketClient.class);
+        when(client.monitorPublishing(eq(WEBREQUEST), isNull(), any())).thenAnswer(call -> {
+            writer.listener = call.getArgument(2);
+            return writer;
+        });
+        when(client.monitorTracking(eq(WEBRESPONSE), isNull(), any())).thenAnswer(call -> {
+            reader.listener = call.getArgument(2);
+            return reader;
+        });
+        direction.observe(client, WEBREQUEST, WEBRESPONSE);
+    }
 
     @Test
     void continuousLossExpiresAtTheDefaultBoundaryEvenWhenDifferentRoutesAreDown() {
         var grace = DirectionalReadiness.configuredGrace(Map.of(DirectionalReadiness.ENABLED, "true")::get);
         var direction = new DirectionalReadiness(grace.toNanos(), clock::get).ingress;
-        direction.publisherConnected(true);
+        observe(direction, publisher, tracker);
+        publisher.signal(true);
         assertFalse(direction.isReady());
-        direction.trackerConnected(true);
+        tracker.signal(true);
         assertTrue(direction.isReady());
-        direction.publisherConnected(false);
+        publisher.signal(false);
         clock.set(Duration.ofSeconds(30).toNanos() - 1);
-        direction.trackerConnected(false);
-        direction.publisherConnected(true);
+        tracker.signal(false);
+        publisher.signal(true);
         assertTrue(direction.isReady());
         clock.incrementAndGet();
         assertFalse(direction.isReady());
-        direction.trackerConnected(true);
+        tracker.signal(true);
         assertTrue(direction.isReady());
     }
 
     @Test
     void shortReconnectStartsANewGracePeriodAtTheNextDisconnect() {
         var direction = configured("PT45S").egress;
-        direction.publisherConnected(true);
-        direction.trackerConnected(true);
-        direction.trackerConnected(false);
+        observe(direction, publisher, tracker);
+        publisher.signal(true);
+        tracker.signal(true);
+        tracker.signal(false);
         clock.set(Duration.ofSeconds(44).toNanos());
-        direction.trackerConnected(true);
-        direction.trackerConnected(false);
+        tracker.signal(true);
+        tracker.signal(false);
         clock.set(Duration.ofSeconds(88).toNanos());
         assertTrue(direction.isReady());
         clock.set(Duration.ofSeconds(89).toNanos());
@@ -69,15 +113,29 @@ class DirectionalReadinessTest {
     }
 
     @Test
-    void embeddedInstancesKeepTheirOwnOptInAcrossConfigurationCopies() {
-        var baseline = ProxyServerConfig.forRuntime("ws://localhost");
-        var shortGrace = baseline.withDirectionalReadinessGrace(Duration.ZERO).withPort(0);
-        var longGrace = baseline.withDirectionalReadinessGrace(Duration.ofSeconds(45)).withNamespace("another")
-                .withMetricsEnabled(false);
-        assertNull(baseline.directionalReadinessGrace());
-        assertEquals(Duration.ZERO, shortGrace.directionalReadinessGrace());
-        assertEquals(Duration.ofSeconds(45), longGrace.directionalReadinessGrace());
-        assertThrows(IllegalArgumentException.class, () -> baseline.withDirectionalReadinessGrace(Duration.ofNanos(-1)));
+    void lateTrackerCloseCannotRestartGraceDuringAnOverlappingOutage() {
+        var direction = configured("PT30S").ingress;
+        observe(direction, publisher, tracker);
+        tracker.signal(true);
+        publisher.signal(true);
+        publisher.signal(false);
+        clock.set(Duration.ofSeconds(31).toNanos());
+        assertFalse(direction.isReady());
+
+        tracker.connected = false; // Its close notification is still waiting for delivery.
+        publisher.signal(true);
+        assertFalse(direction.isReady());
+        tracker.listener.accept(false);
+        assertFalse(direction.isReady());
+        tracker.signal(true);
+        assertTrue(direction.isReady());
+    }
+
+    @Test
+    void embeddedGraceIsValidatedBeforeStartingResources() {
+        var config = ProxyServerConfig.forRuntime("ws://localhost");
+        assertThrows(IllegalArgumentException.class, () -> ProxyServer.start(config, "127.0.0.1", Duration.ofNanos(-1)));
+        assertThrows(IllegalArgumentException.class, () -> ProxyServer.start(config, "127.0.0.1", Duration.ofDays(200_000)));
     }
 
     @Test
@@ -104,14 +162,18 @@ class DirectionalReadinessTest {
         server.setHandler(readiness.handler(new DefaultHandler(), accepting::get, receiving::get, forwarding::get));
         try {
             server.start();
-            for (var direction : new DirectionalReadiness.Direction[]{readiness.ingress, readiness.egress}) {
-                direction.publisherConnected(true);
-                direction.trackerConnected(true);
-            }
-            readiness.ingress.trackerConnected(false);
+            var egressPublisher = new Route();
+            var egressTracker = new Route();
+            observe(readiness.ingress, publisher, tracker);
+            observe(readiness.egress, egressPublisher, egressTracker);
+            publisher.signal(true);
+            tracker.signal(true);
+            egressPublisher.signal(true);
+            egressTracker.signal(true);
+            tracker.signal(false);
             assertEquals(503, status(http, DirectionalReadiness.INGRESS_PATH));
             assertEquals(200, status(http, DirectionalReadiness.EGRESS_PATH));
-            readiness.ingress.trackerConnected(true);
+            tracker.signal(true);
             forwarding.set(false);
             assertEquals(200, status(http, DirectionalReadiness.INGRESS_PATH));
             assertEquals(503, status(http, DirectionalReadiness.EGRESS_PATH));
@@ -120,8 +182,8 @@ class DirectionalReadinessTest {
             accepting.set(false);
             receiving.set(true);
             forwarding.set(true);
-            readiness.egress.publisherConnected(false);
-            readiness.egress.publisherConnected(true);
+            egressPublisher.signal(false);
+            egressPublisher.signal(true);
             assertEquals(503, status(http, DirectionalReadiness.INGRESS_PATH));
             assertEquals(503, status(http, DirectionalReadiness.EGRESS_PATH));
             assertEquals(404, status(http, "/another-path"));
