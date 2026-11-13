@@ -492,14 +492,3 @@ redactor for application-written exception messages or logs.
 
 Console error reporting limits automatic web request metadata to the method and bounded path, omitting headers,
 session data, origin, query and fragment. Correlation data and explicit application diagnostics remain available.
-
-## Proxy readiness
-
-Use `/proxy/ready` for routing readiness and `/proxy/health` for local HTTP liveness. Readiness becomes 503
-after five seconds without a successful Runtime probe and returns to 200 after recovery. Brief reconnects within
-that window are tolerated. The proxy probes in the background once per second; polling readiness does not make
-additional Runtime requests.
-
-Configure `fluxzero.proxy.readinessGraceMillis` (`FLUXZERO_PROXY_READINESS_GRACE_MILLIS`) and
-`fluxzero.proxy.readinessIntervalMillis` (`FLUXZERO_PROXY_READINESS_INTERVAL_MILLIS`) at proxy startup when a
-different window is needed. The grace period must exceed the positive probe interval. Draining always disables readiness.

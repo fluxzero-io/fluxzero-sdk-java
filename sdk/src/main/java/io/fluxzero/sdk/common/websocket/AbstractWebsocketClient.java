@@ -96,6 +96,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
@@ -1452,10 +1453,20 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         executeResultCallback("close", () -> handleClose(session, closeReason));
     }
 
+    /**
+     * Keeps the slot selected by a routing key connected and reports initial availability and subsequent changes.
+     * A null key covers all round-robin slots. Notifications are asynchronous and ordered per registration.
+     * Cancel to stop observing and release idle reconnect demand. Existing sessions remain owned by the pool.
+     */
+    public ConnectionMonitor maintainConnections(String routingKey, Consumer<Boolean> listener) {
+        return sessionPool.maintain(routingKey, listener);
+    }
+
     protected void handleClose(WebsocketSession session, WebsocketCloseReason closeReason) {
         if (!closed.get() && session.isOpen()) {
             session.abort(closeReason);
         }
+        sessionPool.disconnected(session);
         if (closeReason.code() > WebsocketCloseReason.GOING_AWAY) {
             log().warn("Connection to endpoint {} closed with reason {} (session: {})", session.getRequestURI(),
                        closeReason, getNegotiatedSessionId(session));
