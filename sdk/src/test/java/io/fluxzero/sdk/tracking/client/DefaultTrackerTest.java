@@ -432,6 +432,16 @@ class DefaultTrackerTest {
     }
 
     @Test
+    void aRegistrationWithoutWorkersIsNotRunning() {
+        var config = ConsumerConfiguration.builder().name("empty").threads(0).build();
+        var group = assertInstanceOf(DefaultTracker.TrackerRegistration.class,
+                                     DefaultTracker.start(messages -> {}, config, trackingClient()));
+        assertFalse(group.isRunning());
+        group.cancel();
+        assertFalse(group.isRunning());
+    }
+
+    @Test
     void cancellationBoundsBlockedFetchesAndProcessingWithOneDeadline() throws Exception {
         TrackingClient trackingClient = trackingClient();
         io.fluxzero.sdk.tracking.BatchInterceptor interceptor = mock(io.fluxzero.sdk.tracking.BatchInterceptor.class);

@@ -15,17 +15,17 @@
 
 package io.fluxzero.sdk.configuration.client;
 
-import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.Registration;
-import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
+import io.fluxzero.sdk.common.websocket.ConnectionMonitor;
 import io.fluxzero.sdk.common.websocket.WebsocketSession;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient;
 import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
@@ -212,7 +212,7 @@ public class WebSocketClient extends AbstractClient {
      * coalesced to the latest state. Cancelling discards pending callbacks and releases the observation.
      * An invocation already in progress may finish. Application requests keep their own delivery and timeout contracts.
      */
-    public Registration monitorPublishing(MessageType type, String topic, Consumer<Boolean> listener) {
+    public ConnectionMonitor monitorPublishing(MessageType type, String topic, Consumer<Boolean> listener) {
         synchronized (shutdownStarted) {
             Objects.requireNonNull(listener, "listener");
             requireActiveTransport();
@@ -224,7 +224,7 @@ public class WebSocketClient extends AbstractClient {
      * Keeps all slots used by round-robin tracking reads connected and reports true when all are available.
      * Includes cached tracking clients. Callback delivery and cancellation follow {@link #monitorPublishing}.
      */
-    public Registration monitorTracking(MessageType type, String topic, Consumer<Boolean> listener) {
+    public ConnectionMonitor monitorTracking(MessageType type, String topic, Consumer<Boolean> listener) {
         synchronized (shutdownStarted) {
             Objects.requireNonNull(listener, "listener");
             requireActiveTransport();

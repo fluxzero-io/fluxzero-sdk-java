@@ -221,11 +221,12 @@ public class DefaultTracker implements Runnable, Registration {
         @Override
         public boolean isRunning() {
             for (var tracker : trackers) {
-                if (!tracker.running.get() || tracker.cancellationRequested.get() || tracker.exiting || tracker.thread.get() == null) {
+                if (!tracker.running.get() || tracker.cancellationRequested.get()
+                    || tracker.exiting || tracker.thread.get() == null) {
                     return false;
                 }
             }
-            return true;
+            return !trackers.isEmpty();
         }
 
         @Override

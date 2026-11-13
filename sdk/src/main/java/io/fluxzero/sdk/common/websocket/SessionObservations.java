@@ -14,7 +14,6 @@
 
 package io.fluxzero.sdk.common.websocket;
 
-import io.fluxzero.common.Registration;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayDeque;
@@ -43,7 +42,7 @@ final class SessionObservations {
         this.connected = new boolean[size];
     }
 
-    synchronized Registration subscribe(int first, int count, Consumer<Boolean> listener) {
+    synchronized ConnectionMonitor subscribe(int first, int count, Consumer<Boolean> listener) {
         var subscription = new Subscription(first, count, listener);
         subscriptions.add(subscription);
         if (count > 1) { multiSlotSubscriptions++; }
@@ -115,7 +114,7 @@ final class SessionObservations {
     }
 
     /** Serial delivery per subscriber. No application callback runs under a pool or observer lock. */
-    private final class Subscription implements Registration {
+    private final class Subscription implements ConnectionMonitor {
         private final int first, count;
         private final Consumer<Boolean> listener;
         private final ArrayDeque<Boolean> pending = new ArrayDeque<>();
@@ -137,6 +136,17 @@ final class SessionObservations {
                 if (!connected[i]) { offer(false); return; }
             }
             offer(true);
+        }
+
+        @Override
+        public boolean isConnected() {
+            synchronized (SessionObservations.this) {
+                if (closed || cancelled) { return false; }
+                for (int i = first; i < first + count; i++) {
+                    if (!open.test(i)) { return false; }
+                }
+                return true;
+            }
         }
 
         synchronized void offer(boolean value) {

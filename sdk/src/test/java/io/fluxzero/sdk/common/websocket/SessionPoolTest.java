@@ -51,6 +51,26 @@ import static org.mockito.Mockito.when;
 class SessionPoolTest {
 
     @Test
+    void monitorReadsLocalStateBeforeCloseNotification() throws Exception {
+        var open = new AtomicBoolean(true);
+        var session = mock(WebsocketSession.class);
+        when(session.isOpen()).thenAnswer(ignored -> open.get());
+        try (var pool = new SessionPool(1, () -> session)) {
+            pool.get();
+            var monitor = pool.maintain(null, ignored -> {});
+            assertTrue(monitor.isConnected());
+            open.set(false);
+            assertFalse(monitor.isConnected());
+            open.set(true);
+            monitor.cancel();
+            assertFalse(monitor.isConnected());
+            var active = pool.maintain(null, ignored -> {});
+            pool.close();
+            assertFalse(active.isConnected());
+        }
+    }
+
+    @Test
     void testPoolCyclesSessions() {
         SessionPool sessionPool =
                 new SessionPool(3, () -> when(mock(WebsocketSession.class).isOpen()).thenReturn(true).getMock());

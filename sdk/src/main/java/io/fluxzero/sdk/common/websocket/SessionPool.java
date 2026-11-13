@@ -15,12 +15,11 @@
 package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.ConsistentHashing;
-import io.fluxzero.common.Registration;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -148,7 +147,7 @@ public class SessionPool implements AutoCloseable {
         return active != null && active.ownsConnectionAttempt(slot);
     }
 
-    Registration maintain(String routingKey, Consumer<Boolean> listener) {
+    ConnectionMonitor maintain(String routingKey, Consumer<Boolean> listener) {
         Objects.requireNonNull(listener, "listener");
         synchronized (shuttingDown) {
             if (shuttingDown.get()) { throw new ClientClosedException(); }

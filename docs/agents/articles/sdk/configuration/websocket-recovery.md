@@ -39,3 +39,5 @@ On a concrete `WebSocketClient`, use `monitorPublishing(type, topic, listener)` 
 existing delegate. Each registration opens its required slots and keeps them warm until cancelled. Multiple
 observers share the pool and its reconnect policy. Consume state notifications promptly and cancel the returned
 `Registration` when the owning component stops. The callback reports connectivity, not storage acknowledgements.
+
+Use the returned connection monitor’s `isConnected()` for a local snapshot when combining routes. Notifications on different registrations can arrive in either order.

@@ -1458,7 +1458,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
      * A null key covers all round-robin slots. Notifications are asynchronous and ordered per registration.
      * Cancel to stop observing and release idle reconnect demand. Existing sessions remain owned by the pool.
      */
-    public Registration maintainConnections(String routingKey, Consumer<Boolean> listener) {
+    public ConnectionMonitor maintainConnections(String routingKey, Consumer<Boolean> listener) {
         return sessionPool.maintain(routingKey, listener);
     }
 
