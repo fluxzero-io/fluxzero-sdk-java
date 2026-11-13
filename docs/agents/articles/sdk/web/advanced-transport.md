@@ -140,8 +140,8 @@ same environment settings apply to Java and Kotlin applications.
 ## Directional readiness
 
 Enable `fluxzero.proxy.directional-readiness.enabled=true` to expose local ingress and egress readiness for the
-proxy's configured namespace. Point the HTTP load balancer at `/proxy/ready/ingress` and monitor
-`/proxy/ready/egress` for outgoing requests. The SDK keeps the required transport routes connected while idle.
+proxy's configured namespace. `/proxy/ready/ingress` checks the incoming request publisher and response
+tracker. `/proxy/ready/egress` checks the outgoing request consumer and response publisher. The SDK keeps the required transport routes connected while idle.
 Change the continuous disconnect grace via `fluxzero.proxy.directional-readiness.disconnect-grace` (default
 `PT30S`). The probes perform no remote calls. Existing HTTP exchanges, forwarding and client WebSockets keep their
 ordinary timeout and shutdown semantics. For a separately configured embedded instance use

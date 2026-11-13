@@ -441,10 +441,12 @@ matters. These local limits also do not deduplicate replayed requests or replace
 
 ## Check proxy readiness by direction
 
-For an HTTP load balancer, enable `fluxzero.proxy.directional-readiness.enabled=true`
-(`FLUXZERO_PROXY_DIRECTIONAL_READINESS_ENABLED`) and probe `/proxy/ready/ingress`. This checks the proxy's
-request publisher and response tracker. Monitor `/proxy/ready/egress` separately for the forward consumer and
-response publisher that serve outbound HTTP requests. Both endpoints describe the proxy's configured namespace.
+Enable `fluxzero.proxy.directional-readiness.enabled=true` (`FLUXZERO_PROXY_DIRECTIONAL_READINESS_ENABLED`)
+to expose two local endpoints for the proxy's configured namespace:
+
+- `/proxy/ready/ingress` checks the request publisher and response tracker used by incoming HTTP requests.
+- `/proxy/ready/egress` checks the forward consumer and response publisher used by outgoing HTTP requests.
+
 Namespaces selected by individual incoming requests can have their own connections.
 
 A direction starts at HTTP 503. Once ready, it tolerates a continuous transport disconnection for 30 seconds.
@@ -454,8 +456,5 @@ the required routes and worker are available. During draining both endpoints ret
 `/proxy/ready` reports startup and draining, and `/proxy/health` reports local liveness. Embedded proxies can
 opt in individually using `ProxyServer.start(config, host, grace)`.
 
-Readiness signals when a load balancer should stop sending new requests. Requests sent directly to the proxy still
-use its ordinary admission and timeout settings. To bound open ingress exchanges, configure
-`FLUXZERO_PROXY_MAX_IN_FLIGHT_WEB_REQUESTS`; excess requests receive HTTP 503. With the default unlimited setting,
-waiting exchanges can occupy Jetty workers and delay the probes themselves. A caller timeout does not establish
-whether its request reached the destination.
+Incoming requests retain their normal admission and timeout settings when readiness returns 503.
+The probes share the proxy's HTTP listener and can be delayed if its workers are saturated.
