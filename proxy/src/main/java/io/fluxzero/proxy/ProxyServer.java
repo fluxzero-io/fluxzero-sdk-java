@@ -53,6 +53,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
@@ -63,6 +64,8 @@ import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
 @Slf4j
 public class ProxyServer implements Registration {
 
+    static final String READINESS_GRACE_PROPERTY = "fluxzero.proxy.readinessGraceMillis";
+    static final String READINESS_INTERVAL_PROPERTY = "fluxzero.proxy.readinessIntervalMillis";
     static final String READINESS_ENDPOINT_PROPERTY = "PROXY_READINESS_ENDPOINT";
     static final String DRAIN_DELAY_MILLIS_PROPERTY = "FLUXZERO_PROXY_DRAIN_DELAY_MILLIS";
     static final String SHUTDOWN_TIMEOUT_MILLIS_PROPERTY = "FLUXZERO_PROXY_SHUTDOWN_TIMEOUT_MILLIS";
@@ -356,7 +359,11 @@ public class ProxyServer implements Registration {
         Duration drainDelay = configuredDrainDelay();
         Duration shutdownTimeout = configuredShutdownTimeout();
         AtomicReference<LifecycleState> lifecycleState = new AtomicReference<>(initialState);
-        server.setHandler(createHandler(server, proxyHandler, healthEndpoint, readinessEndpoint, lifecycleState));
+        RuntimeReadiness readiness = new RuntimeReadiness(
+                Duration.ofMillis(getLongProperty(READINESS_GRACE_PROPERTY, 5_000L)),
+                Duration.ofMillis(getLongProperty(READINESS_INTERVAL_PROPERTY, 1_000L)), System::nanoTime);
+        server.setHandler(createHandler(server, proxyHandler, healthEndpoint, readinessEndpoint,
+                () -> lifecycleState.get() == LifecycleState.READY && readiness.isReady()));
         try {
             server.start();
         } catch (Exception e) {
@@ -369,7 +376,7 @@ public class ProxyServer implements Registration {
         }
         return new ProxyServer(proxyHandler, server, connector.getLocalPort(), shutdownRegistration, forceShutdown,
                                ownedClientShutdown, gracefulShutdown, lifecycleState,
-                               drainDelay, shutdownTimeout);
+                               drainDelay, shutdownTimeout, readiness);
     }
 
     static void configureResponseHeaders(HttpConfiguration configuration, int maxHeaderSize, Integer initialSize) {
@@ -470,7 +477,7 @@ public class ProxyServer implements Registration {
 
     private static Handler createHandler(Server server, ProxyRequestHandler proxyHandler, String healthEndpoint,
                                          String readinessEndpoint,
-                                         AtomicReference<LifecycleState> lifecycleState) {
+                                         BooleanSupplier readiness) {
         ContextHandler context = new ContextHandler("/");
         WebSocketUpgradeHandler webSocketHandler = WebSocketUpgradeHandler.from(server, context, container -> {
             configureContainer(container);
@@ -492,7 +499,7 @@ public class ProxyServer implements Registration {
                     return true;
                 }
                 if (readinessEndpoint.equals(Request.getPathInContext(request))) {
-                    boolean ready = lifecycleState.get() == LifecycleState.READY;
+                    boolean ready = readiness.getAsBoolean();
                     writeStatus(response, callback, ready ? HttpStatus.OK_200 : HttpStatus.SERVICE_UNAVAILABLE_503,
                                 ready ? READY_PAYLOAD : NOT_READY_PAYLOAD,
                                 ready ? READY_PAYLOAD_LENGTH : NOT_READY_PAYLOAD_LENGTH);
@@ -592,12 +599,13 @@ public class ProxyServer implements Registration {
     private final Duration shutdownTimeout;
     private final AtomicBoolean cancelled = new AtomicBoolean();
     private volatile Thread readinessThread;
+    private final RuntimeReadiness readiness;
 
     protected ProxyServer(ProxyRequestHandler proxyHandler, Server server, int port,
                           Registration shutdownRegistration, Runnable forceShutdown,
                           Registration ownedClientShutdown, boolean gracefulShutdown,
                           AtomicReference<LifecycleState> lifecycleState,
-                          Duration drainDelay, Duration shutdownTimeout) {
+                          Duration drainDelay, Duration shutdownTimeout, RuntimeReadiness readiness) {
         this.proxyHandler = proxyHandler;
         this.server = server;
         this.port = port;
@@ -608,6 +616,7 @@ public class ProxyServer implements Registration {
         this.lifecycleState = lifecycleState;
         this.drainDelay = drainDelay;
         this.shutdownTimeout = shutdownTimeout;
+        this.readiness = readiness;
     }
 
     long getIdleTimeoutMillis() {
@@ -631,10 +640,10 @@ public class ProxyServer implements Registration {
     }
 
     /**
-     * Returns whether the proxy has reached runtime readiness and is not draining.
+     * Returns whether the proxy has a recent successful Runtime probe and is not draining.
      */
     public boolean isReady() {
-        return lifecycleState.get() == LifecycleState.READY;
+        return lifecycleState.get() == LifecycleState.READY && readiness.isReady();
     }
 
     private long connectorIdleTimeout() {
@@ -688,23 +697,24 @@ public class ProxyServer implements Registration {
     }
 
     private void probeRuntimeReadiness(Client client) {
+        readiness.start();
         readinessThread = Thread.ofVirtual().name("fluxzero-proxy-readiness").start(() -> {
-            while (lifecycleState.get() == LifecycleState.STARTING) {
+            while (!cancelled.get()) {
                 try {
                     client.getTrackingClient(io.fluxzero.common.MessageType.WEBREQUEST)
                             .getPosition(ForwardProxyConsumer.defaultSettings.getConsumer());
+                    readiness.succeeded();
                     lifecycleState.compareAndSet(LifecycleState.STARTING, LifecycleState.READY);
+                } catch (Exception e) {
+                    if (cancelled.get() || Thread.currentThread().isInterrupted()) {
+                        return;
+                    }
+                }
+                try {
+                    Thread.sleep(lifecycleState.get() == LifecycleState.STARTING ? 100L : readiness.intervalMillis());
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
                     return;
-                } catch (Throwable e) {
-                    if (lifecycleState.get() != LifecycleState.STARTING || Thread.currentThread().isInterrupted()) {
-                        return;
-                    }
-                    try {
-                        Thread.sleep(100L);
-                    } catch (InterruptedException interrupted) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
                 }
             }
         });
