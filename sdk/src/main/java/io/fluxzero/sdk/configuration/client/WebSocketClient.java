@@ -207,7 +207,9 @@ public class WebSocketClient extends AbstractClient {
 
     /**
      * Keeps the append route for this client, message type and optional topic connected even when idle.
-     * The listener receives an initial snapshot and ordered changes. Registrations share the same pool slots.
+     * Supply a topic for CUSTOM and DOCUMENT and null for other message types.
+     * The listener receives an initial snapshot and ordered changes on a worker without inherited thread locals.
+     * Registrations share the same pool slots.
      * The callback should return promptly. While a listener is busy, a burst of pending transitions can be
      * coalesced to the latest state. Cancelling discards pending callbacks and releases the observation.
      * An invocation already in progress may finish. Application requests keep their own delivery and timeout contracts.
@@ -222,12 +224,13 @@ public class WebSocketClient extends AbstractClient {
 
     /**
      * Keeps all slots used by round-robin tracking reads connected and reports true when all are available.
-     * Includes cached tracking clients. Callback delivery and cancellation follow {@link #monitorPublishing}.
+     * Includes cached tracking clients. Topic selection, callback delivery and cancellation follow {@link #monitorPublishing}.
      */
     public ConnectionMonitor monitorTracking(MessageType type, String topic, Consumer<Boolean> listener) {
         synchronized (shutdownStarted) {
             Objects.requireNonNull(listener, "listener");
             requireActiveTransport();
+            validateTopic(type, topic);
             TrackingClient tracking = getTrackingClient(type, topic);
             while (tracking instanceof CachingTrackingClient cache) { tracking = cache.getDelegate(); }
             return transport(tracking).maintainConnections(null, listener);

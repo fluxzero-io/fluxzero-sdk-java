@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -60,7 +61,7 @@ import java.util.stream.IntStream;
 @Slf4j
 public class SessionPool implements AutoCloseable {
     private final Map<Integer, WebsocketSession> sessionMap;
-    private final Object[] sessionLocks;
+    private final ReentrantLock[] sessionLocks;
     private final int size;
     private volatile SessionObservations observations;
     private final AtomicInteger counter = new AtomicInteger();
@@ -84,7 +85,7 @@ public class SessionPool implements AutoCloseable {
         this.sessionFactory = sessionFactory;
         this.size = size;
         this.sessionMap = new ConcurrentHashMap<>();
-        this.sessionLocks = IntStream.range(0, size).mapToObj(i -> new Object()).toArray();
+        this.sessionLocks = IntStream.range(0, size).mapToObj(i -> new ReentrantLock()).toArray(ReentrantLock[]::new);
     }
 
     /**
@@ -121,7 +122,18 @@ public class SessionPool implements AutoCloseable {
         if (!isClosed(session)) {
             return session;
         }
-        synchronized (sessionLocks[index]) {
+        ReentrantLock lock = sessionLocks[index];
+        if (observer) {
+            try {
+                lock.lockInterruptibly();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ClientClosedException();
+            }
+        } else {
+            lock.lock();
+        }
+        try {
             WebsocketSession s = sessionMap.get(index);
             while (isClosed(s)) {
                 if (shuttingDown.get() || observer && !hasObserverDemand(index)) {
@@ -139,6 +151,8 @@ public class SessionPool implements AutoCloseable {
             }
             closeSession(s);
             throw new ClientClosedException();
+        } finally {
+            lock.unlock();
         }
     }
 

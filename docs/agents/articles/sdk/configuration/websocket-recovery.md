@@ -36,7 +36,8 @@ builder configuration near bootstrap; application handlers should use the SDK fa
 
 On a concrete `WebSocketClient`, use `monitorPublishing(type, topic, listener)` for the append slot or
 `monitorTracking(type, topic, listener)` for all slots used by round-robin reads. Cached tracking uses its
-existing delegate. Each registration opens its required slots and keeps them warm until cancelled. Multiple
+existing delegate. Supply a topic for `CUSTOM` or `DOCUMENT` and `null` for other types. Listeners run on workers
+with no inherited thread locals. Each registration opens its required slots and keeps them warm until cancelled. Multiple
 observers share the pool and its reconnect policy. Consume state notifications promptly and cancel the returned
 `Registration` when the owning component stops. The callback reports connectivity, not storage acknowledgements.
 

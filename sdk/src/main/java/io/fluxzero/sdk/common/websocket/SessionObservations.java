@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntPredicate;
@@ -27,6 +28,8 @@ import java.util.function.IntPredicate;
 @Slf4j
 final class SessionObservations {
     private static final int MAX_PENDING_CHANGES = 64;
+    private static final ThreadFactory notificationThreads = Thread.ofVirtual().name("fluxzero-websocket-availability")
+            .inheritInheritableThreadLocals(false).factory();
     private final IntConsumer connect;
     private final IntPredicate open;
     private final Thread[] connecting;
@@ -76,7 +79,8 @@ final class SessionObservations {
 
     private void ensureConnected(int slot) {
         if (connecting[slot] != null || connected[slot]) { return; }
-        Thread worker = Thread.ofVirtual().name("fluxzero-maintain-websocket-" + slot).unstarted(() -> {
+        var threads = Thread.ofVirtual().name("fluxzero-maintain-websocket-" + slot).inheritInheritableThreadLocals(false);
+        Thread worker = threads.unstarted(() -> {
             boolean established = false;
             try {
                 connect.accept(slot);
@@ -157,7 +161,7 @@ final class SessionObservations {
             pending.add(value);
             if (!delivering) {
                 delivering = true;
-                Thread.startVirtualThread(this::deliver);
+                notificationThreads.newThread(this::deliver).start();
             }
         }
 

@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -273,6 +274,110 @@ class SessionPoolTest {
             b.cancel();
         } finally {
             release.countDown();
+        }
+    }
+
+    @Test
+    void cancellingAnObserverReleasesItsWorkerDuringAnApplicationHandshake() throws Exception {
+        var caller = Thread.currentThread();
+        var application = new CompletableFuture<Thread>();
+        var observer = new CompletableFuture<Thread>();
+        var open = new AtomicBoolean(true);
+        var previous = mock(WebsocketSession.class);
+        when(previous.isOpen()).thenAnswer(ignored -> {
+            Thread current = Thread.currentThread();
+            if (application.isDone() && current != caller && current != application.join()) {
+                observer.complete(current);
+            }
+            return open.get();
+        });
+        var replacement = openSession();
+        var release = new CompletableFuture<WebsocketSession>();
+        try (var executor = Executors.newSingleThreadExecutor();
+             var pool = new SessionPool(1, old -> {
+                 if (old == null) { return previous; }
+                 application.complete(Thread.currentThread());
+                 return release.join();
+             })) {
+            assertSame(previous, pool.get());
+            open.set(false);
+            Future<WebsocketSession> request = executor.submit(() -> pool.get(0));
+            try {
+                Thread owner = application.get(3, TimeUnit.SECONDS);
+                var monitor = pool.maintain(null, ignored -> {});
+                Thread waiting = observer.get(3, TimeUnit.SECONDS);
+                monitor.cancel();
+                assertTrue(waiting.join(Duration.ofSeconds(3)), "Observer must exit while the handshake is pending");
+                assertFalse(owner.isInterrupted());
+                assertFalse(request.isDone());
+
+                var states = new LinkedBlockingQueue<Boolean>();
+                var next = pool.maintain(null, states::add);
+                assertNext(states, false);
+                release.complete(replacement);
+                assertSame(replacement, request.get(3, TimeUnit.SECONDS));
+                assertNext(states, true);
+                next.cancel();
+            } finally {
+                release.complete(replacement);
+            }
+        }
+    }
+
+    @Test
+    void monitorWorkersDoNotInheritApplicationThreadLocals() throws Exception {
+        var context = new InheritableThreadLocal<String>();
+        var connectContext = new CompletableFuture<String>();
+        var callbackContext = new CompletableFuture<String>();
+        context.set("request");
+        try (var pool = new SessionPool(1, () -> {
+            connectContext.complete(context.get());
+            return openSession();
+        })) {
+            pool.maintain(null, ready -> callbackContext.complete(context.get()));
+            assertNull(callbackContext.get(3, TimeUnit.SECONDS));
+            assertNull(connectContext.get(3, TimeUnit.SECONDS));
+        } finally {
+            context.remove();
+        }
+    }
+
+    @Test
+    void slowListenerConvergesAfterOverflowAndAnExceptionWhileAnotherListenerMakesProgress() throws Exception {
+        var open = new AtomicBoolean(true);
+        var releaseConnect = new CompletableFuture<Void>();
+        var releaseListener = new CompletableFuture<Void>();
+        var delivery = new CompletableFuture<Thread>();
+        var slow = new LinkedBlockingQueue<Boolean>();
+        var fast = new LinkedBlockingQueue<Boolean>();
+        var observations = new SessionObservations(1, slot -> releaseConnect.join(), slot -> open.get());
+        try {
+            observations.subscribe(0, 1, value -> {
+                slow.add(value);
+                if (delivery.complete(Thread.currentThread())) {
+                    releaseListener.join();
+                    throw new IllegalStateException("Listener failed");
+                }
+            });
+            Thread worker = delivery.get(3, TimeUnit.SECONDS);
+            observations.subscribe(0, 1, fast::add);
+            assertNext(slow, true);
+            assertNext(fast, true);
+            // Fill the 64 pending slots, then overflow with a final disconnect.
+            for (int i = 0; i < 65; i++) {
+                boolean connected = i % 2 != 0;
+                open.set(connected);
+                observations.changed(0);
+                assertNext(fast, connected);
+            }
+            releaseListener.complete(null);
+            assertTrue(worker.join(Duration.ofSeconds(3)));
+            assertNext(slow, false);
+            assertTrue(slow.isEmpty());
+        } finally {
+            observations.close();
+            releaseListener.complete(null);
+            releaseConnect.complete(null);
         }
     }
 
