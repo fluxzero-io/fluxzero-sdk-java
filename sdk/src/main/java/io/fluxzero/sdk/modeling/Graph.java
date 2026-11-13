@@ -704,7 +704,10 @@ public interface Graph<T> {
                 .map(Object::toString).anyMatch(requested::equals);
     }
 
-    /** Applies one update to this graph's current model and returns the staged resulting graph. */
+    /**
+     * Applies the update to this graph's current model and returns the resulting graph.
+     * To compose domain updates in {@code @InterceptApply}, return the update payload itself.
+     */
     Graph<T> apply(Object update);
 
     /** Applies one update with explicit metadata. */
@@ -725,8 +728,8 @@ public interface Graph<T> {
     /**
      * Updates the current value directly. When returned by an apply interceptor, the staged update joins that
      * interceptor's atomic model commit and is replayed against fresh state after an accepted conflict. The operator
-     * must therefore be deterministic and free of external side effects. Prefer {@link #apply(Object)} for domain
-     * updates whose apply-specific event publication settings should govern the transition.
+     * must therefore be deterministic and free of external side effects. Return a domain update payload from the
+     * interceptor when its apply handler should govern event publication.
      */
     Graph<T> update(UnaryOperator<T> update);
 

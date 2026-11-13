@@ -400,7 +400,8 @@ checking; a concurrent creation cannot be blindly overwritten. Reading an existi
 interceptor alone does not make it writable. Existing results still need a resolved write target or a tracked Graph read.
 
 Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(...)` or `graph.delete()` operations.
-Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection
+Return those changed Graphs so their identity and read boundary travel with the mutation. To run an update’s own handlers,
+return the payload from the interceptor. Returning the result of `graph.apply(payload)` is unsupported. Use an ordered collection
 of ordinary command payloads when each child operation deserves its own domain command; later parts see earlier staged
 changes and all parts commit atomically. The commit shares a commit ID, not one Model revision or state index.
 Each stored event retains its exact commit substep during replay, including when a later part updates the same Model

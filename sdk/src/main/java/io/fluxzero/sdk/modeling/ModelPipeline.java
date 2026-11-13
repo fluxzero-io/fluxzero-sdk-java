@@ -158,10 +158,19 @@ final class ModelPipeline {
 
     public CompletableFuture<Void> assertAndApply(Message update) {
         requireNoAtomicCallback();
+        requireReplayableGraph(update);
         if (update.getPayload() instanceof AtomicGraphUpdate<?> operation) {
             return atomicGraphUpdate(operation, update);
         }
         return assertAndApply(update, null, -1);
+    }
+
+    private void requireReplayableGraph(Message update) {
+        if (update.getPayload() instanceof Graph<?> graph && Graphs.isApplyResult(graph)
+            && CommitAttempt.currentReadContext(repository) != null) {
+            throw new IllegalStateException(
+                    "@InterceptApply cannot commit the result of Graph.apply; return the update payload instead.");
+        }
     }
 
     private <T> CompletableFuture<Void> atomicGraphUpdate(AtomicGraphUpdate<T> operation, Message update) {
@@ -231,6 +240,7 @@ final class ModelPipeline {
     public CompletableFuture<Void> assertAndApply(
             Message update, String modelId, Class<?> modelType) {
         requireNoAtomicCallback();
+        requireReplayableGraph(update);
         Objects.requireNonNull(modelId, "modelId");
         Objects.requireNonNull(modelType, "modelType");
         DeserializingMessage message = new DeserializingMessage(
@@ -250,6 +260,7 @@ final class ModelPipeline {
         List<Message> messages = updates.stream()
                 .map(update -> Objects.requireNonNull(update, "update"))
                 .toList();
+        messages.forEach(this::requireReplayableGraph);
         if (messages.isEmpty()) {
             return COMPLETED_VOID;
         }
