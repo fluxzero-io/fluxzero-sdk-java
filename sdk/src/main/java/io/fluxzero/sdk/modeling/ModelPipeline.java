@@ -588,7 +588,7 @@ final class ModelPipeline {
                 })
                 : Retry.conflicts(
                         conflictResolver, maxConflictRetries,
-                        (conflict, current) -> reload(entry, message, current, conflict));
+                        (conflict, current) -> reload(entry, message, current, conflict, migration, existingEvent));
         ModelCommitAdmission.Session admissionSession =
                 effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                         ? commitAdmission.open() : null;
@@ -880,13 +880,22 @@ final class ModelPipeline {
             ModelBatchScope.CommitCoordination entry,
             DeserializingMessage message,
             CommitAttempt staleEvaluation,
-            CommitModelsResult conflict) {
+            CommitModelsResult conflict,
+            boolean migration,
+            boolean existingEvent) {
         repository.invalidateModels(
                 staleEvaluation.readModelIds());
         long retryStateIndex =
                 retryStateIndex(
                         staleEvaluation,
                         conflict);
+        if (existingEvent) {
+            // An accepted event remains apply-only after a conflict: live assertions and interceptors
+            // must not introduce new decisions, and migrations must retain their source visibility.
+            return reevaluate(entry, message, () -> ModelReducer.reapply(
+                    new CommitAttempt(), List.of(message), new CommitLoader(
+                            retryStateIndex, true, migration, readsDocumentModel(staleEvaluation))));
+        }
         return reevaluate(entry, message, () -> validateCascadingAssertions(expandCascadeDeletes(
                 ModelReducer.retry(message, new CommitLoader(
                         retryStateIndex, false, false, readsDocumentModel(staleEvaluation)), conflict), message)));
