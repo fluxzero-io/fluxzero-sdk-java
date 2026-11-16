@@ -427,8 +427,7 @@ final class ModelPipeline {
                             entry, request.message(), evaluation,
                             batch == null ? request.transport() : batch,
                             batch == null ? request.transportSlot() : entry.slot,
-                            request.mode() == Mode.MIGRATE,
-                            request.mode() == Mode.REPLAY || request.mode() == Mode.MIGRATE);
+                            request.mode());
                 }));
             });
         } catch (Throwable failure) {
@@ -480,7 +479,7 @@ final class ModelPipeline {
             }
             case REPLAY, MIGRATE -> ModelReducer.reapply(
                     attempt, List.of(request.message()),
-                    new CommitLoader(null, true, request.mode() == Mode.MIGRATE));
+                    new CommitLoader(null, true, request.mode().isMigration()));
             case LIVE, AUTOMATIC -> {
                 boolean direct = request.mode() == Mode.AUTOMATIC
                         ? !retry || batched
@@ -529,6 +528,14 @@ final class ModelPipeline {
             this.skipEmpty = skipEmpty;
             this.warnMissingApply = warnMissingApply;
         }
+
+        boolean isMigration() {
+            return this == MIGRATE;
+        }
+
+        boolean isExistingEvent() {
+            return this == REPLAY || this == MIGRATE;
+        }
     }
 
     record Retry(
@@ -573,22 +580,21 @@ final class ModelPipeline {
             CommitAttempt evaluation,
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot,
-            boolean migration,
-            boolean existingEvent) {
+            Mode mode) {
         ModelConflictPolicy effectiveConflictPolicy =
                 evaluation.conflictPolicy(conflictPolicy);
         Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                 ? Retry.accepting((result, current) -> {
                     try {
                         return CompletableFuture.completedFuture(
-                                rebase(entry, message, current, result.getRebaseStateIndex(), migration));
+                                rebase(entry, message, current, result.getRebaseStateIndex(), mode));
                     } catch (Throwable failure) {
                         return CompletableFuture.failedFuture(failure);
                     }
                 })
                 : Retry.conflicts(
                         conflictResolver, maxConflictRetries,
-                        (conflict, current) -> reload(entry, message, current, conflict, migration, existingEvent));
+                        (conflict, current) -> reload(entry, message, current, conflict, mode));
         ModelCommitAdmission.Session admissionSession =
                 effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                         ? commitAdmission.open() : null;
@@ -598,11 +604,11 @@ final class ModelPipeline {
                     repositoryCommit.trackLocalCommit(
                             evaluation,
                             message,
-                            migration,
+                            mode.isMigration(),
                             () -> commit(
                                     repositoryCommit, message.getMessageId(), evaluation,
                                     effectiveConflictPolicy, retry,
-                                    migration, existingEvent, transportBatch, transportSlot,
+                                    mode, transportBatch, transportSlot,
                                     !localHandlingEnabled.getAsBoolean(),
                                     admissionSession,
                                     ModelBatchScope.namespace(message)),
@@ -627,7 +633,7 @@ final class ModelPipeline {
             boolean asynchronousReevaluation) {
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
-                retry, false, false, batch, batchSlot,
+                retry, Mode.LIVE, batch, batchSlot,
                 asynchronousReevaluation, null, null);
     }
 
@@ -637,8 +643,7 @@ final class ModelPipeline {
             CommitAttempt evaluation,
             ModelConflictPolicy conflictPolicy,
             Retry retry,
-            boolean migration,
-            boolean existingEvent,
+            Mode mode,
             ModelCommitBatchingClient.ModelCommitBatch batch,
             int batchSlot,
             boolean asynchronousReevaluation,
@@ -646,7 +651,7 @@ final class ModelPipeline {
             String namespace) {
         Objects.requireNonNull(retry, "retry");
         Commit.Outcome original = repositoryCommit.prepare(
-                commitId, evaluation, conflictPolicy, migration, existingEvent);
+                commitId, evaluation, conflictPolicy, mode.isMigration(), mode.isExistingEvent());
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
                 original, original, retry,
@@ -881,20 +886,19 @@ final class ModelPipeline {
             DeserializingMessage message,
             CommitAttempt staleEvaluation,
             CommitModelsResult conflict,
-            boolean migration,
-            boolean existingEvent) {
+            Mode mode) {
         repository.invalidateModels(
                 staleEvaluation.readModelIds());
         long retryStateIndex =
                 retryStateIndex(
                         staleEvaluation,
                         conflict);
-        if (existingEvent) {
+        if (mode.isExistingEvent()) {
             // An accepted event remains apply-only after a conflict: live assertions and interceptors
             // must not introduce new decisions, and migrations must retain their source visibility.
             return reevaluate(entry, message, () -> ModelReducer.reapply(
                     new CommitAttempt(), List.of(message), new CommitLoader(
-                            retryStateIndex, true, migration, readsDocumentModel(staleEvaluation))));
+                            retryStateIndex, true, mode.isMigration(), readsDocumentModel(staleEvaluation))));
         }
         return reevaluate(entry, message, () -> validateCascadingAssertions(expandCascadeDeletes(
                 ModelReducer.retry(message, new CommitLoader(
@@ -952,7 +956,7 @@ final class ModelPipeline {
             DeserializingMessage message,
             CommitAttempt evaluation,
             long stateIndex,
-            boolean migration) {
+            Mode mode) {
         List<CommitAttempt.Step> steps = evaluation.steps();
         // ACCEPT reapplies at the runtime's requested boundary while holding its admission session.
         // Keep this existing apply-only path free of waits on speculative producers.
@@ -964,7 +968,7 @@ final class ModelPipeline {
                                         instanceof CascadedModelDeletion))
                                 .toList(),
                         new CommitLoader(
-                                stateIndex, true, migration,
+                                stateIndex, true, mode.isMigration(),
                                 readsDocumentModel(evaluation))), message));
     }
 
