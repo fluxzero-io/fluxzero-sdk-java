@@ -2603,6 +2603,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                        && existingEventIndex == null
                                        && (transitions.stream().anyMatch(Change::publishEvent)
                                            || !graphPublished.isEmpty());
+                if (existingEvent || existingEventIndex != null) {
+                    // Replaying an existing publication must not emit it again. A publication-only
+                    // target consequently has no remaining effect, but other targets still commit.
+                    committedTransitions = committedTransitions.stream()
+                            .filter(change -> change.updateState() || change.storeEvent()).toList();
+                    if (committedTransitions.isEmpty()) {
+                        continue;
+                    }
+                }
                 boolean eventRequired = existingEventIndex != null
                                         || publishEvent
                                         || committedTransitions.stream().anyMatch(Change::storeEvent);

@@ -162,6 +162,29 @@ class PublishedEventModelMigrationTest {
 
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    void replayPassesPublicationOnlyTargetsAndRetainsOtherStateChanges() throws Exception {
+        var client = LocalClient.newInstance(null);
+        var serializer = new JacksonSerializer();
+        try (var migration = PublishedEventModelMigration.builder().name("publication-only-replay")
+                .client(client).serializer(serializer).modelTypes(LegacyModel.class, CounterModel.class).build()) {
+            client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                    new Message(new LegacyIncrement("legacy", 1)).serialize(serializer),
+                    new Message(new PublicationOnly("legacy")).serialize(serializer),
+                    new Message(new MixedPublication("legacy", "counter")).serialize(serializer),
+                    new Message(new LegacyIncrement("legacy", 2)).serialize(serializer)).join();
+            var source = client.getTrackingClient(EVENT).readFromIndex(0L, 100);
+            var replay = migration.replay();
+            await(() -> client.getTrackingClient(EVENT).getPosition(migration.name())
+                    .lowestIndexForSegment(new int[]{0, MAX_SEGMENT}).orElse(-1L) >= source.getLast().getIndex());
+            replay.cancel();
+            assertEquals(3, migration.repository().load("legacy", LegacyModel.class).get().value());
+            assertEquals(1, migration.repository().load("counter", CounterModel.class).get().value());
+            assertEquals(source, client.getTrackingClient(EVENT).readFromIndex(0L, 100));
+        }
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
     void replayRetryDoesNotRunLiveInterceptorsOrLoseTheOriginalEvent() throws Exception {
         var rejected = new AtomicBoolean();
         var client = conflictingClient(rejected);
@@ -329,11 +352,32 @@ class PublishedEventModelMigrationTest {
         @AssertLegal
         void assertLegal() { throw new AssertionError("Accepted events must not rerun command assertions"); }
 
+
         @InterceptApply
         Object intercept(Graph<LegacyModel> model) { return model.delete(); }
 
         @Apply
         LegacyModel apply(LegacyModel model) { return new LegacyModel(id, model.value() + 1); }
+    }
+
+    private record PublicationOnly(String id) {
+        @Apply(eventPublication = io.fluxzero.sdk.modeling.EventPublication.ALWAYS,
+               publicationStrategy = io.fluxzero.sdk.modeling.EventPublicationStrategy.PUBLISH_ONLY)
+        LegacyModel apply(LegacyModel model) { return model; }
+    }
+
+    @Model(searchable = false)
+    private record CounterModel(@EntityId String counterId, int value) {}
+
+    private record MixedPublication(String id, String counterId) {
+        @Apply(eventPublication = io.fluxzero.sdk.modeling.EventPublication.ALWAYS,
+               publicationStrategy = io.fluxzero.sdk.modeling.EventPublicationStrategy.PUBLISH_ONLY)
+        LegacyModel apply(LegacyModel model) { return model; }
+
+        @Apply
+        CounterModel count(@Nullable CounterModel model) {
+            return new CounterModel(counterId, model == null ? 1 : model.value() + 1);
+        }
     }
 
 }
