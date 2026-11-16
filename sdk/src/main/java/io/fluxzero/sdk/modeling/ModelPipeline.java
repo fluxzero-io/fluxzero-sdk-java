@@ -352,7 +352,16 @@ final class ModelPipeline {
     /** Applies one existing global event through the replay phase and retains its durable event index. */
     public CompletableFuture<Void> migratePublishedEvent(
             Message event, long eventIndex) {
+        return migratePublishedEvent(event, eventIndex, null, null);
+    }
+
+    /** Replays an existing event with an optional explicit Model target. */
+    public CompletableFuture<Void> migratePublishedEvent(
+            Message event, long eventIndex, String modelId, Class<?> modelType) {
         try {
+            if ((modelId == null) != (modelType == null)) {
+                throw new IllegalArgumentException("Explicit migration target requires both ID and type");
+            }
             requireNoAtomicCallback();
             Objects.requireNonNull(event, "event");
             if (eventIndex < 0L) {
@@ -363,6 +372,13 @@ final class ModelPipeline {
             serialized.setIndex(eventIndex);
             DeserializingMessage message = serializer.deserializeMessage(
                     serialized, MessageType.EVENT);
+            if (modelId != null) {
+                message.putContext(ExplicitModelTarget.class, new ExplicitModelTarget(modelId, modelType));
+                if (!definitionFor(message).targets().hasApplyFor(modelType)) {
+                    throw new IllegalArgumentException("No Apply handler for explicit migration target type "
+                                                               + modelType.getName());
+                }
+            }
             return execute(new ExecutionRequest(message, null, -1, Mode.MIGRATE), null)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {

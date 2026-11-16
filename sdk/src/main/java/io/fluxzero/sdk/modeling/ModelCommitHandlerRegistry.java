@@ -173,6 +173,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         return pipeline.migratePublishedEvent(event, eventIndex);
     }
 
+    /** Applies an existing global event to one explicitly selected Model without republishing it. */
+    public CompletableFuture<Void> migratePublishedEvent(
+            Message event, long eventIndex, String modelId, Class<?> modelType) {
+        return pipeline.migratePublishedEvent(event, eventIndex, modelId, modelType);
+    }
+
     @Override
     public Optional<CompletableFuture<Object>> handle(DeserializingMessage message) {
         return handle(message, true);

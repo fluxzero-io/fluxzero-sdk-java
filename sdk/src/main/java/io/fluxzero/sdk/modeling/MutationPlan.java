@@ -1330,6 +1330,12 @@ public final class MutationPlan {
                     ? writes.getFirst() : null;
         }
 
+        boolean hasApplyFor(Class<?> explicitType) {
+            return handlerMethods.values().stream().anyMatch(handler ->
+                    handler.kind() == EntityMetadata.HandlerKind.APPLY && handler.hasApplyResult()
+                    && MutationPlan.acceptsExplicitTarget(handler, explicitType));
+        }
+
         /** Returns a statically unambiguous single-apply target without loading or applying any model. */
         public String routingTarget(HasMessage input) {
             if (routingTarget == null || !routingTarget.property.aliases().isEmpty()) {

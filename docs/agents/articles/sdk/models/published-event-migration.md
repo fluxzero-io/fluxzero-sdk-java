@@ -72,6 +72,13 @@ across restarts and failover instances. `run()` without arguments starts replay 
 explicit lifecycle control, `replay()` returns a `Registration`; cancel it to stop replay and close the migration
 when finished.
 
+For a historical event whose Apply methods require an explicit concrete target, configure
+`.targetResolver(event -> ...)`. Return a `PublishedEventModelMigration.Target(repositoryId, modelType)` for that
+event, or null for ordinary routing. Use the exact repository ID, including its prefix, and a registered catalog
+type with a compatible Apply. The resolver runs in the migration context and must be deterministic and read-only;
+it must not invoke the old command handler. Invalid selection stops replay. Explicit selection preserves apply-only
+execution and the original event identity, including on conflict retry; a valid Apply may still be a no-op.
+
 The runner registers only the catalog and one globally ordered, single-threaded EVENT consumer. It does not start
 ordinary handlers or automatic Model commands during replay, and does not republish historical events. It registers
 and maintains the declared Graph projections using their normal completion policy. Each Model commit completes before the durable consumer position advances. Source-event identity

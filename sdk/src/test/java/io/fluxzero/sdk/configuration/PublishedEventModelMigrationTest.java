@@ -292,6 +292,91 @@ class PublishedEventModelMigrationTest {
         }
     }
 
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    void explicitlyTargetsAlternativeApplyTypesWithoutChangingPublishedHistory() throws Exception {
+        var client = org.mockito.Mockito.spy(LocalClient.newInstance(null));
+        var store = org.mockito.Mockito.spy(client.getEventStoreClient());
+        org.mockito.Mockito.doReturn(store).when(client).getEventStoreClient();
+        var conflicted = new AtomicBoolean();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            if (commit.getSubsteps().stream().anyMatch(step -> step.getEvent() != null
+                    && step.getEvent().getData().getType().endsWith("AlternativeUpdate"))
+                    && conflicted.compareAndSet(false, true)) {
+                return CompletableFuture.completedFuture(CommitModelsResult.conflict(
+                        commit.getRequestId(), commit.getCommitId(),
+                        List.of(new ModelCommitConflict("legacy", commit.getReadStateIndex(), -1)), true));
+            }
+            return invocation.callRealMethod();
+        }).when(store).commitModels(org.mockito.ArgumentMatchers.any());
+        var serializer = new JacksonSerializer();
+        try (var migration = PublishedEventModelMigration.builder().name("explicit-targets")
+                .client(client).serializer(serializer).modelTypes(LegacyModel.class, DocumentCounter.class)
+                .targetResolver(event -> event.getPayload() instanceof AlternativeUpdate update
+                        ? new PublishedEventModelMigration.Target(update.id(),
+                            update.id().equals("legacy") ? LegacyModel.class : DocumentCounter.class) : null)
+                .build()) {
+            client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                    new Message(new LegacyIncrement("legacy", 1)).serialize(serializer),
+                    new Message(new DocumentIncrement("document", 10)).serialize(serializer),
+                    new Message(new AlternativeUpdate("legacy")).serialize(serializer),
+                    new Message(new AlternativeUpdate("document")).serialize(serializer),
+                    new Message(new AlternativeUpdate("legacy", 0)).serialize(serializer)).join();
+            var source = client.getTrackingClient(EVENT).readFromIndex(0L, 10);
+            migration.replay();
+            await(() -> client.getTrackingClient(EVENT).getPosition(migration.name())
+                    .lowestIndexForSegment(new int[]{0, MAX_SEGMENT}).orElse(-1L) >= source.getLast().getIndex());
+            assertEquals(2, migration.repository().loadGraph("legacy", LegacyModel.class, Graph.Options.DEFAULT).get().value());
+            assertEquals(11, migration.repository().loadGraph("document", DocumentCounter.class, Graph.Options.DEFAULT).get().value());
+            assertEquals(source, client.getTrackingClient(EVENT).readFromIndex(0L, 10));
+            assertTrue(conflicted.get(), "Explicit selection must survive conflict re-evaluation");
+            try (var reader = DefaultFluxzero.builder().replaceSerializer(serializer)
+                    .configureAutomaticModelHandling(io.fluxzero.sdk.modeling.AutomaticModelHandling.DISABLED)
+                    .disableAutomaticTracking().build(client)) {
+                reader.registerHandlers(LegacyModel.class, DocumentCounter.class);
+                reader.modelRepository().followPublishedEventMigration(migration.name());
+                reader.apply(f -> {
+                    assertEquals(2, f.modelRepository().loadGraph("legacy", LegacyModel.class, Graph.Options.DEFAULT).get().value());
+                    assertEquals(11, f.modelRepository().loadGraph("document", DocumentCounter.class, Graph.Options.DEFAULT).get().value());
+                    return null;
+                });
+            }
+        }
+    }
+
+    @Test
+    void rejectsExplicitTargetWithoutAnApplicableApply() {
+        var client = LocalClient.newInstance(null);
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer).build(client)) {
+            app.registerMigrationTypes(List.of(LegacyModel.class, DocumentCounter.class));
+            client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                    new Message(new LegacyIncrement("legacy", 1)).serialize(serializer)).join();
+            var event = serializer.deserializeMessage(client.getTrackingClient(EVENT).readFromIndex(0L, 1).getFirst(), EVENT);
+            var failure = assertThrows(java.util.concurrent.CompletionException.class,
+                    () -> app.migratePublishedEvent(event,
+                            new PublishedEventModelMigration.Target("document", DocumentCounter.class)).join());
+            assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+            assertEquals(1, client.getTrackingClient(EVENT).readFromIndex(0L, 10).size());
+        }
+    }
+
+    private record AlternativeUpdate(String id, int delta) {
+        private AlternativeUpdate(String id) { this(id, 1); }
+        @AssertLegal
+        void assertLegal() { throw new AssertionError("Migration must remain apply-only"); }
+
+        @InterceptApply
+        Object intercept() { throw new AssertionError("Migration must remain apply-only"); }
+
+        @Apply(automaticHandling = io.fluxzero.sdk.modeling.AutomaticModelHandling.DISABLED)
+        LegacyModel apply(LegacyModel current) { return new LegacyModel(id, current.value() + delta); }
+
+        @Apply(automaticHandling = io.fluxzero.sdk.modeling.AutomaticModelHandling.DISABLED)
+        DocumentCounter apply(DocumentCounter current) { return new DocumentCounter(id, current.value() + delta); }
+    }
+
     private static LocalClient conflictingClient(AtomicBoolean rejected) {
         var client = org.mockito.Mockito.spy(LocalClient.newInstance(null));
         var store = org.mockito.Mockito.spy(client.getEventStoreClient());

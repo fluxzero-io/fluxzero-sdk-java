@@ -2949,7 +2949,11 @@ migration.run(*args)
 Here `migrationClient` is a dedicated client connected to the same environment as the old app, and
 `serializerWithLegacyUpcasters` is configured to read its published events. Include every replacement Model
 in the catalog; `.modelsInPackage("com.example.projects")` is an alternative to listing them individually.
-Keep the migration name stable across restarts.
+Keep the migration name stable across restarts. If a historical event has alternative Apply targets that its old
+command handler selected explicitly, use the migration builder's `targetResolver` to return a
+`PublishedEventModelMigration.Target` with the exact repository ID and registered Model type. Return null for normal
+routing. This read-only selection preserves the original event and replay semantics; an incompatible target stops
+replay rather than silently dropping the update.
 
 Run this entry point **without arguments** to replay and keep following events. The runner owns an isolated
 migration context: it does not start ordinary application handlers or automatic Model command handling.
