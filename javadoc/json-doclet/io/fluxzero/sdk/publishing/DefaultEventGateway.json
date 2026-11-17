@@ -74,7 +74,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Dispatches an event that has already been stored through the local handler path without appending it again.\n\n <p>This is used by in-memory infrastructure that observes authoritative event-store commits which bypassed the\n ordinary event gateway. The serialized-message interceptor suppresses a second external append when no local\n handler accepts the event.</p>\n"
+    "documentation" : " Dispatches an event that has already been stored through the local handler path without appending it again.\n\n <p>This is used by in-memory infrastructure that observes authoritative event-store commits which bypassed the\n ordinary event gateway.</p>\n"
   }, {
     "name" : "forNamespace",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultEventGateway#forNamespace",

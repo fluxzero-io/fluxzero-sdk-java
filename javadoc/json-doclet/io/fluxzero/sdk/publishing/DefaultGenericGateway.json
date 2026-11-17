@@ -358,6 +358,53 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "dispatchSequentially",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#dispatchSequentially",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "interceptor",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "alreadyStored",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "dispatchStoredEventLocally",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#dispatchStoredEventLocally",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "emptyReturnMessage",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#emptyReturnMessage",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
