@@ -49,8 +49,7 @@ public class DefaultEventGateway extends AbstractNamespaced<EventGateway> implem
      * Dispatches an event that has already been stored through the local handler path without appending it again.
      *
      * <p>This is used by in-memory infrastructure that observes authoritative event-store commits which bypassed the
-     * ordinary event gateway. Tracked consumers simulated by synchronous fixtures can observe committed events
-     * even when their payload type restricts fresh gateway dispatch.</p>
+     * ordinary event gateway.</p>
      */
     public CompletableFuture<Void> dispatchStoredLocally(Message message) {
         if (delegate instanceof DefaultGenericGateway gateway) {

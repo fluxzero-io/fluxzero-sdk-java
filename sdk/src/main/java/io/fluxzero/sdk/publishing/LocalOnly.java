@@ -37,8 +37,7 @@ import java.lang.annotation.Target;
  *
  * <p>This annotation does not register a handler. Automatic Model apply handling remains tracked; an intentional
  * local Model mutation needs a real local handler, such as a payload {@code @HandleCommand} method invoking
- * {@code Fluxzero.assertAndApply(this)}. Model event publication follows the Model configuration. Both fixture modes deliver
- * events published by a Model commit to tracked consumers.</p>
+ * {@code Fluxzero.assertAndApply(this)}. Synchronous test fixtures preserve this boundary.</p>
  *
  * @see LocalHandler
  * @see LocalOnlyDispatchException

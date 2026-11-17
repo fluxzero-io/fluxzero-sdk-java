@@ -145,5 +145,3 @@ unhandled local-only requests immediately, without waiting for external consumer
 locally, explicitly registered local handlers, and ordinary tracked messages retain their existing behavior.
 A restricted dispatch stays restricted when an interceptor replaces its payload with an unmarked type.
 
-When a Model commit publishes an event with a local-only payload, both fixture modes deliver the stored event
-to tracked event handlers. Model publication follows the Model's event publication policy.

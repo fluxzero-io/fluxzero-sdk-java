@@ -53,6 +53,3 @@ The resulting Model writes/events keep their own persistence/publication policie
 Both synchronous and asynchronous `TestFixture` modes preserve this boundary. Synchronous tracking simulation must
 not satisfy an absent local handler, including after interceptor replacement. Dispatch attempts remain observable,
 but unpublished local-only messages do not become pending external consumer work.
-
-When a Model commit publishes an event with a local-only payload, both fixture modes deliver the stored event
-to tracked event handlers. Model publication follows the Model's event publication policy.
