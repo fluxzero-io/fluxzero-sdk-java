@@ -39,6 +39,7 @@ import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
@@ -189,6 +190,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, List<SerializedMessage>> appliedEvents = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> relationships = new ConcurrentHashMap<>();
     private final Map<String, CommitModelsResult> modelCommits = new ConcurrentHashMap<>();
+    private final Map<Long, Long> migrationEndStateIndices = new ConcurrentHashMap<>();
     private final Map<Long, Long> modelStateIndicesByEventIndex =
             new ConcurrentHashMap<>();
     private final Map<String, PendingModelMaterialization>
@@ -544,6 +546,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             eventIndex,
                             stateIndex);
                 }
+                Long migrationSource = substep.getEvent() == null ? null
+                        : ModelEventMetadata.migrationSourceEventIndex(substep.getEvent().getMetadata());
+                if (migrationSource != null) { migrationEndStateIndices.put(migrationSource, stateIndex); }
                 SerializedMessage storedEvent = eventIndex == null
                         ? substep.getEvent()
                         : existingEvents.getOrDefault(
@@ -575,9 +580,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             commit.getReadStateIndex(), change, stateIndex, commitRelationshipView,
                             relationshipStep.finalDeletedParentIds());
                 }
-                cascadeDeletedModelRelationships(
-                        relationshipStep.finalDeletedParentIds(),
-                        stateIndex);
+                // Historical deletion only owns explicitly selected model transitions. Surviving
+                // children retain their relationships, including children outside the migration catalog.
+                if (!commit.isMigration()) {
+                    cascadeDeletedModelRelationships(relationshipStep.finalDeletedParentIds(), stateIndex);
+                }
             }
             description.aliases().applyTo(modelAliases);
             if (assignment.hasMaterialization()) {
@@ -2181,7 +2188,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     CommitModelsResult result = modelCommits.get(commitId);
                     return result == null || substep >= result.getUpdates().size()
                             ? null : result.getUpdates().get(substep).getStateIndex();
-                }, modelStateIndicesByEventIndex::get);
+                }, eventIndex -> boundary.before() ? modelStateIndicesByEventIndex.get(eventIndex)
+                        : migrationEndStateIndices.getOrDefault(eventIndex, modelStateIndicesByEventIndex.get(eventIndex)));
     }
 
     private static LinkedHashMap<Long, SerializedMessage> selectPayloads(

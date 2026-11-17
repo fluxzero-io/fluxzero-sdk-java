@@ -228,6 +228,15 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
             throw new UnsupportedOperationException(
                     "This Runtime does not support live Model migration documents; upgrade the Runtime before starting replay");
         }
+        if (request instanceof CommitModels commit && commit.isMigration()
+                && commit.getSubsteps().stream().anyMatch(step -> step.getTargets().stream().anyMatch(
+                        io.fluxzero.common.api.modeling.ModelCommitTarget::isDelete)
+                        || step.getEvent() != null && step.getEvent().getMetadata().containsKey(
+                        io.fluxzero.common.api.modeling.ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX))
+                && !WebSocketCapabilities.supportsModelMigrationEventRanges(session.getHandshakeResponseHeaders())) {
+            throw new UnsupportedOperationException(
+                    "This Runtime does not support migration event ranges; upgrade before replaying historical deletions");
+        }
         return request;
     }
 

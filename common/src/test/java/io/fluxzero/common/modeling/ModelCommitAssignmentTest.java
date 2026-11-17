@@ -186,6 +186,27 @@ class ModelCommitAssignmentTest {
         assertEquals("type", heads.getFirst().modelType());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void migrationRetainsSurvivingEdgesForCycleValidation(boolean migration) {
+        var deletion = new CommitModels("delete-parent", -1L, List.of("parent"),
+                List.of(step(target("parent", true, true, false))), ModelConflictPolicy.RETRY,
+                Guarantee.STORED, true, migration);
+        var recreation = commit(step(target("parent", true, false, false).toBuilder()
+                .updateRelationships(true).relationships(List.of(
+                        io.fluxzero.common.api.modeling.ModelRelationship.builder().parentId("child").build())).build()));
+        org.junit.jupiter.api.function.Executable validate = () -> ModelCommitAssignment.validateRelationships(
+                List.of(ModelCommitAssignment.describe(deletion), ModelCommitAssignment.describe(recreation)),
+                ids -> ids.stream().collect(java.util.stream.Collectors.toMap(id -> id,
+                        id -> id.equals("child") ? Set.of("parent") : Set.of())),
+                parents -> parents.contains("parent") ? Set.of("child") : Set.of());
+        if (migration) {
+            assertThrows(io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator.ValidationException.class, validate);
+        } else {
+            org.junit.jupiter.api.Assertions.assertDoesNotThrow(validate);
+        }
+    }
+
     private static CommitModels commit(ModelCommitStep... steps) {
         return new CommitModels(
                 "commit", -1L,

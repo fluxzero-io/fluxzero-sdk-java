@@ -52,6 +52,12 @@ import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
  * and declared Graph projections are maintained in their configured collections, so readers can move before command
  * ownership changes. Use collections distinct from those still owned by the legacy application.</p>
  *
+ * <p>Historical parent deletions cascade through selected children with {@code deleteOnParentDeletion=true},
+ * consistently on initial evaluation and conflict retry. Surviving children retain their relationships; traversal
+ * stops outside the selected catalog. Private cascade events, including those for document-loaded children, extend
+ * the source event's AFTER boundary without moving its BEFORE boundary. This requires migration-event-range support
+ * from the Runtime and reading SDK. Ordinary stored-event replay remains unchanged.</p>
+ *
  * <p>The consumer name must remain stable across restarts and application instances. Fluxzero fixes the consumer to
  * one globally ordered tracker and one synchronous handler thread; extra application instances therefore act as
  * failover candidates. Each event's Model commit completes before the next event is reduced and before the durable

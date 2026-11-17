@@ -494,9 +494,10 @@ final class ModelPipeline {
                 loader.assertionsOnly = true;
                 yield ModelReducer.assertLegal(attempt, request.message(), loader);
             }
-            case REPLAY, MIGRATE -> ModelReducer.reapply(
-                    attempt, List.of(request.message()),
-                    new CommitLoader(null, true, request.mode().isMigration()));
+            case REPLAY -> ModelReducer.reapply(
+                    attempt, List.of(request.message()), new CommitLoader(null, true, false));
+            case MIGRATE -> expandMigrationDeletes(ModelReducer.reapply(
+                    attempt, List.of(request.message()), new CommitLoader(null, true, true)), request.message());
             case LIVE, AUTOMATIC -> {
                 boolean direct = request.mode() == Mode.AUTOMATIC
                         ? !retry || batched
@@ -918,9 +919,11 @@ final class ModelPipeline {
         if (mode.isExistingEvent()) {
             // An accepted event remains apply-only after a conflict: live assertions and interceptors
             // must not introduce new decisions, and migrations must retain their source visibility.
-            return reevaluate(entry, message, () -> ModelReducer.reapply(
-                    new CommitAttempt(), List.of(message), new CommitLoader(
-                            retryStateIndex, true, mode.isMigration(), readsDocumentModel(staleEvaluation))));
+            return reevaluate(entry, message, () -> {
+                CommitAttempt replayed = ModelReducer.reapply(new CommitAttempt(), List.of(message), new CommitLoader(
+                        retryStateIndex, true, mode.isMigration(), readsDocumentModel(staleEvaluation)));
+                return mode.isMigration() ? expandMigrationDeletes(replayed, message) : replayed;
+            });
         }
         return reevaluate(entry, message, () -> validateCascadingAssertions(expandCascadeDeletes(
                 ModelReducer.retry(message, new CommitLoader(
@@ -982,16 +985,13 @@ final class ModelPipeline {
         List<CommitAttempt.Step> steps = evaluation.steps();
         // ACCEPT reapplies at the runtime's requested boundary while holding its admission session.
         // Keep this existing apply-only path free of waits on speculative producers.
-        return ModelBatchScope.withDependency(entry,
-                () -> expandCascadeDeletes(ModelReducer.reapplySteps(
-                        new CommitAttempt(),
-                        steps.stream()
-                                .filter(step -> !(step.message().getPayload()
-                                        instanceof CascadedModelDeletion))
-                                .toList(),
-                        new CommitLoader(
-                                stateIndex, true, mode.isMigration(),
-                                readsDocumentModel(evaluation))), message));
+        return ModelBatchScope.withDependency(entry, () -> {
+            CommitAttempt replayed = ModelReducer.reapplySteps(
+                    new CommitAttempt(),
+                    steps.stream().filter(step -> !(step.message().getPayload() instanceof CascadedModelDeletion)).toList(),
+                    new CommitLoader(stateIndex, true, mode.isMigration(), readsDocumentModel(evaluation)));
+            return mode.isMigration() ? expandMigrationDeletes(replayed, message) : expandCascadeDeletes(replayed, message);
+        });
     }
 
     private CompletableFuture<CommitAttempt> reevaluate(
@@ -1020,8 +1020,17 @@ final class ModelPipeline {
         }
     }
 
-    private CommitAttempt expandCascadeDeletes(
-            CommitAttempt evaluation) {
+    private CommitAttempt expandMigrationDeletes(CommitAttempt evaluation, DeserializingMessage message) {
+        // The isolated migration is the sole writer of its catalog. Native descendants belong to a different
+        // timeline and must neither participate in this historical cascade nor trigger global closure admission.
+        return expandCascadeDeletes(evaluation, message.getContext(MigrationScope.class).orElse(null), true);
+    }
+
+    private CommitAttempt expandCascadeDeletes(CommitAttempt evaluation) {
+        return expandCascadeDeletes(evaluation, null, false);
+    }
+
+    private CommitAttempt expandCascadeDeletes(CommitAttempt evaluation, MigrationScope migrationScope, boolean migration) {
         LinkedHashMap<String, Change> latestTransitions =
                 new LinkedHashMap<>();
         LinkedHashSet<String> explicitlyDeleted = new LinkedHashSet<>();
@@ -1074,6 +1083,8 @@ final class ModelPipeline {
             frontier.stream().flatMap(parent -> storedChildren.getOrDefault(parent, List.of()).stream())
                     .filter(ModelGraphEdge::isDeleteOnParentDeletion)
                     .filter(edge -> !latestTransitions.containsKey(edge.getChildId()))
+                    .filter(edge -> migrationScope == null || models.get(edge.getChildId()).knownType() != null
+                            && migrationScope.includes(models.get(edge.getChildId()).knownType()))
                     .filter(edge -> {
                         ModelGraphResolver.ModelNode model = models.get(edge.getChildId());
                         if (model.knownType() == null
@@ -1104,7 +1115,7 @@ final class ModelPipeline {
         if (cascaded.isEmpty()) {
             repository.loadGraphValues(types, boundary, Map.of(), false);
             // The Runtime must still detect children attached after this read boundary.
-            evaluation.cascadeRoots(explicitlyDeleted);
+            if (migrationScope == null) { evaluation.cascadeRoots(explicitlyDeleted); }
             return evaluation;
         }
 
@@ -1124,6 +1135,9 @@ final class ModelPipeline {
                     return Change.cascaded(id, types.get(id), sequence,
                             stored.head() != null && !stored.head().isDeleted(), () -> stored.entity().get().get());
                 })
+                // A migration-derived deletion also needs a durable causal carrier for DOCUMENT models.
+                // This private event does not change their document loading strategy.
+                .map(change -> migration ? change.withEffects(true, false, true) : change)
                 .toList();
         List<CommitAttempt.Step> steps =
                 new ArrayList<>(evaluation.steps());
@@ -1164,6 +1178,12 @@ final class ModelPipeline {
             List<String> roots = List.copyOf(rootsByCause.get(cause));
             DeserializingMessage cascadeMessage = source.withMessage(new Message(
                     new CascadedModelDeletion(roots), source.getMetadata(), null, source.getTimestamp()));
+            if (migration) {
+                Long sourceIndex = source.getSerializedObject().getIndex();
+                if (sourceIndex == null) { throw new IllegalStateException("Migration cascade requires a source event index"); }
+                cascadeMessage = cascadeMessage.withMetadata(cascadeMessage.getMetadata().with(
+                        io.fluxzero.common.api.modeling.ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX, sourceIndex));
+            }
             steps.add(new CommitAttempt.Step(cascadeMessage, List.copyOf(changes), cause));
         });
         LinkedHashSet<String> readModelIds =
@@ -1181,7 +1201,7 @@ final class ModelPipeline {
         evaluation.evaluated(
                 evaluation.readStateIndex(), readModelIds, applyReadModelIds,
                 readModelTypes, steps);
-        evaluation.cascadeRoots(explicitlyDeleted);
+        if (migrationScope == null) { evaluation.cascadeRoots(explicitlyDeleted); }
         return evaluation;
     }
 

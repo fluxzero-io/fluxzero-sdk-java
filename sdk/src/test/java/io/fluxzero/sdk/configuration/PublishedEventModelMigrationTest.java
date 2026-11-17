@@ -441,6 +441,195 @@ class PublishedEventModelMigrationTest {
         }
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(MigrationConflict.class)
+    void migrationDeletesOwnedDescendantsWithTheirParent(MigrationConflict conflict) {
+        var rejected = new AtomicBoolean();
+        var client = org.mockito.Mockito.spy(LocalClient.newInstance(null));
+        var store = org.mockito.Mockito.spy(client.getEventStoreClient());
+        org.mockito.Mockito.doReturn(store).when(client).getEventStoreClient();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            if (commit.isMigration()) { assertTrue(commit.isPossibleDuplicate(), "Every historical source needs receipt lookup"); }
+            if (conflict != MigrationConflict.NONE && commit.getSubsteps().stream().anyMatch(step -> step.getEvent() != null
+                    && step.getEvent().getData().getType().endsWith("DeleteMigratedBranch"))
+                    && rejected.compareAndSet(false, true)) {
+                assertEquals(conflict == MigrationConflict.ACCEPT ? io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT
+                        : io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY, commit.getConflictPolicy());
+                var conflicts = List.of(new ModelCommitConflict("parent", commit.getReadStateIndex(), -1));
+                return CompletableFuture.completedFuture(conflict == MigrationConflict.ACCEPT
+                        ? CommitModelsResult.rebase(commit.getRequestId(), commit.getCommitId(), conflicts, commit.getReadStateIndex())
+                        : CommitModelsResult.conflict(commit.getRequestId(), commit.getCommitId(), conflicts, true));
+            }
+            return invocation.callRealMethod();
+        }).when(store).commitModels(org.mockito.ArgumentMatchers.any());
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer)
+                .configureModelConflictHandling(conflict == MigrationConflict.ACCEPT
+                        ? io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT
+                        : io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY,
+                        io.fluxzero.sdk.modeling.ModelConflictResolver.retryIfAllowed(), 3)
+                .disableAutomaticTracking().build(client)) {
+            app.executeStoredModelEvent(new Message(new PutNativeBranch("native", "parent"))).join();
+            var nativeRequest = new io.fluxzero.common.api.modeling.GetModelEvents(
+                    List.of(new io.fluxzero.common.api.modeling.ModelEventStreamRequest("native", -1L, 100)),
+                    io.fluxzero.common.api.modeling.ModelReadBoundary.current(), 0);
+            var nativeBefore = client.getEventStoreClient().getModelEvents(nativeRequest);
+            app.registerMigrationTypes(List.of(MigratedBranch.class, RetainedBranch.class, DocumentBranch.class));
+            for (Object payload : List.of(new PutMigratedBranch("parent", null),
+                    new PutMigratedBranch("child", "parent"),
+                    new PutMigratedBranch("grandchild", "child"), new PutDocumentBranch("document", "parent"), new PutRetainedBranch("retained", "parent"),
+                    new DeleteMigratedBranch("parent"))) {
+                client.getGatewayClient(EVENT).append(Guarantee.STORED, new Message(payload).serialize(serializer)).join();
+                app.migratePublishedEvent(serializer.deserializeMessage(
+                        client.getTrackingClient(EVENT).readFromIndex(0L, 100).getLast(), EVENT)).join();
+            }
+            assertTrue(app.modelRepository().load("parent", MigratedBranch.class).isEmpty());
+            assertTrue(app.modelRepository().load("child", MigratedBranch.class).isEmpty());
+            assertTrue(app.modelRepository().load("grandchild", MigratedBranch.class).isEmpty());
+            assertEquals(conflict != MigrationConflict.NONE, rejected.get());
+            var original = client.getTrackingClient(EVENT).readFromIndex(0L, 100);
+            // Same source identity must remain idempotent, including the internal cascade substep.
+            app.migratePublishedEvent(serializer.deserializeMessage(original.getLast(), EVENT)).join();
+            assertEquals(original, client.getTrackingClient(EVENT).readFromIndex(0L, 100));
+            assertEquals(6, original.size());
+            var nativeAfter = client.getEventStoreClient().getModelEvents(nativeRequest);
+            assertEquals(nativeBefore.getStreams(), nativeAfter.getStreams());
+            assertEquals(nativeBefore.getPayloads(), nativeAfter.getPayloads());
+            try (var reader = DefaultFluxzero.builder().replaceSerializer(serializer)
+                    .disableAutomaticTracking().build(client)) {
+                reader.registerHandlers(MigratedBranch.class, NativeBranch.class, RetainedBranch.class, DocumentBranch.class);
+                assertTrue(reader.modelRepository().load("document", DocumentBranch.class).isEmpty());
+                var edges = store.getModelGraph(new io.fluxzero.common.api.modeling.GetModelGraph(
+                        "parent", io.fluxzero.common.api.modeling.ModelReadBoundary.current(), 5, 100, 100, 0, false)).getEdges();
+                assertEquals(java.util.Set.of("native", "retained"), edges.stream().map(
+                        io.fluxzero.common.api.modeling.ModelGraphEdge::getChildId).collect(java.util.stream.Collectors.toSet()));
+                for (String id : List.of("parent", "child", "grandchild")) {
+                    assertTrue(reader.modelRepository().load(id, MigratedBranch.class).isEmpty());
+                }
+                var eventState = ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository) reader.modelRepository())
+                        .loadGraph("child", MigratedBranch.class,
+                                io.fluxzero.common.api.modeling.ModelReadBoundary.event(original.getLast().getIndex()),
+                                Graph.Options.DEFAULT);
+                assertTrue(eventState.isEmpty(),
+                           "The original historical event boundary must include the entire deletion");
+                var beforeEvent = ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository) reader.modelRepository())
+                        .loadGraph("child", MigratedBranch.class,
+                                io.fluxzero.common.api.modeling.ModelReadBoundary.event(original.getLast().getIndex()).asBefore(),
+                                Graph.Options.DEFAULT);
+                assertEquals(new MigratedBranch("child", "parent"), beforeEvent.orElseThrow());
+                var beforeRelations = ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository) reader.modelRepository())
+                        .loadGraphRelations(List.of("child", "absent"),
+                                io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction.CHILDREN,
+                                io.fluxzero.common.api.modeling.ModelReadBoundary.event(original.getLast().getIndex()).asBefore(),
+                                java.util.Map.of(), false);
+                assertFalse(beforeRelations.models().containsKey("absent"));
+                org.mockito.Mockito.verify(store, org.mockito.Mockito.atLeastOnce()).getModelEvents(
+                        org.mockito.ArgumentMatchers.argThat(request -> request.getBoundary().before()
+                                && request.getRequests().stream().anyMatch(stream -> stream.getModelId().equals("absent"))));
+                assertEquals(new NativeBranch("native", "parent"),
+                             reader.modelRepository().load("native", NativeBranch.class).orElseThrow());
+                assertEquals(new RetainedBranch("retained", "parent"),
+                             reader.modelRepository().load("retained", RetainedBranch.class).orElseThrow());
+                client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                        new Message(new PutMigratedBranch("parent", null)).serialize(serializer)).join();
+                app.migratePublishedEvent(serializer.deserializeMessage(
+                        client.getTrackingClient(EVENT).readFromIndex(0L, 100).getLast(), EVENT)).join();
+                var recreatedEdges = store.getModelGraph(new io.fluxzero.common.api.modeling.GetModelGraph(
+                        "parent", io.fluxzero.common.api.modeling.ModelReadBoundary.current(), 5, 100, 100, 0, false)).getEdges();
+                assertEquals(edges, recreatedEdges, "Surviving children retain their relationship after parent recreation");
+            }
+        }
+    }
+
+    @Test
+    void ordinaryStoredEventReplayDoesNotIntroduceNewCascades() {
+        var client = LocalClient.newInstance(null);
+        try (var app = DefaultFluxzero.builder().disableAutomaticTracking().build(client)) {
+            app.registerHandlers(MigratedBranch.class, RetainedBranch.class);
+            for (Object event : List.of(new PutMigratedBranch("parent", null),
+                    new PutMigratedBranch("child", "parent"), new PutRetainedBranch("retained", "parent"),
+                    new DeleteMigratedBranch("parent"))) {
+                app.executeStoredModelEvent(new Message(event)).join();
+            }
+            assertTrue(app.modelRepository().load("parent", MigratedBranch.class).isEmpty());
+            assertEquals(new MigratedBranch("child", "parent"),
+                         app.modelRepository().load("child", MigratedBranch.class).orElseThrow());
+            assertEquals(new RetainedBranch("retained", "parent"),
+                         app.modelRepository().load("retained", RetainedBranch.class).orElseThrow());
+            assertTrue(client.getTrackingClient(EVENT).readFromIndex(0L, 100).isEmpty());
+        }
+    }
+
+    @Test
+    void documentOnlyMigrationCascadeRetainsItsPrivateCausalEvent() {
+        var client = LocalClient.newInstance(null);
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer).disableAutomaticTracking().build(client)) {
+            app.registerMigrationTypes(List.of(DocumentRoot.class));
+            for (Object payload : List.of(new PutDocumentRoot("root", null), new PutDocumentRoot("child", "root"),
+                    new DeleteDocumentRoot("root"))) {
+                client.getGatewayClient(EVENT).append(Guarantee.STORED, new Message(payload).serialize(serializer)).join();
+                app.migratePublishedEvent(serializer.deserializeMessage(
+                        client.getTrackingClient(EVENT).readFromIndex(0L, 100).getLast(), EVENT)).join();
+            }
+            assertTrue(app.modelRepository().load("child", DocumentRoot.class).isEmpty(), "initial document cascade");
+            var originals = client.getTrackingClient(EVENT).readFromIndex(0L, 100);
+            app.migratePublishedEvent(serializer.deserializeMessage(originals.getLast(), EVENT)).join();
+            assertEquals(originals, client.getTrackingClient(EVENT).readFromIndex(0L, 100));
+            try (var reader = DefaultFluxzero.builder().replaceSerializer(serializer).disableAutomaticTracking().build(client)) {
+                reader.registerHandlers(DocumentRoot.class);
+                assertTrue(reader.modelRepository().load("root", DocumentRoot.class).isEmpty());
+                assertTrue(reader.modelRepository().load("child", DocumentRoot.class).isEmpty());
+                var events = client.getEventStoreClient().getModelEvents(new io.fluxzero.common.api.modeling.GetModelEvents(
+                        List.of(new io.fluxzero.common.api.modeling.ModelEventStreamRequest("child", -1L, 100)),
+                        io.fluxzero.common.api.modeling.ModelReadBoundary.event(originals.getLast().getIndex()), 0));
+                assertEquals(2, events.getStreams().getFirst().getMemberships().size());
+            }
+        }
+    }
+
+    @Model(persistence = ModelPersistence.DOCUMENT)
+    private record DocumentRoot(@EntityId String rootId,
+            @io.fluxzero.sdk.modeling.Parent(DocumentRoot.class) String parentId) {}
+    private record PutDocumentRoot(String rootId, String parentId) {
+        @Apply DocumentRoot apply() { return new DocumentRoot(rootId, parentId); }
+    }
+    private record DeleteDocumentRoot(String rootId) {
+        @Apply DocumentRoot apply(DocumentRoot current) { return null; }
+    }
+    @Model(persistence = ModelPersistence.DOCUMENT)
+    private record DocumentBranch(@EntityId String documentId,
+            @io.fluxzero.sdk.modeling.Parent(MigratedBranch.class) String branchId) {}
+    private record PutDocumentBranch(String documentId, String branchId) {
+        @Apply DocumentBranch apply() { return new DocumentBranch(documentId, branchId); }
+    }
+
+    private enum MigrationConflict { NONE, RETRY, ACCEPT }
+
+    @Model(searchable = false)
+    private record MigratedBranch(@EntityId String branchId,
+                                  @io.fluxzero.sdk.modeling.Parent(MigratedBranch.class) String parentId) { }
+    private record PutMigratedBranch(String branchId, String parentId) {
+        @Apply MigratedBranch apply() { return new MigratedBranch(branchId, parentId); }
+    }
+    private record DeleteMigratedBranch(String branchId) {
+        @Apply MigratedBranch apply(MigratedBranch current) { return null; }
+        @AssertLegal void rejectedLive() { throw new AssertionError("Historical delete must remain apply-only"); }
+    }
+    @Model(searchable = false)
+    private record NativeBranch(@EntityId String nativeId,
+                                @io.fluxzero.sdk.modeling.Parent(MigratedBranch.class) String branchId) { }
+    private record PutNativeBranch(String nativeId, String branchId) {
+        @Apply NativeBranch apply() { return new NativeBranch(nativeId, branchId); }
+    }
+    @Model(searchable = false)
+    private record RetainedBranch(@EntityId String retainedId,
+            @io.fluxzero.sdk.modeling.Parent(value = MigratedBranch.class, deleteOnParentDeletion = false) String branchId) { }
+    private record PutRetainedBranch(String retainedId, String branchId) {
+        @Apply RetainedBranch apply() { return new RetainedBranch(retainedId, branchId); }
+    }
+
     @Test
     void catalogScopeExcludesNativeEmbeddedRoots() {
         var client = LocalClient.newInstance(null);

@@ -127,6 +127,27 @@ class WebSocketEventStoreClientTest {
     }
 
     @Test
+    void migrationDerivedStepsRequireRangeCapability() {
+        var client = new RecordingEventStoreClient();
+        var session = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);
+        var event = event(1).withMetadata(io.fluxzero.common.api.Metadata.of(
+                io.fluxzero.common.api.modeling.ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX, "42"));
+        var request = new CommitModels("migration-derived", -1L, List.of(),
+                List.of(io.fluxzero.common.api.modeling.ModelCommitStep.builder().event(event).targets(List.of()).build()),
+                io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY, io.fluxzero.common.Guarantee.STORED, true, true);
+        try {
+            for (var headers : List.of(java.util.Map.<String, List<String>>of(), java.util.Map.of(
+                    io.fluxzero.common.websocket.WebSocketCapabilities.MODEL_MIGRATION_EVENT_RANGES_HEADER, List.of("0")))) {
+                org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(headers);
+                assertThrows(UnsupportedOperationException.class, () -> client.adaptRequestForSession(request, session));
+            }
+            org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of(
+                    io.fluxzero.common.websocket.WebSocketCapabilities.MODEL_MIGRATION_EVENT_RANGES_HEADER, List.of("1")));
+            assertEquals(request, client.adaptRequestForSession(request, session));
+        } finally { client.close(); }
+    }
+
+    @Test
     void liveMigrationRequiresCapabilityWithoutChangingLegacyRequests() {
         var client = new RecordingEventStoreClient();
         var session = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);

@@ -78,6 +78,16 @@ but their state and history are not rewritten. Dynamic Apply results must remain
 when excluded from persistence: they can participate in the same event's Apply phases. Only selected Model
 transitions are retained for subsequent events and storage.
 
+Historical parent deletion cascades only through selected children with `deleteOnParentDeletion=true`. It stops at
+children outside the catalog. Children with `false` retain their values, and surviving children retain their parent
+relationships during migration, including when the parent is later recreated. Ordinary commands and ordinary stored-event
+replay keep their existing behavior. Initial migration, RETRY and ACCEPT rebase all apply the same deletion rule.
+
+Internal cascade events are stored privately, including for DOCUMENT children, without changing the Model's loading
+strategy or republishing the source event. The original event's AFTER boundary includes the entire cascade; BEFORE
+retains the boundary preceding the original change. Use an SDK and Runtime supporting migration event ranges for the
+runner and event-bound readers. The SDK rejects historical deletions against an older Runtime before committing them.
+
 For a historical event whose Apply methods require an explicit concrete target, configure
 `.targetResolver(event -> ...)`. Return a `PublishedEventModelMigration.Target(repositoryId, modelType)` for that
 event, or null for ordinary routing. Use the exact repository ID, including its prefix, and a registered catalog

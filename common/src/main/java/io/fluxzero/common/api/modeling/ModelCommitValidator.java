@@ -267,6 +267,18 @@ public final class ModelCommitValidator {
                 }
             }
         }
+        boolean seenSource = false;
+        for (ModelCommitStep step : commit.getSubsteps()) {
+            var event = step.getEvent();
+            if (event == null) { continue; }
+            Long derivedFrom = ModelEventMetadata.migrationSourceEventIndex(event.getMetadata());
+            if (derivedFrom != null && (!commit.isMigration() || !seenSource
+                    || !derivedFrom.equals(existingEventIndex) || event.getIndex() != null || step.isPublishEvent()
+                    || step.getTargets().isEmpty() || step.getTargets().stream().anyMatch(target -> !target.isStoreEvent()))) {
+                throw new IllegalArgumentException("Migration-derived substeps require a preceding source and durable private payloads");
+            }
+            seenSource |= event.getIndex() != null;
+        }
         if (commit.isMigration() != (existingEventIndex != null)) {
             throw new IllegalArgumentException(
                     commit.isMigration()
@@ -564,7 +576,8 @@ public final class ModelCommitValidator {
             return false;
         }
         ModelCommitStep substep = commit.getSubsteps().getFirst();
-        if (!substep.isPublishEvent() || substep.getEvent() == null) {
+        if (!substep.isPublishEvent() || substep.getEvent() == null
+            || substep.getEvent().getMetadata().containsKey(ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX)) {
             return false;
         }
         if (!target.isStoreEvent() || !target.isUpdateState()

@@ -2680,7 +2680,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 }
             }
-            boolean possibleDuplicate = possibleDuplicate(evaluation, preparedChanges.values());
+            // An indexed source can be replayed after its targets were deleted or recreated.
+            // Current target heads cannot prove that this source identity is new.
+            boolean possibleDuplicate = migration || possibleDuplicate(evaluation, preparedChanges.values());
             if (protocolSteps.isEmpty()) {
                 return new Outcome(null, preparedChanges, existingEvent, eventCreationTime);
             }

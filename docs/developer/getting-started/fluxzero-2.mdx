@@ -2958,6 +2958,15 @@ command handler selected explicitly, use the migration builder's `targetResolver
 routing. This read-only selection preserves the original event and replay semantics; an incompatible target stops
 replay rather than silently dropping the update.
 
+When a historical event deletes a parent, the migration also deletes selected descendants whose
+`deleteOnParentDeletion` is `true`. It stops at Models outside the catalog and preserves children with `false`.
+Surviving children keep their relationships during migration, so recreating the parent does not disconnect them.
+Retries apply the same rule. Ordinary stored-event replay keeps its existing behavior.
+
+Event-bound readers see the complete deletion after the original event and the preceding state before it.
+This requires a matching SDK and Runtime with migration-event-range support; the runner rejects historical
+deletions against older Runtimes. Internal deletion events are stored privately and do not republish the source event.
+
 Run this entry point **without arguments** to replay and keep following events. The runner owns an isolated
 migration context: it does not start ordinary application handlers or automatic Model command handling.
 Replay has durable progress, is idempotent and does not republish the historical events. It executes replay
