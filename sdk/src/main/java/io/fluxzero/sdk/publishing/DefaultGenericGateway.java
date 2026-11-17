@@ -146,22 +146,37 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         if (messages.length >= PARALLEL_SERIALIZATION_THRESHOLD) {
             return sendAndForgetParallel(guarantee, interceptor, messages);
         }
+        return dispatchSequentially(guarantee, interceptor, false, messages);
+    }
+
+    CompletableFuture<Void> dispatchStoredEventLocally(Message event) {
+        if (messageType != MessageType.EVENT) {
+            throw new IllegalStateException("Stored event delivery requires an event gateway");
+        }
+        return dispatchSequentially(Guarantee.NONE, UnaryOperator.identity(), true, event);
+    }
+
+    private CompletableFuture<Void> dispatchSequentially(Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor,
+                                                          boolean alreadyStored, Message... messages) {
         List<SerializedMessage> serializedMessages = new ArrayList<>();
         for (Message message : messages) {
             Message original = message;
-            boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
+            boolean originalLocalOnly = !alreadyStored && isLocalOnly(original.getPayloadClass());
             message = interceptDispatch(original);
             if (message == null) {
                 continue;
             }
             try {
-                boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
+                boolean localOnly = originalLocalOnly || (!alreadyStored && isLocalOnly(message.getPayloadClass()));
                 monitorDispatch(message, false, localOnly);
                 Optional<CompletableFuture<Object>> localResult = localOnly
                         ? localHandlerRegistry.handle(localMessage(message), false)
                         : canSkipLocalHandling(message)
                                 ? Optional.empty() : localHandlerRegistry.handle(localMessage(message));
                 if (localResult.isEmpty()) {
+                    if (alreadyStored) {
+                        continue;
+                    }
                     if (localOnly) {
                         if (messageType.isRequest()) {
                             return CompletableFuture.failedFuture(
