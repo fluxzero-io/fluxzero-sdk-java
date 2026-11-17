@@ -2949,6 +2949,9 @@ migration.run(*args)
 Here `migrationClient` is a dedicated client connected to the same environment as the old app, and
 `serializerWithLegacyUpcasters` is configured to read its published events. Include every replacement Model
 in the catalog; `.modelsInPackage("com.example.projects")` is an alternative to listing them individually.
+The catalog limits migration writes: existing Models outside it remain available for reads, but payload Apply
+methods do not implicitly add them to the migration. Dynamic results must still be valid replayable Models;
+only catalog Models are persisted.
 Keep the migration name stable across restarts. If a historical event has alternative Apply targets that its old
 command handler selected explicitly, use the migration builder's `targetResolver` to return a
 `PublishedEventModelMigration.Target` with the exact repository ID and registered Model type. Return null for normal

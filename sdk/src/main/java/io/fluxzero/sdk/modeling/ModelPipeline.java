@@ -352,12 +352,12 @@ final class ModelPipeline {
     /** Applies one existing global event through the replay phase and retains its durable event index. */
     public CompletableFuture<Void> migratePublishedEvent(
             Message event, long eventIndex) {
-        return migratePublishedEvent(event, eventIndex, null, null);
+        return migratePublishedEvent(event, eventIndex, null, null, null);
     }
 
     /** Replays an existing event with an optional explicit Model target. */
     public CompletableFuture<Void> migratePublishedEvent(
-            Message event, long eventIndex, String modelId, Class<?> modelType) {
+            Message event, long eventIndex, String modelId, Class<?> modelType, MigrationScope migrationScope) {
         try {
             if ((modelId == null) != (modelType == null)) {
                 throw new IllegalArgumentException("Explicit migration target requires both ID and type");
@@ -372,6 +372,7 @@ final class ModelPipeline {
             serialized.setIndex(eventIndex);
             DeserializingMessage message = serializer.deserializeMessage(
                     serialized, MessageType.EVENT);
+            if (migrationScope != null) { message.putContext(MigrationScope.class, migrationScope); }
             if (modelId != null) {
                 message.putContext(ExplicitModelTarget.class, new ExplicitModelTarget(modelId, modelType));
                 if (!definitionFor(message).targets().hasApplyFor(modelType)) {
@@ -666,13 +667,17 @@ final class ModelPipeline {
             ModelCommitAdmission.Session admissionSession,
             String namespace) {
         Objects.requireNonNull(retry, "retry");
+        MigrationScope migrationScope = migration ? evaluation.steps().stream()
+                .map(step -> step.message().getContext(MigrationScope.class).orElse(null))
+                .filter(Objects::nonNull).findFirst().orElse(null) : null;
+        if (migrationScope != null) { migrationScope.validate(evaluation); }
         Commit.Outcome original = repositoryCommit.prepare(
                 commitId, evaluation, conflictPolicy, mode.isMigration(), mode.isExistingEvent());
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
                 original, original, retry,
                 ThreadLocalContext.capture(), evaluation.preparationRetries(), batch, batchSlot,
-                asynchronousReevaluation, admissionSession, namespace);
+                asynchronousReevaluation, admissionSession, namespace, migrationScope);
     }
 
     private static CompletableFuture<Optional<CommitModelsResult>> commit(
@@ -689,7 +694,8 @@ final class ModelPipeline {
             int batchSlot,
             boolean asynchronousReevaluation,
             ModelCommitAdmission.Session admissionSession,
-            String namespace) {
+            String namespace, MigrationScope migrationScope) {
+        if (migrationScope != null) { migrationScope.validate(evaluation); }
         CompletableFuture<Optional<CommitModelsResult>> submission = admissionSession == null
                 ? repositoryCommit.commitPrepared(prepared, batch, batchSlot)
                 : admissionSession.submit(
@@ -710,7 +716,7 @@ final class ModelPipeline {
                                     commitId, prepared, evaluation);
                             return commit(repositoryCommit, commitId, evaluation, conflictPolicy,
                                     original, recalculated, retry, context, attempts, null, -1,
-                                    asynchronousReevaluation, admissionSession, namespace);
+                                    asynchronousReevaluation, admissionSession, namespace, migrationScope);
                         }, "Deadline reevaluation returned null", asynchronousReevaluation);
                     }
                     if (retry.accepting()) {
@@ -756,7 +762,7 @@ final class ModelPipeline {
                                         original, nextPrepared, retry,
                                         context, attempts + 1, null, -1,
                                         asynchronousReevaluation,
-                                        admissionSession, namespace);
+                                        admissionSession, namespace, migrationScope);
                             }));
                 });
     }

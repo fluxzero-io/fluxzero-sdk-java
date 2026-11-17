@@ -72,6 +72,12 @@ across restarts and failover instances. `run()` without arguments starts replay 
 explicit lifecycle control, `replay()` returns a `Registration`; cancel it to stop replay and close the migration
 when finished.
 
+The catalog is also the migration's write boundary. List every replacement Model explicitly; payload Apply
+methods do not enroll additional Models. Existing Models outside the catalog can still supply read dependencies,
+but their state and history are not rewritten. Dynamic Apply results must remain valid, replayable Models even
+when excluded from persistence: they can participate in the same event's Apply phases. Only selected Model
+transitions are retained for subsequent events and storage.
+
 For a historical event whose Apply methods require an explicit concrete target, configure
 `.targetResolver(event -> ...)`. Return a `PublishedEventModelMigration.Target(repositoryId, modelType)` for that
 event, or null for ordinary routing. Use the exact repository ID, including its prefix, and a registered catalog

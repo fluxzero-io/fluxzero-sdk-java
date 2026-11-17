@@ -378,12 +378,18 @@ public final class PublishedEventModelMigration implements AutoCloseable {
             return this;
         }
 
-        /** Adds explicit Model roots to the migration catalog. */
+        /**
+         * Adds explicit Model roots to the migration catalog and write boundary. Other Models can supply read
+         * dependencies but are not migrated, even when discovered through payload Apply methods.
+         */
         public Builder modelTypes(Class<?>... modelTypes) {
             return modelTypes(List.of(modelTypes));
         }
 
-        /** Adds explicit Model roots to the migration catalog. */
+        /**
+         * Adds explicit Model roots to the migration catalog and write boundary. Other Models can supply read
+         * dependencies but are not migrated, even when discovered through payload Apply methods.
+         */
         public Builder modelTypes(Collection<Class<?>> modelTypes) {
             this.modelTypes.addAll(Objects.requireNonNull(modelTypes, "Model types"));
             return this;

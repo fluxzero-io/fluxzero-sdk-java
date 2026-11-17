@@ -185,6 +185,31 @@ class PublishedEventModelMigrationTest {
 
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    void doesNotMigratePayloadTargetsOutsideTheExplicitCatalog() throws Exception {
+        var client = LocalClient.newInstance(null);
+        var serializer = new JacksonSerializer();
+        try (var migration = PublishedEventModelMigration.builder().name("catalog-boundary")
+                .client(client).serializer(serializer).modelTypes(LegacyModel.class).build()) {
+            client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                    new Message(new LegacyIncrement("legacy", 1)).serialize(serializer),
+                    new Message(new MixedPublication("legacy", "outside-counter")).serialize(serializer),
+                    new Message(new DocumentIncrement("outside-document", 1)).serialize(serializer)).join();
+            var source = client.getTrackingClient(EVENT).readFromIndex(0L, 100);
+            var replay = migration.replay();
+            await(() -> client.getTrackingClient(EVENT).getPosition(migration.name())
+                    .lowestIndexForSegment(new int[]{0, MAX_SEGMENT}).orElse(-1L) >= source.getLast().getIndex());
+            replay.cancel();
+            assertEquals(1, migration.repository().load("legacy", LegacyModel.class).get().value());
+            assertTrue(migration.repository().load("outside-counter", CounterModel.class).isEmpty(),
+                       "An Apply return type must not enroll a native Model in migration");
+            assertTrue(migration.repository().load("outside-document", DocumentCounter.class).isEmpty(),
+                       "An unrelated payload must not enroll its document Model in migration");
+            assertEquals(source, client.getTrackingClient(EVENT).readFromIndex(0L, 100));
+        }
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
     void replayRetryDoesNotRunLiveInterceptorsOrLoseTheOriginalEvent() throws Exception {
         var rejected = new AtomicBoolean();
         var client = conflictingClient(rejected);
@@ -362,6 +387,234 @@ class PublishedEventModelMigrationTest {
         }
     }
 
+    @Test
+    void catalogScopePreservesNativeReadsHistoryAndDynamicResultsAcrossRetry() {
+        var rejected = new AtomicBoolean();
+        var client = conflictingClient(rejected);
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer)
+                .disableAutomaticTracking().build(client)) {
+            app.executeStoredModelEvent(new Message(new NativeIncrement("native", 7))).join();
+            var request = new io.fluxzero.common.api.modeling.GetModelEvents(
+                    List.of(new io.fluxzero.common.api.modeling.ModelEventStreamRequest("native", -1L, 100)),
+                    io.fluxzero.common.api.modeling.ModelReadBoundary.current(), 0);
+            var before = client.getEventStoreClient().getModelEvents(request);
+            var registration = app.registerMigrationTypes(List.of(LegacyModel.class, PhaseModel.class));
+            assertThrows(IllegalStateException.class,
+                         () -> app.registerMigrationTypes(List.of(CounterModel.class)));
+            List<Object> events = List.of(new UnaddressableNativeUpdate(),
+                    new ScopedMixedUpdate("legacy", "native"),
+                    new ScopedDynamicUpdate("dynamic"), new PhaseUpdate("phase", "phase-native"),
+                    new ScopedReadUpdate("legacy", "native"), new NativeDelete("native"));
+            for (Object payload : events) {
+                client.getGatewayClient(EVENT).append(Guarantee.STORED, new Message(payload).serialize(serializer)).join();
+                var source = client.getTrackingClient(EVENT).readFromIndex(0L, 100).getLast();
+                app.migratePublishedEvent(serializer.deserializeMessage(source, EVENT)).join();
+            }
+            assertTrue(rejected.get(), "The selected read-dependent update must survive a conflict");
+            assertEquals(8, app.modelRepository().load("legacy", LegacyModel.class).get().value());
+            assertEquals(4, app.modelRepository().load("dynamic", LegacyModel.class).get().value());
+            assertEquals(100, app.modelRepository().load("phase", PhaseModel.class).get().value());
+            assertTrue(app.modelRepository().load("phase-native", CounterModel.class).isEmpty());
+            assertEquals(7, app.modelRepository().load("native", CounterModel.class).get().value());
+            var after = client.getEventStoreClient().getModelEvents(request);
+            assertEquals(before.getStreams(), after.getStreams());
+            assertEquals(before.getPayloads(), after.getPayloads());
+            assertEquals(events.size(), client.getTrackingClient(EVENT).readFromIndex(0L, 100).size());
+            registration.cancel();
+            var replacement = app.registerMigrationTypes(List.of(LegacyModel.class));
+            registration.cancel();
+            assertThrows(IllegalStateException.class,
+                         () -> app.registerMigrationTypes(List.of(CounterModel.class)));
+            replacement.cancel();
+            app.executeStoredModelEvent(new Message(new NativeIncrement("native", 2))).join();
+            assertEquals(9, app.modelRepository().load("native", CounterModel.class).get().value());
+            try (var reader = DefaultFluxzero.builder().replaceSerializer(serializer)
+                    .disableAutomaticTracking().build(client)) {
+                reader.registerHandlers(LegacyModel.class, PhaseModel.class, CounterModel.class);
+                assertEquals(8, reader.modelRepository().load("legacy", LegacyModel.class).get().value());
+                assertEquals(4, reader.modelRepository().load("dynamic", LegacyModel.class).get().value());
+                assertEquals(100, reader.modelRepository().load("phase", PhaseModel.class).get().value());
+                assertTrue(reader.modelRepository().load("phase-native", CounterModel.class).isEmpty());
+                assertEquals(9, reader.modelRepository().load("native", CounterModel.class).get().value());
+            }
+        }
+    }
+
+    @Test
+    void catalogScopeExcludesNativeEmbeddedRoots() {
+        var client = LocalClient.newInstance(null);
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer)
+                .disableAutomaticTracking().build(client)) {
+            app.registerHandlers(SelectedEmbeddedRoot.class, NativeEmbeddedRoot.class);
+            app.executeStoredModelEvent(new Message(new CreateNativeEmbedded("native-root"))).join();
+            var request = new io.fluxzero.common.api.modeling.GetModelEvents(
+                    List.of(new io.fluxzero.common.api.modeling.ModelEventStreamRequest("native-root", -1L, 100)),
+                    io.fluxzero.common.api.modeling.ModelReadBoundary.current(), 0);
+            var before = client.getEventStoreClient().getModelEvents(request);
+            app.registerMigrationTypes(List.of(SelectedEmbeddedRoot.class));
+            for (Object payload : List.of(new CreateSelectedEmbedded("selected-root"),
+                    new UpdateEmbedded("selected-root", "native-root", "item"))) {
+                client.getGatewayClient(EVENT).append(Guarantee.STORED, new Message(payload).serialize(serializer)).join();
+                app.migratePublishedEvent(serializer.deserializeMessage(
+                        client.getTrackingClient(EVENT).readFromIndex(0L, 100).getLast(), EVENT)).join();
+            }
+            assertEquals(2, app.modelRepository().load("selected-root", SelectedEmbeddedRoot.class).get().item().value());
+            assertEquals(7, app.modelRepository().load("native-root", NativeEmbeddedRoot.class).get().item().value());
+            var after = client.getEventStoreClient().getModelEvents(request);
+            assertEquals(before.getStreams(), after.getStreams());
+            assertEquals(before.getPayloads(), after.getPayloads());
+        }
+    }
+
+    @Model(searchable = false)
+    private record SelectedEmbeddedRoot(@EntityId String selectedRootId,
+                                        @io.fluxzero.sdk.modeling.Member SelectedMember item) { }
+    @Model(searchable = false)
+    private record NativeEmbeddedRoot(@EntityId String nativeRootId,
+                                      @io.fluxzero.sdk.modeling.Member NativeMember item) { }
+    private record SelectedMember(@EntityId String itemId, int value) {
+        @Apply SelectedMember apply(UpdateEmbedded event) { return new SelectedMember(itemId, value + 1); }
+    }
+    private record NativeMember(@EntityId String itemId, int value) {
+        @Apply NativeMember apply(UpdateEmbedded event) { throw new AssertionError("Native embedded Apply invoked"); }
+    }
+    private record CreateSelectedEmbedded(String selectedRootId) {
+        @Apply SelectedEmbeddedRoot apply() {
+            return new SelectedEmbeddedRoot(selectedRootId, new SelectedMember("item", 1));
+        }
+    }
+    private record CreateNativeEmbedded(String nativeRootId) {
+        @Apply NativeEmbeddedRoot apply() { return new NativeEmbeddedRoot(nativeRootId, new NativeMember("item", 7)); }
+    }
+    private record UpdateEmbedded(String selectedRootId, String nativeRootId, String itemId) { }
+
+    @Test
+    void catalogScopeHandlesConcreteTargetsReturnedThroughAnInterface() {
+        var client = LocalClient.newInstance(null);
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer)
+                .disableAutomaticTracking().build(client)) {
+            app.registerHandlers(SelectedPolymorphic.class, OtherPolymorphic.class);
+            app.executeStoredModelEvent(new Message(new CreateOtherPolymorphic("native-poly"))).join();
+            app.registerMigrationTypes(List.of(SelectedPolymorphic.class));
+            for (Object payload : List.of(new CreateSelectedPolymorphic("selected-poly"),
+                    new RemoveOtherPolymorphic("native-poly"))) {
+                client.getGatewayClient(EVENT).append(Guarantee.STORED, new Message(payload).serialize(serializer)).join();
+                var source = client.getTrackingClient(EVENT).readFromIndex(0L, 100).getLast();
+                app.migratePublishedEvent(serializer.deserializeMessage(source, EVENT)).join();
+            }
+            assertEquals(new SelectedPolymorphic("selected-poly"),
+                         app.modelRepository().load("selected-poly", SelectedPolymorphic.class).get());
+            assertEquals(new OtherPolymorphic("native-poly"),
+                         app.modelRepository().load("native-poly", OtherPolymorphic.class).get());
+            client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                    new Message(new RemovePolymorphic("selected-poly")).serialize(serializer)).join();
+            app.migratePublishedEvent(serializer.deserializeMessage(
+                    client.getTrackingClient(EVENT).readFromIndex(0L, 100).getLast(), EVENT)).join();
+            assertTrue(app.modelRepository().load("selected-poly", SelectedPolymorphic.class).isEmpty());
+        }
+    }
+
+    @Model(searchable = false)
+    private interface PolymorphicContract { @EntityId String id(); }
+    @Model(searchable = false)
+    private record SelectedPolymorphic(@EntityId String id) implements PolymorphicContract { }
+    @Model(searchable = false)
+    private record OtherPolymorphic(@EntityId String id) implements PolymorphicContract { }
+    private record CreateSelectedPolymorphic(String id) {
+        @Apply PolymorphicContract apply() { return new SelectedPolymorphic(id); }
+    }
+    private record CreateOtherPolymorphic(String id) {
+        @Apply OtherPolymorphic apply() { return new OtherPolymorphic(id); }
+    }
+    private record RemoveOtherPolymorphic(String id) {
+        @Apply PolymorphicContract apply(OtherPolymorphic current) { return null; }
+    }
+    private record RemovePolymorphic(String id) {
+        @Apply PolymorphicContract apply(SelectedPolymorphic current) { return null; }
+    }
+
+    @Test
+    void catalogScopeDoesNotHideMalformedDynamicResults() {
+        var client = LocalClient.newInstance(null);
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer)
+                .disableAutomaticTracking().build(client)) {
+            app.registerMigrationTypes(List.of(LegacyModel.class));
+            client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                    new Message(new InvalidDynamicUpdate()).serialize(serializer)).join();
+            var event = serializer.deserializeMessage(client.getTrackingClient(EVENT).readFromIndex(0L, 1).getFirst(), EVENT);
+            var failure = assertThrows(java.util.concurrent.CompletionException.class,
+                                       () -> app.migratePublishedEvent(event).join());
+            assertTrue(failure.getCause().getMessage().contains("not annotated with @Model"));
+        }
+    }
+
+    @Test
+    void catalogScopeRejectsUnreplayableExcludedDynamicValuesBeforeCommit() {
+        var client = LocalClient.newInstance(null);
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer)
+                .disableAutomaticTracking().build(client)) {
+            app.registerMigrationTypes(List.of(LegacyModel.class));
+            client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                    new Message(new MalformedNativeDynamicUpdate("legacy")).serialize(serializer)).join();
+            var event = serializer.deserializeMessage(client.getTrackingClient(EVENT).readFromIndex(0L, 1).getFirst(), EVENT);
+            var failure = assertThrows(java.util.concurrent.CompletionException.class,
+                                       () -> app.migratePublishedEvent(event).join());
+            assertTrue(failure.getCause().getMessage().contains("null ID"));
+            assertTrue(app.modelRepository().load("legacy", LegacyModel.class).isEmpty());
+        }
+    }
+    private record MalformedNativeDynamicUpdate(String id) {
+        @Apply List<Object> apply() { return List.of(new LegacyModel(id, 4), new CounterModel(null, 100)); }
+    }
+
+    private record NativeIncrement(String counterId, int delta) {
+        @Apply CounterModel apply(@Nullable CounterModel current) {
+            return new CounterModel(counterId, (current == null ? 0 : current.value()) + delta);
+        }
+    }
+    private record UnaddressableNativeUpdate() {
+        @Apply CounterModel apply() { throw new AssertionError("Excluded native handler was invoked"); }
+    }
+    private record NativeDelete(String counterId) {
+        @Apply CounterModel apply(CounterModel current) { return null; }
+    }
+    private record ScopedMixedUpdate(String id, String counterId) {
+        @Apply LegacyModel selected(@Nullable LegacyModel current) { return new LegacyModel(id, 1); }
+        @Apply CounterModel excluded(CounterModel current) {
+            throw new AssertionError("Excluded part of mixed payload was invoked");
+        }
+    }
+    private record ScopedDynamicUpdate(String id) {
+        @Apply List<Object> apply() {
+            return List.of(new LegacyModel(id, 4), new CounterModel("native", 100));
+        }
+    }
+    private record ScopedReadUpdate(String id, String counterId) {
+        @Apply LegacyModel apply(LegacyModel current, CounterModel nativeInput) {
+            return new LegacyModel(id, current.value() + nativeInput.value());
+        }
+    }
+    @Model(searchable = false)
+    private record PhaseModel(@EntityId String id, int value) {
+        @Apply PhaseModel absorb(PhaseUpdate update, CounterModel nativeInput) {
+            return new PhaseModel(id, nativeInput.value());
+        }
+    }
+    private record PhaseUpdate(String id, String counterId) {
+        @Apply List<Object> apply() {
+            return List.of(new PhaseModel(id, 0), new CounterModel(counterId, 100));
+        }
+    }
+
+    private record InvalidDynamicUpdate() {
+        @Apply Object apply() { return "not a Model"; }
+    }
+
     private record AlternativeUpdate(String id, int delta) {
         private AlternativeUpdate(String id) { this(id, 1); }
         @AssertLegal
@@ -384,7 +637,8 @@ class PublishedEventModelMigrationTest {
         org.mockito.Mockito.doAnswer(invocation -> {
             CommitModels commit = invocation.getArgument(0);
             if (commit.getSubsteps().stream().anyMatch(step -> step.getEvent() != null
-                    && step.getEvent().getData().getType().endsWith("AcceptedLegacyUpdate"))
+                    && (step.getEvent().getData().getType().endsWith("AcceptedLegacyUpdate")
+                        || step.getEvent().getData().getType().endsWith("ScopedReadUpdate")))
                     && rejected.compareAndSet(false, true)) {
                 return CompletableFuture.completedFuture(
                         CommitModelsResult.conflict(commit.getRequestId(), commit.getCommitId(),

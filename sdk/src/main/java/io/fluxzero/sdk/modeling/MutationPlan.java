@@ -228,6 +228,12 @@ public final class MutationPlan {
         private ModelReducer compileReducer(
                 Collection<EntityMetadata.HandlerMethod> selectedHandlers, Class<?> payloadType,
                 Collection<Class<?>> assertionModels, List<EmbeddedModelPlan> embedded) {
+            return compileReducer(selectedHandlers, payloadType, assertionModels, embedded, null);
+        }
+
+        private ModelReducer compileReducer(
+                Collection<EntityMetadata.HandlerMethod> selectedHandlers, Class<?> payloadType,
+                Collection<Class<?>> assertionModels, List<EmbeddedModelPlan> embedded, MigrationScope migrationScope) {
             @SuppressWarnings("unchecked")
             List<EntityMetadata.HandlerMethod> handlers = selectedHandlers instanceof List<?> list
                     ? (List<EntityMetadata.HandlerMethod>) list : List.copyOf(selectedHandlers);
@@ -246,7 +252,7 @@ public final class MutationPlan {
                     fields.add(new AssertionField(field, type))));
             DirectSingleTargetApply direct = embedded.isEmpty() && handlers.size() == 1 && fields.isEmpty()
                     ? directSingleTargetApply(handlers.getFirst(), payloadType) : null;
-            return new ModelReducer(compileHandlers(handlers), direct, fields, this, embedded);
+            return new ModelReducer(compileHandlers(handlers), direct, fields, this, embedded, migrationScope);
         }
 
         AssertionPlan assertions(Class<?> type) {
@@ -779,6 +785,7 @@ public final class MutationPlan {
         private final ConcurrentHashMap<Class<?>, MutationPlan> definitions = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<ExplicitDefinition, MutationPlan> explicitDefinitions = new ConcurrentHashMap<>();
         private volatile CachedDefinition recentDefinition;
+        private volatile MigrationScope migrationScope;
         private volatile boolean indexedModelTypesDiscovered;
 
         Catalog(
@@ -820,6 +827,19 @@ public final class MutationPlan {
 
         private record DeadlineTypes(int size, List<Class<?>> types) {}
 
+        MigrationScope migrationScope() {
+            return migrationScope;
+        }
+
+        io.fluxzero.common.Registration restrictMigrationTypes(Collection<Class<?>> modelTypes) {
+            if (migrationScope != null) {
+                throw new IllegalStateException("A migration catalog is already registered");
+            }
+            migrationScope = new MigrationScope(Set.copyOf(modelTypes));
+            clear();
+            return () -> { migrationScope = null; clear(); };
+        }
+
         void register(Class<?> modelType) {
             registeredModelTypes.addIfAbsent(modelType);
             knownModelTypes.addIfAbsent(modelType);
@@ -853,7 +873,11 @@ public final class MutationPlan {
         }
 
         private MutationPlan compileDefinition(Class<?> payloadType, Class<?> explicitType) {
-            List<EntityMetadata.HandlerMethod> handlers = inspectHandlers(payloadType, explicitType);
+            MigrationScope scope = migrationScope;
+            List<EntityMetadata.HandlerMethod> inspected = inspectHandlers(payloadType, explicitType);
+            List<EntityMetadata.HandlerMethod> handlers = scope == null ? inspected : inspected.stream()
+                    .filter(handler -> handler.kind() != EntityMetadata.HandlerKind.APPLY
+                            || scope.accepts(handler)).toList();
             List<EntityMetadata.HandlerMethod> applies = handlers.stream()
                     .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY).toList();
             applies.stream().flatMap(handler -> handler.targetModelTypes().stream())
@@ -872,6 +896,7 @@ public final class MutationPlan {
                     && handlers.stream().anyMatch(handler -> handler.modelParameters().stream()
                             .anyMatch(parameter -> parameter.modelType() == root)));
             roots.addAll(registeredModelTypes);
+            if (scope != null) { roots.removeIf(type -> !scope.includes(type)); }
             List<EmbeddedModelPlan> embedded = EmbeddedModelPlan.compile(payloadType, roots, addressedRoots, writableRoots);
             boolean writes = embedded.stream().anyMatch(EmbeddedModelPlan::writes);
             LinkedHashSet<ModelCommitPolicy> policies = new LinkedHashSet<>(traits.policies());
@@ -880,7 +905,7 @@ public final class MutationPlan {
                     .map(EntityMetadata.RootConfiguration::commitPolicy).map(ModelCommitPolicy.class::cast)
                     .map(ModelCommitPolicy::resolve).forEach(policies::add);
             return new MutationPlan(
-                    compiler.compileReducer(handlers, payloadType, assertionModels, embedded),
+                    compiler.compileReducer(handlers, payloadType, assertionModels, embedded, scope),
                     compile(payloadType, handlers, assertionModels, embedded, compiler.aliasTargets),
                     ModelCommitPolicy.merge(policies),
                     traits.commit() || writes, (traits.commit() || embedded.stream()
