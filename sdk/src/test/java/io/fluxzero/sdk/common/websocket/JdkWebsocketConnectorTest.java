@@ -621,13 +621,7 @@ class JdkWebsocketConnectorTest {
                                    session, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                                    Duration.ofSeconds(5)),
                            () -> "Ingress did not stop at its retained bound: " + session.runtimeDataState());
-                assertTrue(awaitAdmittedMessages(
-                                   session, BlockingBurstResultCompletionClient.TEST_COMPLETION_CONCURRENCY,
-                                   Duration.ofSeconds(5)),
-                           () -> "Completion admission did not settle at its configured bound: "
-                                 + session.runtimeDataState());
-
-                JdkWebSocketSession.RuntimeDataState blockedState = session.runtimeDataState();
+                JdkWebSocketSession.RuntimeDataState blockedState = awaitBlockedCompletionWorkers(session);
                 assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                              blockedState.retainedMessages());
                 assertEquals(JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
@@ -681,16 +675,17 @@ class JdkWebsocketConnectorTest {
         return true;
     }
 
-    private static boolean awaitAdmittedMessages(
-            JdkWebSocketSession session, int expected, Duration timeout) throws InterruptedException {
-        long deadline = System.nanoTime() + timeout.toNanos();
-        while (session.runtimeDataState().admittedMessages() != expected) {
-            if (System.nanoTime() >= deadline) {
-                return false;
-            }
+    private static JdkWebSocketSession.RuntimeDataState awaitBlockedCompletionWorkers(
+            JdkWebSocketSession session) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        var state = session.runtimeDataState();
+        while ((state.activeMessages() != JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES
+                || state.admittedMessages() != BlockingBurstResultCompletionClient.TEST_COMPLETION_CONCURRENCY)
+                && System.nanoTime() < deadline) {
             TimeUnit.MILLISECONDS.sleep(1);
+            state = session.runtimeDataState();
         }
-        return true;
+        return state;
     }
 
     private static boolean awaitProcessedBatch(Semaphore processedPermits, int messagesInBatch,
