@@ -24,7 +24,6 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
-import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -63,7 +62,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.asInstance;
  * @see io.fluxzero.sdk.configuration.FluxzeroBuilder#addConsumerConfiguration
  */
 @Value
-@Builder(builderClassName = "Builder", toBuilder = true)
+@lombok.Builder(builderClassName = "Builder", toBuilder = true)
 public class ConsumerConfiguration implements Substitutable<ConsumerConfiguration> {
     /**
      * Chooses how unconfigured tracking handlers are assigned to default consumers.
