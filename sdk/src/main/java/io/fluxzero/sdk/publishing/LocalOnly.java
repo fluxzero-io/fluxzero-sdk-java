@@ -31,7 +31,7 @@ import java.lang.annotation.Target;
  * original remains local-only when a dispatch interceptor replaces its payload, while a marked replacement also
  * enables the restriction.</p>
  *
- * <p>Fluxzero never serializes or publishes a local-only message externally. A request without a matching local
+ * <p>The gateway never serializes or publishes a local-only message externally. A request without a matching local
  * handler completes exceptionally with {@link LocalOnlyDispatchException}; a non-request message without a matching
  * handler simply completes. Handler code can still perform its own side effects.</p>
  *

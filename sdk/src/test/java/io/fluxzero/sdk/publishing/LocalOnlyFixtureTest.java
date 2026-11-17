@@ -23,16 +23,39 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.MessageType.EVENT;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LocalOnlyFixtureTest {
     private TestFixture fixture(boolean async, Object... handlers) {
         return async ? TestFixture.createAsync(handlers) : TestFixture.create(handlers);
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void trackedHandlerReceivesCommittedLocalOnlyEventOnce(boolean async) {
+        var command = new AutomaticCommand("stored");
+        var deliveries = new AtomicInteger();
+        var observer = new Object() {
+            @HandleEvent void on(AutomaticCommand event) {
+                assertThrows(LocalOnlyDispatchException.class, () -> Fluxzero.sendCommandAndWait(new LocalCommand()));
+                deliveries.incrementAndGet();
+            }
+        };
+        fixture(async, observer).whenExecuting(fc -> Fluxzero.assertAndApply(command))
+                .expectOnlyEvents(command).expectNoErrors()
+                .expectThat(fc -> {
+                    assertEquals(1, deliveries.get());
+                    assertEquals(1, fc.client().getTrackingClient(EVENT).readFromIndex(0, 10).size());
+                    assertTrue(fc.client().getTrackingClient(COMMAND).readFromIndex(0, 10).isEmpty());
+                });
     }
 
     @ParameterizedTest @ValueSource(booleans = {false, true})
