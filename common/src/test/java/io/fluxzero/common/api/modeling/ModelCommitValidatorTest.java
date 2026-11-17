@@ -79,6 +79,20 @@ class ModelCommitValidatorTest {
     }
 
     @Test
+    void migrationRelationshipOptInSurvivesRoundTripAndMissingFieldRetainsLegacyBehavior() {
+        var commit = new CommitModelsWithLiveMigrationDocuments(existingEventCommit("event-1", "event-1", 42L), true);
+        String json = io.fluxzero.common.serialization.JsonUtils.asJson(commit);
+        var decoded = (CommitModels) io.fluxzero.common.serialization.JsonUtils.fromJson(json, io.fluxzero.common.api.JsonType.class);
+        assertTrue(decoded.preservesMigrationRelationships());
+        assertTrue(decoded.withDeadlineUpdates(List.of()).preservesMigrationRelationships());
+        String legacy = json.replace("\"preserveMigrationRelationships\":true,", "")
+                .replace(",\"preserveMigrationRelationships\":true", "");
+        assertFalse(legacy.contains("preserveMigrationRelationships"));
+        var oldRequest = (CommitModels) io.fluxzero.common.serialization.JsonUtils.fromJson(legacy, io.fluxzero.common.api.JsonType.class);
+        assertFalse(oldRequest.preservesMigrationRelationships());
+    }
+
+    @Test
     void liveMigrationRoundTripsWithoutChangingLegacyStagingOrReadDependencies() {
         CommitModels legacy = existingEventCommit("event-1", "event-1", 42L);
         var live = new CommitModelsWithLiveMigrationDocuments(

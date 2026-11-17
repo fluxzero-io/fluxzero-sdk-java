@@ -88,6 +88,14 @@ strategy or republishing the source event. The original event's AFTER boundary i
 retains the boundary preceding the original change. Use an SDK and Runtime supporting migration event ranges for the
 runner and event-bound readers. The SDK rejects historical deletions against an older Runtime before committing them.
 
+Upgrade the Runtime first, then the migration runner and every application that reads these new event boundaries,
+before starting historical deletion replay. Older SDKs retain their original migration relationship behavior on the
+new Runtime because relationship preservation requires an explicit wire opt-in. However, SDKs including 2.28.5 normalize event-stream BEFORE requests to AFTER and cannot express the complete
+new range contract. Graph reads can preserve BEFORE through their separate graph selector; that does not make
+every event-bound reading path compatible. Upgrade event-bound readers before enabling this feature, and do not
+roll those readers back without qualifying their actual read paths against the migrated history.
+Ordinary histories and ordinary command/stored-event replay do not require this new migration contract.
+
 For a historical event whose Apply methods require an explicit concrete target, configure
 `.targetResolver(event -> ...)`. Return a `PublishedEventModelMigration.Target(repositoryId, modelType)` for that
 event, or null for ordinary routing. Use the exact repository ID, including its prefix, and a registered catalog

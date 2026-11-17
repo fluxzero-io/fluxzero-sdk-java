@@ -668,7 +668,7 @@ final class ModelPipeline {
             ModelCommitAdmission.Session admissionSession,
             String namespace) {
         Objects.requireNonNull(retry, "retry");
-        MigrationScope migrationScope = migration ? evaluation.steps().stream()
+        MigrationScope migrationScope = mode.isMigration() ? evaluation.steps().stream()
                 .map(step -> step.message().getContext(MigrationScope.class).orElse(null))
                 .filter(Objects::nonNull).findFirst().orElse(null) : null;
         if (migrationScope != null) { migrationScope.validate(evaluation); }

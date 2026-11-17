@@ -2709,7 +2709,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads(commit, evaluation.identityReads());
             }
             if (migration) {
-                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit);
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit, true);
             }
             return new Outcome(commit, preparedChanges, existingEvent, eventCreationTime);
         }
@@ -2772,7 +2772,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         commit, candidate.getAliasObservations());
             }
             if (candidate instanceof io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments) {
-                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit);
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(
+                        commit, candidate.preservesMigrationRelationships());
             }
             return new Outcome(commit, rebased.changes, original.existingEvent, original.eventCreationTime);
         }

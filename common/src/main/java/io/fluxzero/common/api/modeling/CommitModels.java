@@ -147,6 +147,11 @@ public class CommitModels extends Command implements RetryAwareRequest {
         return migration;
     }
 
+    /** Whether this migration explicitly preserves relationships owned by surviving models. */
+    public boolean preservesMigrationRelationships() {
+        return false;
+    }
+
     @Override
     public void markPossibleDuplicate() {
         possibleDuplicate = true;
@@ -168,7 +173,7 @@ public class CommitModels extends Command implements RetryAwareRequest {
     public CommitModels withDeadlineUpdates(List<ModelDeadlineUpdate> updates) {
         CommitModels result = new CommitModelsWithDeadlines(this, updates);
         if (this instanceof CommitModelsWithLiveMigrationDocuments) {
-            return new CommitModelsWithLiveMigrationDocuments(result);
+            return new CommitModelsWithLiveMigrationDocuments(result, preservesMigrationRelationships());
         }
         return getAliasObservations().isEmpty() ? result
                 : new CommitModelsWithIdentityReads(result, getAliasObservations());

@@ -87,3 +87,11 @@ This project is available under the [Apache License 2.0](LICENSE).
   <a href="https://fluxzero.io/about">About us</a> &nbsp;·&nbsp;
   <a href="https://fluxzero.io/contact">Contact us</a>
 </p>
+
+### Historical Model migration compatibility
+
+Historical parent-deletion migration requires migration-event-range support in the Runtime, runner, and all
+application SDKs reading the migrated event boundaries. Upgrade those components before enabling this replay;
+older SDKs, including 2.28.5, normalize event-stream BEFORE requests to AFTER and cannot express the full new range contract. Old SDK
+migration requests retain their original relationship behavior on the new Runtime through an explicit opt-in.
+See the [migration guide](docs/agents/articles/sdk/models/published-event-migration.md) for the upgrade boundary.

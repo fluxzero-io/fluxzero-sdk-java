@@ -450,7 +450,10 @@ class PublishedEventModelMigrationTest {
         org.mockito.Mockito.doReturn(store).when(client).getEventStoreClient();
         org.mockito.Mockito.doAnswer(invocation -> {
             CommitModels commit = invocation.getArgument(0);
-            if (commit.isMigration()) { assertTrue(commit.isPossibleDuplicate(), "Every historical source needs receipt lookup"); }
+            if (commit.isMigration()) {
+                assertTrue(commit.isPossibleDuplicate(), "Every historical source needs receipt lookup");
+                assertTrue(commit.preservesMigrationRelationships(), "Retries must retain the explicit migration contract");
+            }
             if (conflict != MigrationConflict.NONE && commit.getSubsteps().stream().anyMatch(step -> step.getEvent() != null
                     && step.getEvent().getData().getType().endsWith("DeleteMigratedBranch"))
                     && rejected.compareAndSet(false, true)) {

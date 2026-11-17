@@ -1356,7 +1356,7 @@ public final class MutationPlan {
         }
 
         boolean hasApplyFor(Class<?> explicitType) {
-            return handlerMethods.values().stream().anyMatch(handler ->
+            return handlerMethods.stream().anyMatch(handler ->
                     handler.kind() == EntityMetadata.HandlerKind.APPLY && handler.hasApplyResult()
                     && MutationPlan.acceptsExplicitTarget(handler, explicitType));
         }

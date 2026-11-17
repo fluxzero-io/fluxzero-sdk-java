@@ -582,7 +582,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 }
                 // Historical deletion only owns explicitly selected model transitions. Surviving
                 // children retain their relationships, including children outside the migration catalog.
-                if (!commit.isMigration()) {
+                if (!commit.preservesMigrationRelationships()) {
                     cascadeDeletedModelRelationships(relationshipStep.finalDeletedParentIds(), stateIndex);
                 }
             }

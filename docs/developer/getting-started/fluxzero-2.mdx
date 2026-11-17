@@ -2967,6 +2967,14 @@ Event-bound readers see the complete deletion after the original event and the p
 This requires a matching SDK and Runtime with migration-event-range support; the runner rejects historical
 deletions against older Runtimes. Internal deletion events are stored privately and do not republish the source event.
 
+Upgrade the Runtime first, then the migration runner and every application that reads these new event boundaries,
+before starting historical deletion replay. Older SDKs retain their original migration relationship behavior on the
+new Runtime because relationship preservation requires an explicit wire opt-in. However, SDKs including 2.28.5 normalize event-stream BEFORE requests to AFTER and cannot express the complete
+new range contract. Graph reads can preserve BEFORE through their separate graph selector; that does not make
+every event-bound reading path compatible. Upgrade event-bound readers before enabling this feature, and do not
+roll those readers back without qualifying their actual read paths against the migrated history.
+Ordinary histories and ordinary command/stored-event replay do not require this new migration contract.
+
 Run this entry point **without arguments** to replay and keep following events. The runner owns an isolated
 migration context: it does not start ordinary application handlers or automatic Model command handling.
 Replay has durable progress, is idempotent and does not republish the historical events. It executes replay
