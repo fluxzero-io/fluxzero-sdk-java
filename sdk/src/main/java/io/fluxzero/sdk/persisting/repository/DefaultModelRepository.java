@@ -2709,7 +2709,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads(commit, evaluation.identityReads());
             }
             if (migration) {
-                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit, true);
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(
+                        commit, evaluation.steps().stream().anyMatch(step -> step.message().getContext(
+                                CommitAttempt.MigrationContract.class).orElse(null)
+                                == CommitAttempt.MigrationContract.EVENT_RANGES));
             }
             return new Outcome(commit, preparedChanges, existingEvent, eventCreationTime);
         }

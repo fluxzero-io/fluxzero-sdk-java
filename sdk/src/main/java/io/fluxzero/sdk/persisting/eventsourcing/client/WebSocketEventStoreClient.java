@@ -229,13 +229,12 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                     "This Runtime does not support live Model migration documents; upgrade the Runtime before starting replay");
         }
         if (request instanceof CommitModels commit && commit.isMigration()
-                && commit.getSubsteps().stream().anyMatch(step -> step.getTargets().stream().anyMatch(
-                        io.fluxzero.common.api.modeling.ModelCommitTarget::isDelete)
-                        || step.getEvent() != null && step.getEvent().getMetadata().containsKey(
-                        io.fluxzero.common.api.modeling.ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX))
+                && (commit.preservesMigrationRelationships() || commit.getSubsteps().stream().anyMatch(
+                        step -> step.getEvent() != null && step.getEvent().getMetadata().containsKey(
+                                io.fluxzero.common.api.modeling.ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX)))
                 && !WebSocketCapabilities.supportsModelMigrationEventRanges(session.getHandshakeResponseHeaders())) {
             throw new UnsupportedOperationException(
-                    "This Runtime does not support migration event ranges; upgrade before replaying historical deletions");
+                    "The selected Runtime does not support the prepared migration event ranges; retry the source event after the Runtime connection has stabilized");
         }
         return request;
     }
@@ -497,6 +496,12 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
             }
         }
         return restored == null ? results : restored;
+    }
+
+    @Override
+    public boolean supportsModelMigrationEventRanges() {
+        return sessionsForCapabilities().stream().allMatch(session ->
+                WebSocketCapabilities.supportsModelMigrationEventRanges(session.getHandshakeResponseHeaders()));
     }
 
     @Override

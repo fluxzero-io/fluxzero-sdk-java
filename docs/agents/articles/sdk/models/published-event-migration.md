@@ -85,16 +85,21 @@ replay keep their existing behavior. Initial migration, RETRY and ACCEPT rebase 
 
 Internal cascade events are stored privately, including for DOCUMENT children, without changing the Model's loading
 strategy or republishing the source event. The original event's AFTER boundary includes the entire cascade; BEFORE
-retains the boundary preceding the original change. Use an SDK and Runtime supporting migration event ranges for the
-runner and event-bound readers. The SDK rejects historical deletions against an older Runtime before committing them.
+retains the boundary preceding the original change when both peers support migration event ranges.
 
-Upgrade the Runtime first, then the migration runner and every application that reads these new event boundaries,
-before starting historical deletion replay. Older SDKs retain their original migration relationship behavior on the
-new Runtime because relationship preservation requires an explicit wire opt-in. However, SDKs including 2.28.5 normalize event-stream BEFORE requests to AFTER and cannot express the complete
-new range contract. Graph reads can preserve BEFORE through their separate graph selector; that does not make
-every event-bound reading path compatible. Upgrade event-bound readers before enabling this feature, and do not
-roll those readers back without qualifying their actual read paths against the migrated history.
-Ordinary histories and ordinary command/stored-event replay do not require this new migration contract.
+SDK and Runtime may be upgraded in either order. The runner uses the existing websocket capability handshake:
+without migration-event-range support it retains the previous migration behavior, including its missing historical
+cascade; with support it includes the cascade and preserves surviving relationships. The choice is fixed for each
+source event through evaluation and retries. No release-number checks or new configuration are required. A request
+already prepared with the new contract is rejected if reconnect selects an unsupported peer; it is never silently
+changed after evaluation. Replay that source after the connection is stable.
+
+Existing histories remain readable. Old SDK event-stream requests already normalize BEFORE to AFTER; this existing
+low-level limitation is not a requirement to upgrade every application before upgrading the Runtime. Public Graph
+BEFORE/AFTER reads are supported across the tested mixed-version upgrade paths. Qualify custom low-level historical
+readers against their actual behavior rather than assuming that they implement the newer range contract. Events
+already migrated using legacy behavior are not retroactively repaired by upgrading: duplicate receipts preserve
+their original result. Reconstruct an isolated target from the source history when qualifying a complete repair.
 
 For a historical event whose Apply methods require an explicit concrete target, configure
 `.targetResolver(event -> ...)`. Return a `PublishedEventModelMigration.Target(repositoryId, modelType)` for that

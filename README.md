@@ -90,8 +90,8 @@ This project is available under the [Apache License 2.0](LICENSE).
 
 ### Historical Model migration compatibility
 
-Historical parent-deletion migration requires migration-event-range support in the Runtime, runner, and all
-application SDKs reading the migrated event boundaries. Upgrade those components before enabling this replay;
-older SDKs, including 2.28.5, normalize event-stream BEFORE requests to AFTER and cannot express the full new range contract. Old SDK
-migration requests retain their original relationship behavior on the new Runtime through an explicit opt-in.
-See the [migration guide](docs/agents/articles/sdk/models/published-event-migration.md) for the upgrade boundary.
+SDK and Runtime may be upgraded in either order. Published-event migration uses the existing capability handshake:
+without migration-event-range support it retains legacy behavior; with support it repairs historical cascades.
+The decision is fixed per source event through retries. Ordinary replay is unchanged. Previously migrated events
+are not retroactively repaired by an upgrade. See the [migration guide](docs/agents/articles/sdk/models/published-event-migration.md)
+for the low-level historical reader limitation and isolated reconstruction guidance.

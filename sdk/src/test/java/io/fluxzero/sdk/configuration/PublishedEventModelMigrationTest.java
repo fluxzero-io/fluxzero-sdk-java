@@ -442,6 +442,76 @@ class PublishedEventModelMigrationTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void migrationNegotiationIsPinnedForEachEvent(boolean supported) {
+        var client = org.mockito.Mockito.spy(LocalClient.newInstance(null));
+        var store = org.mockito.Mockito.spy(client.getEventStoreClient());
+        org.mockito.Mockito.doReturn(store).when(client).getEventStoreClient();
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        org.mockito.Mockito.doAnswer(invocation -> calls.getAndIncrement() == 0 ? supported : !supported)
+                .when(store).supportsModelMigrationEventRanges();
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer)
+                .disableAutomaticTracking().build(client)) {
+            app.registerMigrationTypes(List.of(MigratedBranch.class));
+            for (Object payload : List.of(new PutMigratedBranch("parent", null),
+                    new PutMigratedBranch("child", "parent"), new DeleteMigratedBranch("parent"))) {
+                calls.set(0);
+                client.getGatewayClient(EVENT).append(Guarantee.STORED, new Message(payload).serialize(serializer)).join();
+                app.migratePublishedEvent(serializer.deserializeMessage(
+                        client.getTrackingClient(EVENT).readFromIndex(0L, 100).getLast(), EVENT)).join();
+                assertEquals(1, calls.get(), "Evaluation and commit must share one negotiation decision");
+            }
+            app.cache().clear();
+            assertEquals(supported, app.modelRepository().load("child", MigratedBranch.class).isEmpty());
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(MigrationConflict.class)
+    void unsupportedPeersRetainLegacyMigrationAcrossRetries(MigrationConflict conflict) {
+        var client = org.mockito.Mockito.spy(LocalClient.newInstance(null));
+        var store = org.mockito.Mockito.spy(client.getEventStoreClient());
+        org.mockito.Mockito.doReturn(store).when(client).getEventStoreClient();
+        org.mockito.Mockito.doReturn(false).when(store).supportsModelMigrationEventRanges();
+        var rejected = new AtomicBoolean();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            assertFalse(commit.preservesMigrationRelationships());
+            if (conflict != MigrationConflict.NONE && commit.getSubsteps().stream()
+                    .anyMatch(step -> step.getTargets().stream().anyMatch(t -> t.isDelete()))
+                    && rejected.compareAndSet(false, true)) {
+                var conflicts = List.of(new ModelCommitConflict("parent", commit.getReadStateIndex(), -1));
+                return CompletableFuture.completedFuture(conflict == MigrationConflict.ACCEPT
+                        ? CommitModelsResult.rebase(commit.getRequestId(), commit.getCommitId(), conflicts, commit.getReadStateIndex())
+                        : CommitModelsResult.conflict(commit.getRequestId(), commit.getCommitId(), conflicts, true));
+            }
+            return invocation.callRealMethod();
+        }).when(store).commitModels(org.mockito.ArgumentMatchers.any());
+        var serializer = new JacksonSerializer();
+        try (var app = (DefaultFluxzero) DefaultFluxzero.builder().replaceSerializer(serializer)
+                .configureModelConflictHandling(conflict == MigrationConflict.ACCEPT
+                        ? io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT
+                        : io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY,
+                        io.fluxzero.sdk.modeling.ModelConflictResolver.retryIfAllowed(), 3)
+                .disableAutomaticTracking().build(client)) {
+            app.registerMigrationTypes(List.of(MigratedBranch.class, RetainedBranch.class));
+            for (Object payload : List.of(new PutMigratedBranch("parent", null),
+                    new PutMigratedBranch("child", "parent"), new PutRetainedBranch("retained", "parent"),
+                    new DeleteMigratedBranch("parent"))) {
+                client.getGatewayClient(EVENT).append(Guarantee.STORED, new Message(payload).serialize(serializer)).join();
+                app.migratePublishedEvent(serializer.deserializeMessage(
+                        client.getTrackingClient(EVENT).readFromIndex(0L, 100).getLast(), EVENT)).join();
+            }
+            app.cache().clear();
+            assertTrue(app.modelRepository().load("parent", MigratedBranch.class).isEmpty());
+            assertFalse(app.modelRepository().load("child", MigratedBranch.class).isEmpty());
+            assertFalse(app.modelRepository().load("retained", RetainedBranch.class).isEmpty());
+            assertEquals(conflict != MigrationConflict.NONE, rejected.get());
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.EnumSource(MigrationConflict.class)
     void migrationDeletesOwnedDescendantsWithTheirParent(MigrationConflict conflict) {
         var rejected = new AtomicBoolean();

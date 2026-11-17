@@ -108,6 +108,9 @@ import static java.util.Collections.synchronizedMap;
  * process and is typically used in test scenarios or for development purposes.
  */
 public class InMemoryEventStore extends InMemoryMessageStore implements EventStoreClient {
+    @Override
+    public boolean supportsModelMigrationEventRanges() { return true; }
+
 
     private boolean deferModelCommitNotification;
     private java.util.function.Function<java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>, Runnable> modelScheduleWriter;

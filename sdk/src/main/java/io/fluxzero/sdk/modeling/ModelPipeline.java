@@ -27,6 +27,7 @@ import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.modeling.ModelRelationshipQueries;
+import io.fluxzero.sdk.modeling.CommitAttempt.MigrationContract;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -373,6 +374,8 @@ final class ModelPipeline {
             DeserializingMessage message = serializer.deserializeMessage(
                     serialized, MessageType.EVENT);
             if (migrationScope != null) { message.putContext(MigrationScope.class, migrationScope); }
+            message.putContext(MigrationContract.class, eventStoreClient.supportsModelMigrationEventRanges()
+                    ? MigrationContract.EVENT_RANGES : MigrationContract.LEGACY);
             if (modelId != null) {
                 message.putContext(ExplicitModelTarget.class, new ExplicitModelTarget(modelId, modelType));
                 if (!definitionFor(message).targets().hasApplyFor(modelType)) {
@@ -1021,6 +1024,9 @@ final class ModelPipeline {
     }
 
     private CommitAttempt expandMigrationDeletes(CommitAttempt evaluation, DeserializingMessage message) {
+        if (message.getContext(MigrationContract.class).orElse(MigrationContract.LEGACY) != MigrationContract.EVENT_RANGES) {
+            return evaluation;
+        }
         // The isolated migration is the sole writer of its catalog. Native descendants belong to a different
         // timeline and must neither participate in this historical cascade nor trigger global closure admission.
         return expandCascadeDeletes(evaluation, message.getContext(MigrationScope.class).orElse(null), true);
