@@ -189,6 +189,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, List<SerializedMessage>> appliedEvents = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> relationships = new ConcurrentHashMap<>();
     private final Map<String, CommitModelsResult> modelCommits = new ConcurrentHashMap<>();
+    @Override
+    public boolean supportsModelEventEffects() { return true; }
+
+    private final Map<Long, List<Long>> migrationEventBoundaries = new HashMap<>();
     private final Map<Long, Long> modelStateIndicesByEventIndex =
             new ConcurrentHashMap<>();
     private final Map<String, PendingModelMaterialization>
@@ -543,6 +547,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     modelStateIndicesByEventIndex.put(
                             eventIndex,
                             stateIndex);
+                    if (commit.isMigration() && updates.size() > 1 && !description.cascadeRootIds().isEmpty()) {
+                        migrationEventBoundaries.put(eventIndex, List.of(
+                                updates.getFirst().getStateIndex(), updates.getLast().getStateIndex()));
+                    }
                 }
                 SerializedMessage storedEvent = eventIndex == null
                         ? substep.getEvent()
@@ -2181,7 +2189,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     CommitModelsResult result = modelCommits.get(commitId);
                     return result == null || substep >= result.getUpdates().size()
                             ? null : result.getUpdates().get(substep).getStateIndex();
-                }, modelStateIndicesByEventIndex::get);
+                }, eventIndex -> {
+                    List<Long> effects = migrationEventBoundaries.get(eventIndex);
+                    return effects == null ? modelStateIndicesByEventIndex.get(eventIndex)
+                            : effects.get(boundary.before() ? 0 : 1);
+                });
     }
 
     private static LinkedHashMap<Long, SerializedMessage> selectPayloads(
