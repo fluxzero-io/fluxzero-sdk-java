@@ -832,6 +832,9 @@ fixture.whenTimeAdvancesTo(Instant.parse("2050-12-31T00:00:00Z"))
 Advancing time to an absolute instant is useful for testing deadline-based workflows or calendar-driven schedules.
 </Aside>
 
+In asynchronous fixtures, a running schedule handler must finish before assertions begin, even if it cancels or
+reschedules itself. A replacement scheduled for the future does not run until you advance the fixture clock.
+
 Automatic JUnit fixture cleanup waits until owned resources are closed. It skips the response grace period for
 requests that the completed test left unanswered, including expected timeout scenarios. Explicit application
 `close()` calls retain their normal graceful response wait. To test a different cleanup grace period, configure
