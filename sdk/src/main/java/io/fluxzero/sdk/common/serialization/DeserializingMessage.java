@@ -56,6 +56,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -607,6 +608,24 @@ public class DeserializingMessage implements HasMessage {
     public static DeserializingMessage getCurrent() {
         DeserializingMessage result = current.get();
         return result == null ? LocalExecution.currentMessage() : result;
+    }
+
+    /**
+     * Runs an infrastructure lookup with the supplied thread-local message and restores the prior message.
+     * This does not start or complete message handling or batch lifecycle callbacks.
+     */
+    public static <T> T withCurrent(DeserializingMessage message, Supplier<T> lookup) {
+        DeserializingMessage previous = current.get();
+        try {
+            current.set(message);
+            return lookup.get();
+        } finally {
+            if (previous == null) {
+                current.remove();
+            } else {
+                current.set(previous);
+            }
+        }
     }
 
     /**

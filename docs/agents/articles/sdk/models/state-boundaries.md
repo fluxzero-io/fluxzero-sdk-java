@@ -83,6 +83,10 @@ proves the event boundary, the cache covers it, and the tracker has processed th
 storage position. Historical reconstruction can establish this latter position once for the replay session.
 Unproved identities, incomplete document history and lagging trackers use the authoritative read path.
 
+Synchronous Runtime storage metrics emitted during replay follow the request that caused the reconstruction.
+This attribution does not alter the event metadata received by Apply methods. Background replay does not attach
+its storage metrics to a historic trace.
+
 Use one `loadCurrentGraph` and navigate its relationships when a read needs several current Model values
 at a common storage boundary. A new Graph can reuse a cached DOCUMENT body only after the selected head
 and current materialized source version match the cached decode. The storage check covers a lagging or
