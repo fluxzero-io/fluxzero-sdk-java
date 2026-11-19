@@ -299,7 +299,8 @@ final class ModelCacheTracker implements AutoCloseable {
             return new CurrentModel(
                     cached,
                     entry.validThrough,
-                    modelStateIndex);
+                    modelStateIndex,
+                    observedCursor);
         }
     }
 
@@ -1134,11 +1135,12 @@ final class ModelCacheTracker implements AutoCloseable {
     record CurrentModel(
             Entity<?> entity,
             long validThrough,
-            long modelStateIndex) {
+            long modelStateIndex,
+            long observedCursor) {
     }
 
     private static final CurrentModel SUPPLIED =
-            new CurrentModel(null, -1L, -1L);
+            new CurrentModel(null, -1L, -1L, -1L);
 
     private static final class Entry {
         private ModelCache.Stamp cacheStamp;

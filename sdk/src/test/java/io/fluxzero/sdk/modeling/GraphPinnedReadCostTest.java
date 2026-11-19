@@ -15,6 +15,9 @@
  */
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.DeleteModel;
+import io.fluxzero.common.api.modeling.GetModelChange;
+import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
@@ -177,6 +180,45 @@ class GraphPinnedReadCostTest {
             assertEquals(3, Fluxzero.loadGraph(ROOT).atStateIndex(boundary).get().revision());
         }).expectSuccessfulResult().expectNoErrors();
         assertEquals(4, client.reads.stream().mapToInt(r -> r.result().getPayloadCount()).sum());
+    }
+
+    @Test
+    void changeHandlerSelectionReadsEachAncestryBoundaryOnce() {
+        var client = new ObservedClient();
+        record RootChange(String id, boolean hadChild, boolean hasChild) {}
+        List<RootChange> changes = new CopyOnWriteArrayList<>();
+        @Consumer(name = "graph-observer")
+        class GraphObserver {
+            @HandleNotification(allowedClasses = PutChild.class)
+            void onRoot(Graph<ParentRoot> graph) {
+                changes.add(new RootChange(graph.id().toString(),
+                        !graph.previous().children().isEmpty(), !graph.children().isEmpty()));
+            }
+
+            @HandleNotification(allowedClasses = PutChild.class)
+            void onItem(Graph<Item> graph) { throw new AssertionError("Unrelated Item"); }
+
+            @HandleNotification(allowedClasses = PutChild.class)
+            void onRelated(Graph<Related> graph) { throw new AssertionError("Unrelated Related"); }
+
+            @HandleNotification(allowedClasses = PutChild.class)
+            void onValue(Graph<Value> graph) { throw new AssertionError("Unrelated Value"); }
+        }
+        TestFixture.createAsync(DefaultFluxzero.builder(), client)
+                .registerHandlers(new GraphObserver())
+                .givenCommands(new PutParentRoot("old"), new PutParentRoot("new"), new PutChild("child", "old"))
+                .whenExecuting(fc -> {
+                    changes.clear();
+                    client.changeReads.clear();
+                    client.graphReads.clear();
+                    fc.commandGateway().sendAndWait(new PutChild("child", "new"));
+                }).expectSuccessfulResult().expectNoErrors();
+        assertEquals(List.of(new RootChange("new", false, true), new RootChange("old", true, false)), changes);
+        var ancestryReads = client.graphReads.stream()
+                .filter(request -> request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS)
+                .map(GetModelGraph::getModelIds).toList();
+        assertEquals(List.of(1, 2), List.of(client.changeReads.size(), ancestryReads.size()), ancestryReads::toString);
+        assertEquals(List.of(List.of("child"), List.of("child")), ancestryReads);
     }
 
     @Test
@@ -358,6 +400,94 @@ class GraphPinnedReadCostTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"current", "historical", "batch"})
+    void replayReusesAProvenModelAcrossManyDifferentEventBoundaries(String read) throws Exception {
+        var client = new ObservedClient();
+        ValueId log = ROOT;
+        ValueId dependency = DEPENDENCIES.getFirst();
+        try (Fluxzero app = app(client)) {
+            commit(app, new PutValue(dependency, 1));
+            for (int revision = 0; revision < 256; revision++) {
+                commit(app, new AppendObservation(log, dependency));
+            }
+            client.awaitTrackerAtHead();
+            Cache cache = ReflectionUtils.<Cache>getFieldValue("modelCache", app.modelRepository()).orElseThrow();
+            assertNotNull(cache.get(dependency.toString()));
+            Entity<Value> cachedLog = cache.get(log.toString());
+            long stateIndex = ((ModelRoot<?>) cachedLog).stateIndex();
+            cache.remove(log.toString());
+            client.reads.clear();
+
+            int revision = app.apply(fc -> switch (read) {
+                case "historical" -> Fluxzero.loadGraph(log).atStateIndex(stateIndex).get().revision();
+                case "batch" -> fc.modelRepository().loadAll(List.of(log), Value.class).getFirst().get().revision();
+                default -> Fluxzero.loadModel(log).get().revision();
+            });
+            assertEquals(256, revision);
+            assertEquals(0, client.reads.stream().filter(request -> request.request().getRequests().stream()
+                    .anyMatch(stream -> stream.getModelId().equals(dependency.toString()))).count());
+            assertEquals(read.equals("historical") ? 1L : 0L, client.reads.stream()
+                    .filter(request -> request.request().getRequests().isEmpty()).count());
+        }
+    }
+
+    @Test
+    void replayCannotUseACachedDependencyNewerThanItsEvent() throws Exception {
+        var client = new ObservedClient();
+        ValueId dependency = DEPENDENCIES.getFirst();
+        try (Fluxzero app = app(client)) {
+            commit(app, new PutValue(dependency, 1));
+            commit(app, new AppendObservation(ROOT, dependency));
+            commit(app, new PutValue(dependency, 99));
+            client.awaitTrackerAtHead();
+            Cache cache = ReflectionUtils.<Cache>getFieldValue("modelCache", app.modelRepository()).orElseThrow();
+            Entity<Value> cached = cache.get(dependency.toString());
+            assertEquals(99, cached.get().revision());
+            cache.remove(ROOT.toString());
+
+            assertEquals(1, app.apply(fc -> Fluxzero.loadModel(ROOT).get().revision()).intValue());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void replayDoesNotReturnErasedDependenciesWhileTheTrackerIsBehind(boolean historicalRead) throws Exception {
+        var client = new ObservedClient();
+        ValueId dependency = DEPENDENCIES.getFirst();
+        try (Fluxzero app = app(client)) {
+            commit(app, new PutValue(dependency, 1));
+            commit(app, new AppendObservation(ROOT, dependency));
+            client.awaitTrackerAtHead();
+            Cache cache = ReflectionUtils.<Cache>getFieldValue("modelCache", app.modelRepository()).orElseThrow();
+            Entity<Value> log = cache.get(ROOT.toString());
+            long recordedBoundary = ((ModelRoot<?>) log).stateIndex();
+            cache.remove(ROOT.toString());
+            var releaseUpdates = new CompletableFuture<Void>();
+            client.releaseUpdates = releaseUpdates;
+            try {
+                // Erase from a separate storage caller, without the reader's local invalidation.
+                client.storageDelegate.deleteModel(DeleteModel.builder().deletionId("erase-source")
+                        .modelId(dependency.toString()).cascade(ModelDeletionCascade.NONE).maxModels(1).build()).join();
+                assertNotNull(cache.get(dependency.toString()));
+
+                int observations = app.apply(fc -> historicalRead
+                        ? Fluxzero.loadGraph(ROOT).atStateIndex(recordedBoundary).get().revision()
+                        : Fluxzero.loadModel(ROOT).get().revision());
+                assertEquals(0, observations);
+            } finally {
+                releaseUpdates.complete(null);
+            }
+        }
+    }
+
+    record AppendObservation(ValueId valueId, ValueId source) {
+        @Apply Value append(@jakarta.annotation.Nullable Value before) {
+            Value observed = Fluxzero.loadModel(source).get();
+            return new Value(valueId, (before == null ? 0 : before.revision()) + (observed == null ? 0 : observed.revision()));
+        }
+    }
+
     private static Fluxzero app(LocalClient client) {
         return DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
     }
@@ -429,13 +559,30 @@ class GraphPinnedReadCostTest {
         @Apply Value apply(Value before) { return new Value(valueId, before.revision() + 1); }
     }
 
+    @Model(searchable = false)
+    record ParentRoot(@EntityId String id) {}
+
+    record PutParentRoot(String id) {
+        @Apply ParentRoot apply() { return new ParentRoot(id); }
+    }
+
+    @Model(searchable = false)
+    record Child(@EntityId String id, @Parent(value = ParentRoot.class, pathInParent = "children") String parent) {}
+
+    record PutChild(String id, String parent) {
+        @Apply Child apply(@jakarta.annotation.Nullable Child previous) { return new Child(id, parent); }
+    }
+
     record Read(GetModelEvents request, GetModelEventsResult.Metric result) {}
 
     /** Observes real in-memory storage; model responses are never synthesized. */
     private static final class ObservedClient extends LocalClient {
         final List<Read> reads = new CopyOnWriteArrayList<>();
+        final List<GetModelChange> changeReads = new CopyOnWriteArrayList<>();
+        final List<GetModelGraph> graphReads = new CopyOnWriteArrayList<>();
         private final BlockingQueue<TrackModelUpdates> trackingRequests = new LinkedBlockingQueue<>();
         private EventStoreClient storageDelegate;
+        private volatile CompletableFuture<Void> releaseUpdates;
 
         ObservedClient() { super(null); }
 
@@ -451,9 +598,23 @@ class GraphPinnedReadCostTest {
                 return result;
             }).when(observed).getModelEvents(any());
             doAnswer(invocation -> {
+                GetModelChange request = invocation.getArgument(0);
+                changeReads.add(request);
+                return storage.getModelChange(request);
+            }).when(observed).getModelChange(any());
+            doAnswer(invocation -> {
+                GetModelGraph request = invocation.getArgument(0);
+                graphReads.add(request);
+                return storage.getModelGraph(request);
+            }).when(observed).getModelGraph(any());
+            doAnswer(invocation -> {
                 TrackModelUpdates request = invocation.getArgument(0);
-                if (request.getMaxWaitMillis() > 0) { trackingRequests.add(request); }
-                return storage.trackModelUpdates(request);
+                if (request.getMaxWaitMillis() <= 0) { return storage.trackModelUpdates(request); }
+                trackingRequests.add(request);
+                return storage.trackModelUpdates(request).thenCompose(page -> {
+                    var release = releaseUpdates;
+                    return release == null ? CompletableFuture.completedFuture(page) : release.thenApply(ignored -> page);
+                });
             }).when(observed).trackModelUpdates(any());
             return observed;
         }

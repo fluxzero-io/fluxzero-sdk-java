@@ -32,6 +32,7 @@ import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
+import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
@@ -112,6 +113,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -918,9 +920,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                 modelId, modelType, MutationPlan.Access.READ_ONLY,
                 List.of(metadata.entityId().orElseThrow().name()));
-        CommitAttempt context = replayCursor.contextWithHeadProbe(
-                new MutationPlan.Resolution(List.of(target), List.of()),
-                boundary, modelCacheTracker, handlerBoundary != null, probe);
+        var resolution = new MutationPlan.Resolution(List.of(target), List.of());
+        CommitAttempt context = coveredReplayContext(resolution, boundary, handlerBoundary);
+        if (context == null) {
+            context = replayCursor.contextWithHeadProbe(resolution, boundary, modelCacheTracker,
+                                                       handlerBoundary != null, probe);
+        }
         pin(handlerBoundary, context.readStateIndex());
         return context;
     }
@@ -963,12 +968,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         MutationPlan.Access.READ_ONLY,
                         List.of(idProperty)))
                 .toList();
-        PinnedBoundary handlerBoundary = handlerBoundary();
-        CommitAttempt context = loadContext(
-                new MutationPlan.Resolution(targets, List.of()),
-                boundary(handlerBoundary),
-                Map.of(), true);
-        pin(handlerBoundary, context.readStateIndex());
+        CommitAttempt context = loadContext(new MutationPlan.Resolution(targets, List.of()));
         return context.modelIds().stream()
                 .map(context::entity)
                 .map(DefaultModelRepository::<T>cast)
@@ -1497,6 +1497,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                && current.getMessageType() != NOTIFICATION) {
             return null;
         }
+        CommitAttempt replay = CommitAttempt.currentReplayContext(this);
+        if (replay != null) {
+            // Do not share a replay-derived pin through the message's context with other repositories.
+            ModelReadBoundary published = ModelEventMetadata.readBoundary(current.getMetadata());
+            ModelEventMembership membership = replay.replayMembership();
+            if (published != null && published.commitId().equals(membership.getCommitId())
+                && published.substep() == membership.getSubstep()) {
+                return new PinnedBoundary(published, membership.getStateIndex(), replay.replayStorageFence());
+            }
+        }
         return current.computeContextIfAbsent(
                         PinnedBoundary.class,
                         message -> {
@@ -1508,10 +1518,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private static final class PinnedBoundary {
         private final ModelReadBoundary source;
+        private final LongSupplier replayStorageFence;
         private Long stateIndex;
 
         private PinnedBoundary(ModelReadBoundary source) {
+            this(source, null, null);
+        }
+
+        private PinnedBoundary(ModelReadBoundary source, Long stateIndex, LongSupplier replayStorageFence) {
             this.source = source;
+            this.replayStorageFence = replayStorageFence;
+            this.stateIndex = stateIndex;
         }
 
         private synchronized ModelReadBoundary request() {
@@ -1560,10 +1577,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             MutationPlan.Resolution resolution) {
         PinnedBoundary handlerBoundary =
                 handlerBoundary();
-        CommitAttempt context = loadContext(
-                resolution, boundary(handlerBoundary), Map.of(), true);
+        ModelReadBoundary boundary = boundary(handlerBoundary);
+        CommitAttempt context = coveredReplayContext(resolution, boundary, handlerBoundary);
+        if (context != null) {
+            return overlayPendingContext(context);
+        }
+        context = loadContext(resolution, boundary, Map.of(), true);
         pin(handlerBoundary, context.readStateIndex());
         return context;
+    }
+
+    private CommitAttempt coveredReplayContext(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
+                                               PinnedBoundary handlerBoundary) {
+        return handlerBoundary != null && handlerBoundary.replayStorageFence != null
+                ? replayCursor.coveredReplayContext(
+                        resolution, boundary, modelCacheTracker, handlerBoundary.replayStorageFence)
+                : null;
     }
 
     /**

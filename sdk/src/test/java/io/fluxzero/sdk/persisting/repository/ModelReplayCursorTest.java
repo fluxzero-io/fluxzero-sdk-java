@@ -105,7 +105,7 @@ class ModelReplayCursorTest {
                 .value(new CachedReplayModel("canonical")).sequenceNumber(changed ? 1L : 0L)
                 .stateIndex(changed ? 11L : 10L).build();
         when(tracker.peekCurrentVersion("canonical", CachedReplayModel.class))
-                .thenReturn(new ModelCacheTracker.CurrentModel(root, 20L, root.stateIndex()));
+                .thenReturn(new ModelCacheTracker.CurrentModel(root, 20L, root.stateIndex(), 20L));
         var source = new ModelGraphResolver.HeadValue() {
             @Override public Class<?> type() { return CachedReplayModel.class; }
             @Override public ModelHeadState head() {
@@ -195,7 +195,7 @@ class ModelReplayCursorTest {
                 .value(mode.equals("empty-alias") ? null : new AliasedCacheModel("cached", "friendly"))
                 .stateIndex(mode.equals("newer-value") ? 31L : 10L).sequenceNumber(0L).build();
         when(tracker.currentVersion("cached", AliasedCacheModel.class))
-                .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, root.stateIndex()));
+                .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, root.stateIndex(), 30L));
         when(client.getModelEvents(any())).thenAnswer(invocation -> {
             GetModelEvents request = invocation.getArgument(0);
             return new GetModelEventsResult(request.getRequestId(), 42L, List.of(),
@@ -229,7 +229,7 @@ class ModelReplayCursorTest {
         var root = ImmutableModelRoot.<CachedReplayModel>builder().id("cached").type(CachedReplayModel.class)
                 .value(new CachedReplayModel("cached")).stateIndex(10L).sequenceNumber(0L).build();
         when(tracker.peekCurrentVersion("cached", CachedReplayModel.class))
-                .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, 10L));
+                .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, 10L, 30L));
         ModelReplayCursor cursor = new ModelReplayCursor(client, mock(JacksonSerializer.class),
                 mock(EntityHelper.class), new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, null, null);
 
@@ -258,7 +258,7 @@ class ModelReplayCursorTest {
                 .value(mode.equals("missing") ? null : new CachedReplayModel("cached"))
                 .stateIndex(mode.equals("newer-value") ? 21L : 10L).sequenceNumber(0L).build();
         when(tracker.peekCurrentVersion("cached", CachedReplayModel.class)).thenReturn(mode.equals("no-proof") ? null
-                : new ModelCacheTracker.CurrentModel(root, mode.equals("older-proof") ? 19L : 30L, root.stateIndex()));
+                : new ModelCacheTracker.CurrentModel(root, mode.equals("older-proof") ? 19L : 30L, root.stateIndex(), 30L));
         when(client.getModelEvents(any())).thenAnswer(invocation -> {
             GetModelEvents request = invocation.getArgument(0);
             return new GetModelEventsResult(request.getRequestId(), 20L, List.of(),
@@ -336,7 +336,7 @@ class ModelReplayCursorTest {
         ModelCache cache = new ModelCache(new DefaultCache());
         cache.put(id, root);
         when(tracker.peekCurrentVersion(id, CachedMixedModel.class))
-                .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, 10L));
+                .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, 10L, 30L));
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelEvents(any())).thenAnswer(invocation -> {
             GetModelEvents request = invocation.getArgument(0);
