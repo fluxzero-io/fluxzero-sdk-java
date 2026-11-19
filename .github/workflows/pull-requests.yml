@@ -9,6 +9,20 @@ env:
 
 jobs:
   build-pr:
+    needs: build-sdk
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require both supported Java builds
+        env:
+          BUILD_RESULT: ${{ needs.build-sdk.result }}
+        run: test "$BUILD_RESULT" = success
+
+  build-sdk:
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['21.0.13.1+2', '25.0.5.1+2']
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
@@ -53,7 +67,7 @@ jobs:
         uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
-          java-version: '25.0.5.1+2'
+          java-version: ${{ matrix.java }}
           cache: 'maven'
 
       - name: Test release title policy
@@ -78,7 +92,7 @@ jobs:
         if: always() && steps.changes.outputs.documentation_only != 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: test-reports
+          name: test-reports-java-${{ matrix.java }}
           path: '**/target/surefire-reports/**'
           if-no-files-found: warn
           retention-days: 14
