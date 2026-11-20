@@ -160,9 +160,9 @@ public final class GraphChangeHandlerDecorator {
                 Object result = null;
                 boolean first = true;
                 LinkedHashSet<GraphKey> handled = new LinkedHashSet<>();
+                GraphChanges changes = loadGraphChanges(message);
                 for (GraphHandler graphHandler : graphHandlers) {
-                    for (Graph<?> graph : changedGraphs(
-                            message, graphHandler.modelType())) {
+                    for (Graph<?> graph : changes.graphs(graphHandler.modelType())) {
                         if (!handled.add(new GraphKey(
                                 graph.id().toString(), graph.type(), graph.stateIndex()))) {
                             continue;
@@ -299,17 +299,14 @@ public final class GraphChangeHandlerDecorator {
         return ModelEventMetadata.readBoundary(message.getMetadata()) != null;
     }
 
-    private static <T> List<Graph<T>> changedGraphs(
-            DeserializingMessage message,
-            Class<T> rootType) {
+    private static GraphChanges loadGraphChanges(DeserializingMessage message) {
         Fluxzero fluxzero = Fluxzero.get();
         String namespace = getConsumerNamespace(message);
         ModelReadBoundary boundary = ModelEventMetadata.readBoundary(message.getMetadata());
         String commitId = boundary.commitId();
         int substep = boundary.substep();
-        GetModelChangeResult change = fluxzero.client()
-                .forNamespace(namespace).getEventStoreClient()
-                .getModelChange(new GetModelChange(commitId, substep));
+        var eventStore = fluxzero.client().forNamespace(namespace).getEventStoreClient();
+        GetModelChangeResult change = eventStore.getModelChange(new GetModelChange(commitId, substep));
         if (message.getIndex() != null
             && change.getEventIndex() != null
             && !message.getIndex().equals(change.getEventIndex())) {
@@ -328,27 +325,46 @@ public final class GraphChangeHandlerDecorator {
                 MutationPlan.resolveReferencedModels(message.getPayload())) {
             payloadTypes.put(referenced.modelId(), referenced.modelType());
         }
-        List<Graph<T>> result = graphsForChange(change, rootType, repository, ancestors, payloadTypes, false);
-        List<Integer> cascades = ModelEventMetadata.cascadeSubsteps(message.getMetadata());
-        if (cascades.isEmpty()) {
-            return result;
-        }
-        result = new ArrayList<>(result);
-        for (int cascade : cascades) {
-            GetModelChangeResult deletion = fluxzero.client().forNamespace(namespace).getEventStoreClient()
-                    .getModelChange(new GetModelChange(commitId, cascade));
+        List<GetModelChangeResult> cascades = new ArrayList<>();
+        for (int cascade : ModelEventMetadata.cascadeSubsteps(message.getMetadata())) {
+            GetModelChangeResult deletion = eventStore.getModelChange(new GetModelChange(commitId, cascade));
             if (deletion.getEventIndex() != null || deletion.getStateIndex() <= change.getStateIndex()) {
                 throw new IllegalStateException("Model cascade reference does not identify a later internal change");
             }
-            // Keep the cascade's own boundary, including surviving ancestors in shared graphs.
-            result.addAll(graphsForChange(deletion, rootType, repository, ancestors, payloadTypes, true));
+            cascades.add(deletion);
         }
-        return List.copyOf(result);
+        return new GraphChanges(repository, ancestors, payloadTypes, change, cascades, new LinkedHashMap<>());
+    }
+
+    private record GraphChanges(ModelRepository repository, ModelAncestorResolver ancestors,
+                                Map<String, Class<?>> payloadTypes, GetModelChangeResult change,
+                                List<GetModelChangeResult> cascades, Map<AncestryKey, List<GraphRoot>> ancestry) {
+        private <T> List<Graph<T>> graphs(Class<T> rootType) {
+            List<Graph<T>> result = graphsForChange(change, rootType, this, false);
+            if (cascades.isEmpty()) { return result; }
+            result = new ArrayList<>(result);
+            for (GetModelChangeResult deletion : cascades) {
+                // Keep the cascade's own boundary, including surviving ancestors in shared graphs.
+                result.addAll(graphsForChange(deletion, rootType, this, true));
+            }
+            return List.copyOf(result);
+        }
+
+        private <T> void addMetadataAncestors(Map<String, Class<? extends T>> roots, String targetId,
+                                              Class<T> rootType, long stateIndex) {
+            for (GraphRoot root : ancestry.computeIfAbsent(new AncestryKey(targetId, stateIndex),
+                    key -> loadMetadataAncestors(repository, key))) {
+                if (rootType.isAssignableFrom(root.type())) {
+                    roots.putIfAbsent(root.id(), root.type().asSubclass(rootType));
+                }
+            }
+        }
     }
 
     private static <T> List<Graph<T>> graphsForChange(GetModelChangeResult change, Class<T> rootType,
-                                                     ModelRepository repository, ModelAncestorResolver ancestors,
-                                                     Map<String, Class<?>> payloadTypes, boolean cascade) {
+                                                     GraphChanges changes, boolean cascade) {
+        ModelRepository repository = changes.repository();
+        Map<String, Class<?>> payloadTypes = changes.payloadTypes();
         List<ModelChangeTarget> targets = change.getTargets().isEmpty()
                 ? payloadTypes.entrySet().stream()
                         .map(entry -> new ModelChangeTarget(
@@ -364,9 +380,9 @@ public final class GraphChangeHandlerDecorator {
             Class<?> targetType = targetType(
                     target, payloadTypes, repository);
             if (targetType == null) {
-                addMetadataAncestors(roots, target.getModelId(), rootType, repository, currentState);
+                changes.addMetadataAncestors(roots, target.getModelId(), rootType, currentState);
                 if (previousState >= -1L) {
-                    addMetadataAncestors(roots, target.getModelId(), rootType, repository, previousState);
+                    changes.addMetadataAncestors(roots, target.getModelId(), rootType, previousState);
                 }
                 continue;
             }
@@ -377,17 +393,17 @@ public final class GraphChangeHandlerDecorator {
             }
             if (repository instanceof ModelGraphResolver resolver && resolver.documentFallbackEnabled()) {
                 // Discover affected roots without materializing unavailable historical document values.
-                addMetadataAncestors(roots, target.getModelId(), rootType, repository, currentState);
+                changes.addMetadataAncestors(roots, target.getModelId(), rootType, currentState);
                 if (previousState >= -1L) {
-                    addMetadataAncestors(roots, target.getModelId(), rootType, repository, previousState);
+                    changes.addMetadataAncestors(roots, target.getModelId(), rootType, previousState);
                 }
                 continue;
             }
-            addRoots(roots, ancestors.loadAncestorGraphs(
+            addRoots(roots, changes.ancestors().loadAncestorGraphs(
                     target.getModelId(), targetType, rootType,
                     ModelReadBoundary.state(currentState, false)));
             if (previousState >= -1L) {
-                addRoots(roots, ancestors.loadAncestorGraphs(
+                addRoots(roots, changes.ancestors().loadAncestorGraphs(
                         target.getModelId(), targetType, rootType,
                         ModelReadBoundary.state(previousState, false)));
             }
@@ -415,29 +431,37 @@ public final class GraphChangeHandlerDecorator {
         return List.copyOf(result);
     }
 
-    private static <T> void addMetadataAncestors(Map<String, Class<? extends T>> roots, String targetId,
-                                                     Class<T> rootType, ModelRepository repository, long stateIndex) {
+    private static List<GraphRoot> loadMetadataAncestors(ModelRepository repository, AncestryKey key) {
         if (!(repository instanceof ModelGraphResolver resolver)) {
             throw new UnsupportedOperationException("Unknown Graph-change targets require metadata-only ancestor resolution");
         }
         LinkedHashSet<String> visited = new LinkedHashSet<>();
-        List<String> frontier = List.of(targetId);
+        LinkedHashSet<GraphRoot> roots = new LinkedHashSet<>();
+        List<String> frontier = List.of(key.modelId());
+        var boundary = ModelReadBoundary.state(key.stateIndex(), false);
         while (!frontier.isEmpty()) {
             visited.addAll(frontier);
             ModelGraphResolver.Relations relations = resolver.loadGraphRelations(frontier,
-                    ModelRelationshipRead.Direction.PARENTS, ModelReadBoundary.state(stateIndex, false), Map.of(), true);
-            if (!Objects.equals(relations.boundary().stateIndex(), stateIndex)) {
+                    ModelRelationshipRead.Direction.PARENTS, boundary, Map.of(), true);
+            if (!Objects.equals(relations.boundary().stateIndex(), key.stateIndex())) {
                 throw new IllegalStateException("Graph-change ancestors moved their pinned boundary");
             }
+            // A resolver may return the full closure or only the requested direct collections.
+            visited.addAll(relations.completeCollections());
             relations.models().values().forEach(node -> {
-                if (!node.id().equals(targetId) && node.knownType() != null && rootType.isAssignableFrom(node.knownType())) {
-                    roots.putIfAbsent(node.id(), node.knownType().asSubclass(rootType));
+                if (!node.id().equals(key.modelId()) && node.knownType() != null) {
+                    roots.add(new GraphRoot(node.id(), node.knownType()));
                 }
             });
             frontier = relations.edges().stream().map(edge -> edge.getParentId())
                     .filter(id -> !visited.contains(id)).distinct().toList();
         }
+        return List.copyOf(roots);
     }
+
+    private record AncestryKey(String modelId, long stateIndex) {}
+
+    private record GraphRoot(String id, Class<?> type) {}
 
     private static Class<?> targetType(
             ModelChangeTarget target,

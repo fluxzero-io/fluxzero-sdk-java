@@ -54,6 +54,7 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig;
+import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.GatewayException;
@@ -628,12 +629,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
-    private Object captureCorrelationData() {
+    Object captureCorrelationData() {
         CorrelationDataProvider provider = Fluxzero.getOptionally().map(Fluxzero::correlationDataProvider)
                 .orElse(DefaultCorrelationDataProvider.INSTANCE);
-        return provider == DefaultCorrelationDataProvider.INSTANCE
-                ? DefaultCorrelationDataProvider.INSTANCE.getCorrelationMetadata(DeserializingMessage.getCurrent())
-                : provider.getCorrelationData();
+        DeserializingMessage current = DeserializingMessage.getCurrent();
+        DeserializingMessage trigger = ImmutableRoot.storageRequestTrigger(current);
+        if (provider == DefaultCorrelationDataProvider.INSTANCE) {
+            return DefaultCorrelationDataProvider.INSTANCE.getCorrelationMetadata(trigger);
+        }
+        return trigger == current ? provider.getCorrelationData()
+                : DeserializingMessage.withCurrent(trigger, provider::getCorrelationData);
     }
 
     @SuppressWarnings("unchecked")
@@ -1615,6 +1620,20 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
+    private static void publishCorrelatedMetric(Object metric, Metadata metadata) {
+        DeserializingMessage current = DeserializingMessage.getCurrent();
+        DeserializingMessage trigger = ImmutableRoot.storageRequestTrigger(current);
+        if (trigger == current) {
+            publishMetrics(metric, metadata);
+        } else {
+            // Metric dispatch also adds correlation metadata, so it must see the same trigger as capture.
+            DeserializingMessage.withCurrent(trigger, () -> {
+                publishMetrics(metric, metadata);
+                return null;
+            });
+        }
+    }
+
     protected void tryPublishMetrics(JsonType message, Metadata metadata) {
         if (!metricsEnabled()) {
             return;
@@ -1623,7 +1642,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             Object metric = message.toMetric();
             if (metric != null) {
                 Fluxzero.getOptionally().ifPresentOrElse(
-                        f -> publishMetrics(metric, metadata),
+                        f -> publishCorrelatedMetric(metric, metadata),
                         () -> client.getGatewayClient(METRICS).append(
                                 STORED, asMessage(metric).addMetadata(metadata).serialize(getFallbackSerializer())));
             }

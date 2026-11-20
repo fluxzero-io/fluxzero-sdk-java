@@ -192,6 +192,9 @@ operation; inspect the result for its outcome. See <Jdoclink className="JsonType
 
 ### Model commits
 
+Synchronous storage work during Model replay is correlated to the request that initiated reconstruction. The stored
+event remains the message used by the reducer. A background replay does not inherit a historical event's trace.
+
 | Metric message | Description |
 |----------------|-------------|
 | **CommitModels$Metric** | Summarizes an atomic Model commit request. |

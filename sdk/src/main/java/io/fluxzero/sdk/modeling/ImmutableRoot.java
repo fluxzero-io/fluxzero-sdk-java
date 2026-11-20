@@ -16,6 +16,8 @@ package io.fluxzero.sdk.modeling;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.fluxzero.sdk.common.ThreadLocalContext;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -26,6 +28,7 @@ import lombok.experimental.SuperBuilder;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.Optional;
 
 import static io.fluxzero.sdk.Fluxzero.currentTime;
 
@@ -42,6 +45,17 @@ import static io.fluxzero.sdk.Fluxzero.currentTime;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString(callSuper = true)
 public abstract class ImmutableRoot<T> extends ImmutableEntity<T> implements PersistedRoot<T> {
+    private static final ThreadLocal<Optional<DeserializingMessage>> replayTrigger = ThreadLocalContext.create();
+
+    /**
+     * Returns the message responsible for runtime I/O. Replayed event metadata remains the context for application
+     * code, while transport metrics use the request that caused the reconstruction.
+     */
+    public static DeserializingMessage storageRequestTrigger(DeserializingMessage current) {
+        var trigger = replayTrigger.get();
+        return trigger == null ? current : trigger.orElse(null);
+    }
+
     /** Source-visible builder owner shared by Aggregate and Model roots. */
     public abstract static class ImmutableRootBuilder<
             T, C extends ImmutableRoot<T>,
@@ -86,7 +100,11 @@ public abstract class ImmutableRoot<T> extends ImmutableEntity<T> implements Per
         var previousRoutes = new LinkedHashMap<>(ImmutableEntity.snapshotLoadingRouteCache());
         var previousEntities = new LinkedHashMap<>(AnnotatedEntityHolder.snapshotLoadingEntityCache());
         var previousRouteValues = new LinkedHashMap<>(AnnotatedEntityHolder.snapshotLoadingRouteValuesCache());
+        boolean ownsReplayTrigger = replayTrigger.get() == null;
         try {
+            if (ownsReplayTrigger) {
+                replayTrigger.set(Optional.ofNullable(DeserializingMessage.getCurrent()));
+            }
             Entity.loading.set(true);
             ImmutableEntity.clearLoadingRouteCache();
             AnnotatedEntityHolder.clearLoadingEntityCache();
@@ -109,6 +127,7 @@ public abstract class ImmutableRoot<T> extends ImmutableEntity<T> implements Per
             AnnotatedEntityHolder.restoreLoadingEntityCache(previousEntities);
             ImmutableEntity.restoreLoadingRouteCache(previousRoutes);
             Entity.loading.set(wasLoading);
+            if (ownsReplayTrigger) { replayTrigger.remove(); }
         }
     }
 

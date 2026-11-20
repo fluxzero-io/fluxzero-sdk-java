@@ -83,6 +83,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -1486,6 +1487,25 @@ final class ModelReplayCursor {
         return new CurrentProjection(current.validThrough(), Map.of(target.modelId(), current.entity()));
     }
 
+    CommitAttempt coveredReplayContext(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
+                                       ModelCacheTracker cacheTracker, LongSupplier storageFence) {
+        if (cacheTracker == null || resolution.hasAncestorDependencies() || resolution.models().isEmpty()) {
+            return null;
+        }
+        var entities = new LinkedHashMap<String, Entity<?>>();
+        for (var target : resolution.models()) {
+            var configuration = EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow();
+            // A document can hold state with no complete durable Model history.
+            if (target.access().writes() || configuration.directDocument()) { return null; }
+            var value = coveredVersion(target.modelId(), target.modelType(), boundary, cacheTracker);
+            // Erasure applies to past states too. Local publication may advance an entry's proof without
+            // advancing the tracker, so require the processed cursor that was observed with this value.
+            if (value == null || value.observedCursor() < storageFence.getAsLong()) { return null; }
+            entities.put(target.modelId(), value.entity());
+        }
+        return CommitAttempt.create(boundary.stateIndex(), resolution, entities);
+    }
+
     Map<String, ModelGraphResolver.Identity> boundGraphIdentities(
             Map<String, Class<?>> modelTypes, ModelReadBoundary boundary, ModelCacheTracker cacheTracker) {
         if (modelTypes.isEmpty()) { return Map.of(); }
@@ -1708,7 +1728,13 @@ final class ModelReplayCursor {
 
     private Entity<?> cachedGraphValue(String id, Class<?> type, ModelReadBoundary boundary,
                                         boolean historical, ModelCacheTracker cacheTracker) {
-        if (cacheTracker != null && !historical && !boundary.before() && boundary.stateIndex() != null
+        var version = historical ? null : coveredVersion(id, type, boundary, cacheTracker);
+        return version == null ? null : version.entity();
+    }
+
+    private ModelCacheTracker.CurrentModel coveredVersion(String id, Class<?> type, ModelReadBoundary boundary,
+                                                          ModelCacheTracker cacheTracker) {
+        if (cacheTracker != null && !boundary.before() && boundary.stateIndex() != null
             && boundary.commitId() == null && boundary.eventIndex() == null
             && type != Object.class && EntityMetadata.validate(type).rootConfiguration().orElseThrow().eventSourced()) {
             ModelCacheTracker.CurrentModel cached = cacheTracker.peekCurrentVersion(id, type);
@@ -1717,7 +1743,7 @@ final class ModelReplayCursor {
                 && cached.modelStateIndex() <= boundary.stateIndex() && boundary.stateIndex() <= cached.validThrough()) {
                 // The mutation already owns a boundary. Reuse only a canonical value proved valid at that exact
                 // boundary, never a root revision as evidence of namespace freshness or an alias mapping.
-                return cached.entity();
+                return cached;
             }
         }
         return null;
@@ -2523,9 +2549,31 @@ final class ModelReplayCursor {
 
     final class Session {
         private final Map<String, Entity<?>> deferredCacheUpdates;
+        private final LongSupplier replayStorageFence = this::replayStorageFence;
+        private volatile long observedStorageBoundary = Long.MIN_VALUE;
 
         private Session(Map<String, Entity<?>> deferredCacheUpdates) {
             this.deferredCacheUpdates = deferredCacheUpdates;
+        }
+
+        private long replayStorageFence() {
+            long observed = observedStorageBoundary;
+            return observed == Long.MIN_VALUE ? readReplayStorageFence() : observed;
+        }
+
+        private synchronized long readReplayStorageFence() {
+            if (observedStorageBoundary == Long.MIN_VALUE) {
+                observedStorageBoundary = loadHeads(List.of(), ModelReadBoundary.current()).stateIndex();
+            }
+            return observedStorageBoundary;
+        }
+
+        private void observeReplayStorageBoundary(long stateIndex) {
+            // All pages of an unpinned read share one storage boundary. A historical page alone is not
+            // evidence that erasures through the current storage position have been observed.
+            if (observedStorageBoundary == Long.MIN_VALUE) {
+                observedStorageBoundary = stateIndex;
+            }
         }
 
         private final Map<ViewKey, Entity<?>> reconstructed =
@@ -2775,6 +2823,9 @@ final class ModelReplayCursor {
                                         }
                                     }
                                 }
+                                if (!window.boundary().historical()) {
+                                    observeReplayStorageBoundary(page.response().getStateIndex());
+                                }
                                 applyPage(page, states, window);
                             }, probe);
             LinkedHashMap<String, Entity<?>> cacheCandidates =
@@ -2893,6 +2944,7 @@ final class ModelReplayCursor {
             Map<ModelKey, Entity<?>> bases = Collections.singletonMap(new ModelKey(id, target.modelType()), base);
             Map<String, ModelHeadState> heads = Collections.singletonMap(id, head);
             long boundary = response.getEvents().getStateIndex();
+            observeReplayStorageBoundary(boundary);
             ReconstructionBatch result = reconstruct(List.of(target),
                     ReplayWindow.complete(window.boundary().resolved(boundary)), cacheAtBoundary,
                     page == null ? null : new HeadProbe(page), null, heads, readTokens, bases);
@@ -3520,7 +3572,8 @@ final class ModelReplayCursor {
             try {
                 context.withReplayReads(repository, membership.getSubstep() == 0
                         ? ModelReadBoundary.at(membership.getReadStateIndex())
-                        : ModelReadBoundary.commit(membership.getCommitId(), membership.getSubstep() - 1));
+                        : ModelReadBoundary.commit(membership.getCommitId(), membership.getSubstep() - 1),
+                        membership, replayStorageFence);
                 DeserializingMessage replayEvent = definition.direct()
                         ? event : new DeserializingMessage(
                                 event.toMessage(), EVENT, null, serializer);
@@ -3560,7 +3613,7 @@ final class ModelReplayCursor {
                         membership.getSubstep(), membership.getStateIndex()));
             }
             return CommitAttempt.create(context.readStateIndex(), resolution, loaded)
-                    .withReplayReads(repository, context.graphReadBoundary());
+                    .withReplayReads(repository, context.graphReadBoundary(), membership, replayStorageFence);
         }
 
         private List<DeserializingMessage> deserialize(

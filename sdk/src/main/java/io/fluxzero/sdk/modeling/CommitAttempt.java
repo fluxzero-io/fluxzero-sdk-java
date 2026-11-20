@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelRelationshipRead;
@@ -55,6 +56,8 @@ public final class CommitAttempt {
     private ModelReducer.SubstepResolver readResolver;
     private ModelRepository replayRepository;
     private ModelReadBoundary replayBoundary;
+    private ModelEventMembership replayMembership;
+    private LongSupplier replayStorageFence;
     private Map<String, Class<?>> graphReadTypes;
     private Map<String, Entity<?>> graphReadEntities;
     private Map<String, Entity<?>> graphOverlayEntities;
@@ -192,10 +195,23 @@ public final class CommitAttempt {
     }
 
     /** Binds replay reads to their original input without joining live mutation/conflict tracking. */
-    public CommitAttempt withReplayReads(ModelRepository repository, ModelReadBoundary boundary) {
+    public CommitAttempt withReplayReads(ModelRepository repository, ModelReadBoundary boundary,
+                                         ModelEventMembership membership, LongSupplier storageFence) {
         replayRepository = repository;
         replayBoundary = boundary;
+        replayMembership = membership;
+        replayStorageFence = storageFence;
         return this;
+    }
+
+    /** The stored event currently being applied, independent of its published message metadata. */
+    public ModelEventMembership replayMembership() {
+        return replayMembership;
+    }
+
+    /** Lazily supplies the durable erasure fence of the reconstruction that is applying this event. */
+    public LongSupplier replayStorageFence() {
+        return replayStorageFence;
     }
 
     /** Returns this repository's active replay input; never borrows another application's or namespace's context. */
@@ -1082,6 +1098,8 @@ public final class CommitAttempt {
         result.deferredBoundary = deferredBoundary;
         result.replayRepository = replayRepository;
         result.replayBoundary = replayBoundary;
+        result.replayMembership = replayMembership;
+        result.replayStorageFence = replayStorageFence;
         result.graphReadOwner = graphReadOwner;
         result.readCollector = readCollector;
         if (graphUpdated != null) {

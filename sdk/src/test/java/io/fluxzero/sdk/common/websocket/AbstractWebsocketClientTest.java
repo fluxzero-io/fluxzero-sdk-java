@@ -29,6 +29,7 @@ import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.VoidResult;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.api.tracking.Read;
@@ -38,9 +39,18 @@ import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.common.websocket.WebSocketTransportCodecs;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.SdkVersion;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import io.fluxzero.sdk.modeling.ImmutableRoot;
+import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
+import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.Invocation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -228,6 +238,84 @@ class AbstractWebsocketClientTest {
         assertEquals(Metadata.of("keep", "custom"),
                      AbstractWebsocketClient.applyCorrelationData(base, custom));
         assertEquals(base, AbstractWebsocketClient.applyCorrelationData(base, null));
+    }
+
+    @Test
+    void storageMetricsKeepTheActiveRequestTraceDuringReplay() {
+        var serializer = new JacksonSerializer();
+        var request = new DeserializingMessage(
+                new Message("load", Metadata.of("$traceId", "active-trace")), MessageType.QUERY, serializer);
+        var stored = new DeserializingMessage(
+                new Message("stored", Metadata.of("$traceId", "stored-trace")), MessageType.EVENT, serializer);
+        var config = WebSocketClient.ClientConfig.builder().runtimeBaseUrl("ws://localhost").name("trace-test").build();
+        try (var client = new TestClient(mock(WebsocketConnector.class), config)) {
+            request.run(message -> Invocation.performInvocation(() -> {
+                String invocation = Invocation.getCurrent().getId();
+                ImmutableRoot.replay(0, List.of(stored).iterator(), (offset, event) -> event.apply(ignored -> {
+                    assertEquals("stored-trace", DeserializingMessage.getCurrent().getMetadata().get("$traceId"));
+                    Metadata metrics = (Metadata) client.captureCorrelationData();
+                    assertEquals("active-trace", metrics.get("$traceId"));
+                    assertEquals(message.getMessageId(), metrics.get("$correlationId"));
+                    assertEquals(invocation, metrics.get("$invocation"));
+                    return offset + 1;
+                }), (offset, event, failure) -> new IllegalStateException(failure));
+                assertEquals("active-trace", ((Metadata) client.captureCorrelationData()).get("$traceId"));
+                return null;
+            }));
+            ImmutableRoot.replay(0, List.of(stored).iterator(), (offset, event) -> event.apply(ignored -> {
+                assertNull(((Metadata) client.captureCorrelationData()).get("$traceId"));
+                return offset + 1;
+            }), (offset, event, failure) -> new IllegalStateException(failure));
+            stored.run(ignored ->
+                    assertEquals("stored-trace", ((Metadata) client.captureCorrelationData()).get("$traceId")));
+        }
+    }
+
+    @Test
+    void replayMetricsUseTheCustomProviderWithTheRequestContext() {
+        var serializer = new JacksonSerializer();
+        var request = new DeserializingMessage(
+                new Message("load", Metadata.of("$traceId", "active-trace")), MessageType.QUERY, serializer);
+        var stored = new DeserializingMessage(
+                new Message("stored", Metadata.of("$traceId", "stored-trace")), MessageType.EVENT, serializer);
+        CorrelationDataProvider custom = new CorrelationDataProvider() {
+            @Override
+            public Map<String, String> getCorrelationData() {
+                return Map.of("custom", DeserializingMessage.getCurrent().getMetadata().get("$traceId"));
+            }
+        };
+        var config = WebSocketClient.ClientConfig.builder().runtimeBaseUrl("ws://localhost").name("custom-trace").build();
+        try (var client = new TestClient(mock(WebsocketConnector.class), config);
+             var fluxzero = DefaultFluxzero.builder().disableShutdownHook().disableKeepalive()
+                     .replaceCorrelationDataProvider(ignored -> custom).build(LocalClient.newInstance())) {
+            fluxzero.execute(ignored -> request.run(message -> ImmutableRoot.replay(0, List.of(stored).iterator(),
+                    (offset, event) -> event.apply(current -> {
+                        assertEquals(Map.of("custom", "active-trace"), client.captureCorrelationData());
+                        assertEquals("stored-trace", DeserializingMessage.getCurrent().getMetadata().get("$traceId"));
+                        return offset + 1;
+                    }), (offset, event, failure) -> new IllegalStateException(failure))));
+        }
+    }
+
+    @Test
+    void publishingAReplayMetricDoesNotOverwriteItsActiveTrace() {
+        var serializer = new JacksonSerializer();
+        var request = new DeserializingMessage(
+                new Message("load", Metadata.of("$traceId", "active-trace")), MessageType.QUERY, serializer);
+        var stored = new DeserializingMessage(
+                new Message("stored", Metadata.of("$traceId", "stored-trace")), MessageType.EVENT, serializer);
+        var config = WebSocketClient.ClientConfig.builder().runtimeBaseUrl("ws://localhost").name("trace-dispatch").build();
+        var trackerRequest = new TrackModelUpdates(20L, 1, 0L);
+        try (var client = new TestClient(mock(WebsocketConnector.class), config)) {
+            TestFixture.create().whenExecuting(ignored -> request.run(message -> ImmutableRoot.replay(
+                    0, List.of(stored).iterator(), (offset, event) -> event.apply(current -> {
+                        Metadata metrics = (Metadata) client.captureCorrelationData();
+                        client.tryPublishMetrics(trackerRequest, metrics);
+                        return offset + 1;
+                    }), (offset, event, failure) -> new IllegalStateException(failure))))
+                    .expectSuccessfulResult().expectMetrics(
+                            new Message(trackerRequest.toMetric(), Metadata.of("$traceId", "active-trace")));
+        }
     }
 
     @Test
