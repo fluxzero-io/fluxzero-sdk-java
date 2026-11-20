@@ -137,7 +137,7 @@ public final class ModelCommitAssignment {
                     changed.put(change.childId(), true);
                 }
                 Set<String> deletedParents = relationshipStep.finalDeletedParentIds();
-                if (!deletedParents.isEmpty()) {
+                if (!description.source().preservesMigrationRelationships() && !deletedParents.isEmpty()) {
                     LinkedHashSet<String> children = new LinkedHashSet<>(overrides.keySet());
                     children.addAll(childLoader.load(deletedParents));
                     Set<String> missing = children.stream()

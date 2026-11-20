@@ -76,6 +76,7 @@ public final class ModelReducer {
     private final List<EmbeddedModelPlan> embedded;
     private final boolean dynamicMembers;
     private final boolean memberDependencies;
+    private final MigrationScope migrationScope;
     private final Map<Class<?>, List<MutationPlan.CompiledHandler>> memberInterceptors;
 
     ModelReducer(
@@ -97,6 +98,13 @@ public final class ModelReducer {
             MutationPlan.DirectSingleTargetApply directApply,
             List<MutationPlan.AssertionField> fields,
             MutationPlan.Compiler compiler, List<EmbeddedModelPlan> embedded) {
+        this(handlers, directApply, fields, compiler, embedded, null);
+    }
+
+    ModelReducer(MutationPlan.HandlerPlan handlers, MutationPlan.DirectSingleTargetApply directApply,
+                 List<MutationPlan.AssertionField> fields, MutationPlan.Compiler compiler,
+                 List<EmbeddedModelPlan> embedded, MigrationScope migrationScope) {
+        this.migrationScope = migrationScope;
         this.embedded = embedded;
         this.dynamicMembers = embedded.stream().anyMatch(EmbeddedModelPlan::dynamic);
         this.memberDependencies = embedded.stream().anyMatch(EmbeddedModelPlan::lateDependencies);
@@ -659,7 +667,10 @@ public final class ModelReducer {
             assertAll(afterModelAssertions, message, resultingState, true, assertionLoader);
             assertEmbedded(message, resultingState, true, assertionLoader);
         }
-        return transitions;
+        // Preserve valid dynamic outputs during same-event phase composition, as cold replay does.
+        // Only the selected Models may become durable or enter the next migration substep.
+        return migrationScope == null ? transitions : transitions.stream()
+                .filter(change -> migrationScope.includes(change.modelType())).toList();
     }
 
     private void assertEmbedded(DeserializingMessage message, CommitAttempt context,

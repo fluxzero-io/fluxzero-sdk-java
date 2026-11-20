@@ -64,6 +64,17 @@ public final class WebSocketCapabilities {
                 .anyMatch("1"::equals);
     }
 
+    /** Durable source-event boundaries for migration-derived internal substeps. */
+    public static final String MODEL_MIGRATION_EVENT_RANGES_HEADER = "Fluxzero-Model-Migration-Event-Ranges-Version";
+
+    /** Missing or unknown capability versions must not accept migration-derived internal substeps. */
+    public static boolean supportsModelMigrationEventRanges(Map<String, List<String>> headers) {
+        return headers != null && headers.entrySet().stream()
+                .filter(entry -> MODEL_MIGRATION_EVENT_RANGES_HEADER.equalsIgnoreCase(entry.getKey()))
+                .filter(entry -> entry.getValue() != null)
+                .flatMap(entry -> entry.getValue().stream()).anyMatch("1"::equals);
+    }
+
     /** Explicit primary/alias selection and atomic alias-owner observations understood by the server. */
     public static final String MODEL_IDENTITY_SELECTION_VERSION_HEADER = "Fluxzero-Model-Identity-Selection-Version";
 

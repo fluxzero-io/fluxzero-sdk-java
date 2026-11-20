@@ -1080,7 +1080,7 @@ final class ModelReplayCursor {
         // missing target has no revision at all. Observe all heads together without turning current document loads
         // into historical replay (DOCUMENT may still publish events that this application cannot deserialize).
         LoadResult currentDocumentHeads = resolvedTypes != null && !historicalBoundary && !documentTargets.isEmpty()
-                ? resolvedTypes : forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
+                ? resolvedTypes : (forceStorageBoundary || migration) && !historicalBoundary && ancestorStateIndex == null
                 && replayTargets.isEmpty() && !documentTargets.isEmpty()
                 ? loadHeads(documentTargets.stream().map(MutationPlan.ResolvedModel::modelId).toList(), boundary)
                 : null;
@@ -1088,7 +1088,7 @@ final class ModelReplayCursor {
         long stateIndex;
         Map<String, ModelCache.Stamp> cachePublications = new LinkedHashMap<>();
         if (replayTargets.isEmpty()) {
-            CurrentProjection current = !forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
+            CurrentProjection current = !migration && !forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
                     ? currentProjection(documentTargets, cacheTracker)
                     : null;
             if (current != null) {
@@ -1916,7 +1916,7 @@ final class ModelReplayCursor {
         });
         List<String> missing = selected.stream().filter(id -> !heads.containsKey(id) && !staged.containsKey(id)).toList();
         if (!missing.isEmpty()) {
-            LoadResult loaded = loadHeads(missing, pinned.forRequest());
+            LoadResult loaded = loadHeads(missing, pinned);
             if (loaded.stateIndex() != stateIndex) {
                 throw new GraphBoundaryMovedException("Graph heads changed their pinned state boundary");
             }

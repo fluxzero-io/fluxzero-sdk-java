@@ -303,6 +303,11 @@ public class DefaultFluxzero implements Fluxzero {
 
     CompletableFuture<Void> migratePublishedEvent(
             DeserializingMessage event) {
+        return migratePublishedEvent(event, null);
+    }
+
+    CompletableFuture<Void> migratePublishedEvent(
+            DeserializingMessage event, PublishedEventModelMigration.Target target) {
         if (event == null || event.getMessageType() != EVENT || event.getIndex() == null) {
             return CompletableFuture.failedFuture(new IllegalStateException(
                     "Published-event Model migration requires an indexed EVENT message"));
@@ -312,7 +317,8 @@ public class DefaultFluxzero implements Fluxzero {
             return CompletableFuture.failedFuture(new UnsupportedOperationException(
                     "Published-event Model migration is not initialized"));
         }
-        return executor.migratePublishedEvent(event.toMessage(), event.getIndex());
+        return target == null ? executor.migratePublishedEvent(event.toMessage(), event.getIndex())
+                : executor.migratePublishedEvent(event.toMessage(), event.getIndex(), target.modelId(), target.modelType());
     }
 
     Registration registerMigrationTypes(

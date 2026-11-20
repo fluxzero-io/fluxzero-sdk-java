@@ -127,6 +127,52 @@ class WebSocketEventStoreClientTest {
     }
 
     @Test
+    void migrationCapabilityUsesEveryCurrentSessionAndLegacyDeletesRemainAllowed() {
+        var client = new RecordingEventStoreClient();
+        var oldPeer = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);
+        var newPeer = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);
+        org.mockito.Mockito.when(oldPeer.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of());
+        org.mockito.Mockito.when(newPeer.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of(
+                io.fluxzero.common.websocket.WebSocketCapabilities.MODEL_MIGRATION_EVENT_RANGES_HEADER, List.of("1")));
+        try {
+            client.capabilitySessions = List.of(newPeer, oldPeer);
+            assertFalse(client.supportsModelMigrationEventRanges());
+            client.capabilitySessions = List.of(newPeer);
+            org.junit.jupiter.api.Assertions.assertTrue(client.supportsModelMigrationEventRanges());
+            client.capabilitySessions = List.of(oldPeer);
+            assertFalse(client.supportsModelMigrationEventRanges());
+            var legacy = new CommitModels("legacy-delete", -1L, List.of("parent"),
+                    List.of(io.fluxzero.common.api.modeling.ModelCommitStep.builder().event(event(1))
+                            .targets(List.of(io.fluxzero.common.api.modeling.ModelCommitTarget.builder()
+                                    .modelId("parent").delete(true).build())).build()),
+                    io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY,
+                    io.fluxzero.common.Guarantee.STORED, true, true);
+            assertEquals(legacy, client.adaptRequestForSession(legacy, oldPeer));
+        } finally { client.close(); }
+    }
+
+    @Test
+    void migrationDerivedStepsRequireRangeCapability() {
+        var client = new RecordingEventStoreClient();
+        var session = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);
+        var event = event(1).withMetadata(io.fluxzero.common.api.Metadata.of(
+                io.fluxzero.common.api.modeling.ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX, "42"));
+        var request = new CommitModels("migration-derived", -1L, List.of(),
+                List.of(io.fluxzero.common.api.modeling.ModelCommitStep.builder().event(event).targets(List.of()).build()),
+                io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY, io.fluxzero.common.Guarantee.STORED, true, true);
+        try {
+            for (var headers : List.of(java.util.Map.<String, List<String>>of(), java.util.Map.of(
+                    io.fluxzero.common.websocket.WebSocketCapabilities.MODEL_MIGRATION_EVENT_RANGES_HEADER, List.of("0")))) {
+                org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(headers);
+                assertThrows(UnsupportedOperationException.class, () -> client.adaptRequestForSession(request, session));
+            }
+            org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of(
+                    io.fluxzero.common.websocket.WebSocketCapabilities.MODEL_MIGRATION_EVENT_RANGES_HEADER, List.of("1")));
+            assertEquals(request, client.adaptRequestForSession(request, session));
+        } finally { client.close(); }
+    }
+
+    @Test
     void liveMigrationRequiresCapabilityWithoutChangingLegacyRequests() {
         var client = new RecordingEventStoreClient();
         var session = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);
@@ -453,6 +499,13 @@ class WebSocketEventStoreClientTest {
     private static final class RecordingEventStoreClient
             extends WebSocketEventStoreClient {
         private final List<Integer> sentBatchSizes = new ArrayList<>();
+        private List<io.fluxzero.sdk.common.websocket.WebsocketSession> capabilitySessions;
+
+        @Override
+        protected List<io.fluxzero.sdk.common.websocket.WebsocketSession> sessionsForCapabilities() {
+            return capabilitySessions == null ? super.sessionsForCapabilities() : capabilitySessions;
+        }
+
 
         private RecordingEventStoreClient() {
             super(

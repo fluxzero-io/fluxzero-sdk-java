@@ -2640,6 +2640,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                        && existingEventIndex == null
                                        && (transitions.stream().anyMatch(Change::publishEvent)
                                            || !graphPublished.isEmpty());
+                if (existingEvent || existingEventIndex != null) {
+                    // Replaying an existing publication must not emit it again. A publication-only
+                    // target consequently has no remaining effect, but other targets still commit.
+                    committedTransitions = committedTransitions.stream()
+                            .filter(change -> change.updateState() || change.storeEvent()).toList();
+                    if (committedTransitions.isEmpty()) {
+                        continue;
+                    }
+                }
                 boolean eventRequired = existingEventIndex != null
                                         || publishEvent
                                         || committedTransitions.stream().anyMatch(Change::storeEvent);
@@ -2708,7 +2717,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 }
             }
-            boolean possibleDuplicate = possibleDuplicate(evaluation, preparedChanges.values());
+            // An indexed source can be replayed after its targets were deleted or recreated.
+            // Current target heads cannot prove that this source identity is new.
+            boolean possibleDuplicate = migration || possibleDuplicate(evaluation, preparedChanges.values());
             if (protocolSteps.isEmpty()) {
                 return new Outcome(null, preparedChanges, existingEvent, eventCreationTime);
             }
@@ -2735,7 +2746,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads(commit, evaluation.identityReads());
             }
             if (migration) {
-                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit);
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(
+                        commit, evaluation.steps().stream().anyMatch(step -> step.message().getContext(
+                                CommitAttempt.MigrationContract.class).orElse(null)
+                                == CommitAttempt.MigrationContract.EVENT_RANGES));
             }
             return new Outcome(commit, preparedChanges, existingEvent, eventCreationTime);
         }
@@ -2798,7 +2812,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         commit, candidate.getAliasObservations());
             }
             if (candidate instanceof io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments) {
-                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(commit);
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithLiveMigrationDocuments(
+                        commit, candidate.preservesMigrationRelationships());
             }
             return new Outcome(commit, rebased.changes, original.existingEvent, original.eventCreationTime);
         }

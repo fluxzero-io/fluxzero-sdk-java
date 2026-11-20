@@ -33,32 +33,54 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
 public final class CommitModelsWithLiveMigrationDocuments extends CommitModels {
+    /** Explicit opt-in; absent on older wire requests, which retain their original deletion semantics. */
+    private final boolean preserveMigrationRelationships;
     private final List<ModelRelationshipRead> readRelationships;
     private final List<String> readAliasIds;
 
     /** Retains the migration's transport identity and read dependencies. */
     public CommitModelsWithLiveMigrationDocuments(CommitModels commit) {
+        this(commit, commit.preservesMigrationRelationships());
+    }
+
+    /** Enables the negotiated relationship-preserving migration contract. */
+    public CommitModelsWithLiveMigrationDocuments(CommitModels commit, boolean preserveMigrationRelationships) {
         this(commit.getRequestId(), commit.getCommitId(), commit.getReadStateIndex(), commit.getReadModelIds(),
              commit.getSubsteps(), commit.getConflictPolicy(), commit.getGuarantee(), commit.isPossibleDuplicate(),
-             commit.isMigration(), commit.getReadRelationships(), commit.getReadAliasIds());
+             commit.isMigration(), commit.getReadRelationships(), commit.getReadAliasIds(), preserveMigrationRelationships);
         if (!commit.getDeadlineUpdates().isEmpty() || !commit.getAliasObservations().isEmpty()) {
             throw new IllegalArgumentException("Historical migrations cannot carry deadline effects or identity observations");
         }
     }
 
-    @ConstructorProperties({"requestId", "commitId", "readStateIndex", "readModelIds", "substeps", "conflictPolicy",
-            "guarantee", "possibleDuplicate", "migration", "readRelationships", "readAliasIds"})
+    /** Retains the legacy public construction contract without opting into new relationship semantics. */
     public CommitModelsWithLiveMigrationDocuments(long requestId, String commitId, long readStateIndex,
             List<String> readModelIds, List<ModelCommitStep> substeps, ModelConflictPolicy conflictPolicy,
             Guarantee guarantee, boolean possibleDuplicate, boolean migration,
             List<ModelRelationshipRead> readRelationships, List<String> readAliasIds) {
+        this(requestId, commitId, readStateIndex, readModelIds, substeps, conflictPolicy, guarantee,
+             possibleDuplicate, migration, readRelationships, readAliasIds, false);
+    }
+
+    @ConstructorProperties({"requestId", "commitId", "readStateIndex", "readModelIds", "substeps", "conflictPolicy",
+            "guarantee", "possibleDuplicate", "migration", "readRelationships", "readAliasIds", "preserveMigrationRelationships"})
+    public CommitModelsWithLiveMigrationDocuments(long requestId, String commitId, long readStateIndex,
+            List<String> readModelIds, List<ModelCommitStep> substeps, ModelConflictPolicy conflictPolicy,
+            Guarantee guarantee, boolean possibleDuplicate, boolean migration,
+            List<ModelRelationshipRead> readRelationships, List<String> readAliasIds, boolean preserveMigrationRelationships) {
         super(requestId, commitId, readStateIndex, readModelIds, substeps, conflictPolicy, guarantee,
               possibleDuplicate, migration);
         if (!migration) {
             throw new IllegalArgumentException("Live migration documents require a migration commit");
         }
+        this.preserveMigrationRelationships = preserveMigrationRelationships;
         this.readRelationships = readRelationships == null ? List.of() : List.copyOf(readRelationships);
         this.readAliasIds = readAliasIds == null ? List.of() : List.copyOf(readAliasIds);
+    }
+
+    @Override
+    public boolean preservesMigrationRelationships() {
+        return preserveMigrationRelationships;
     }
 
     @Override
