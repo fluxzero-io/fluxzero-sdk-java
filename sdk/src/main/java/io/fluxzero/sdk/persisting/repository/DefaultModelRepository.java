@@ -837,6 +837,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         if (primary.equals(requested) || !metadata.hasAliases()) {
             return current ? loadCurrent(primary, modelType) : load(primary, modelType);
         }
+        if (!current) {
+            Entity<T> scoped = Graphs.loadModelInScope(modelId, modelType, this, ModelIdResolution.FUNCTIONAL);
+            if (scoped != null) { return scoped; }
+        }
         PinnedBoundary handler = current ? null : handlerBoundary();
         ModelReadBoundary boundary = boundary(handler);
         var probe = new ModelReplayCursor.HeadProbe(requested);
@@ -863,6 +867,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     @Override
     public <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType) {
+        Entity<T> scoped = Graphs.loadModelInScope(modelId, modelType, this, ModelIdResolution.LITERAL);
+        if (scoped != null) { return scoped; }
         return ModelBatchScope.overlayCurrent(
                 messageBatchNamespace(), modelId, modelType,
                 loadDurable(modelId, modelType), modelDefinitionCompiler);
@@ -961,6 +967,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 })
                 .toList();
+        List<Entity<T>> scoped = Graphs.loadModelsInScope(ids, modelType, this);
+        if (scoped != null) { return scoped; }
         List<MutationPlan.ResolvedModel> targets = ids.stream()
                 .map(modelId -> new MutationPlan.ResolvedModel(
                         modelId,
@@ -1251,7 +1259,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @Override
     public Map<String, Entity<?>> loadGraphValues(Map<String, Class<?>> modelTypes, ModelReadBoundary boundary,
                                                  Map<String, Entity<?>> staged, boolean historical) {
-        return replayCursor.graphValues(modelTypes, boundary, staged, historical);
+        return replayCursor.graphValues(modelTypes, boundary, staged, historical, modelCacheTracker);
     }
 
     /** Pins cascade revision evidence, keeping event-sourced values lazy and verifying exact document revisions. */

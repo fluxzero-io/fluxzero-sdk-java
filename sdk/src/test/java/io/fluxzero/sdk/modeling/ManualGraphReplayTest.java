@@ -21,6 +21,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
@@ -35,7 +36,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -44,16 +47,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ManualGraphReplayTest {
     private static final ThreadLocal<Set<String>> replaying = ThreadLocal.withInitial(HashSet::new);
 
+    private static FluxzeroBuilder appBuilder() {
+        return DefaultFluxzero.builder().disableKeepalive().disableShutdownHook();
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"typed", "untyped", "current", "literal", "current-literal", "refresh", "options"})
+    @ValueSource(strings = {"typed", "untyped", "current", "literal", "current-literal", "refresh", "options", "model", "untyped-model", "batch-model"})
     void manualReadOfDynamicWriteTargetReplaysItsPreviousValue(String route) {
         verifyColdRead(new ManualIncrement("counter", route));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"typed", "untyped", "current", "literal", "current-literal", "refresh", "options"})
+    @ValueSource(strings = {"typed", "untyped", "current", "literal", "current-literal", "refresh", "options", "model", "untyped-model", "batch-model"})
     void laterSubstepSeesEarlierWritesFromTheSameCommit(String route) {
-        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+        try (Fluxzero app = appBuilder()
                 .build(LocalClient.newInstance())) {
             app.apply(fc -> fc.executeModelCommit(Message.asMessage(new CreateCounter("counter"))).join());
             app.apply(fc -> fc.executeModelCommit(Message.asMessage(new IncrementTwice(route))).join());
@@ -75,12 +82,13 @@ class ManualGraphReplayTest {
         Object handler = new Object() {
             @HandleEvent void changed(ManualIncrement event) {
                 values.add(Fluxzero.loadGraph(event.selectedId(), Counter.class).get().value());
+                values.add(Fluxzero.loadModel(event.selectedId(), Counter.class).get().value());
             }
         };
         TestFixture.create(handler).givenCommands(new CreateCounter("counter"))
                 .whenCommand(new ManualIncrement("counter", "typed"))
                 .expectSuccessfulResult().expectNoErrors()
-                .expectThat(fc -> assertEquals(List.of(2), values));
+                .expectThat(fc -> assertEquals(List.of(2, 2), values));
     }
 
     @Test
@@ -88,15 +96,73 @@ class ManualGraphReplayTest {
         verifyColdRead(new InjectedIncrement("counter"));
     }
 
-    @Test
-    void manualReadOfSiblingChangedBySameEventUsesPreviousValue() {
-        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+    @ParameterizedTest
+    @ValueSource(strings = {"typed", "model", "untyped-model", "batch-model"})
+    void manualReadOfSiblingChangedBySameEventUsesPreviousValue(String route) {
+        try (Fluxzero app = appBuilder()
                 .build(LocalClient.newInstance())) {
             app.apply(fc -> fc.executeModelCommit(Message.asMessage(new CreateCounter("counter"))).join());
-            app.apply(fc -> fc.executeModelCommit(Message.asMessage(new IncrementAndObserve("counter", "receipt", "typed"))).join());
+            app.apply(fc -> fc.executeModelCommit(Message.asMessage(new IncrementAndObserve("counter", "receipt", route))).join());
             assertEquals(1, app.apply(fc -> Fluxzero.loadModel("receipt", Receipt.class).get().observed()).intValue());
             app.cache().clear();
             assertEquals(1, app.apply(fc -> Fluxzero.loadModel("receipt", Receipt.class).get().observed()).intValue());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"first-step", "model", "untyped-model", "batch-model"})
+    void replayUsesRecordedInputForAnEventOriginallyAppliedWithAnUntrackedRead(String route) throws Exception {
+        var client = LocalClient.newInstance();
+        try (Fluxzero writer = appBuilder().build(client)) {
+            writer.apply(fc -> fc.executeModelCommit(new Message(new CreateCounter("legacy-source"))).join());
+            var enteringApply = new CompletableFuture<Void>();
+            var updated = new CompletableFuture<Void>();
+            try {
+                ObserveLegacyInput.beforeRead = () -> {
+                    enteringApply.complete(null);
+                    updated.join();
+                };
+                var observe = new ObserveLegacyInput("legacy-receipt", "legacy-source", route);
+                Object command = route.equals("first-step") ? observe : new StageAndObserveLegacyInput(observe);
+                var commit = CompletableFuture.runAsync(() -> writer.apply(fc ->
+                        fc.executeModelCommit(new Message(command)).join()));
+                enteringApply.get(5, TimeUnit.SECONDS);
+                writer.apply(fc -> fc.executeModelCommit(new Message(new InjectedIncrement("legacy-source"))).join());
+                updated.complete(null);
+                commit.get(5, TimeUnit.SECONDS);
+                assertEquals(2, writer.apply(fc -> Fluxzero.loadModel("legacy-receipt", Receipt.class).get().observed()).intValue());
+                try (Fluxzero reader = appBuilder().build(client)) {
+                    ((DefaultModelRepository) reader.modelRepository()).modelName(Counter.class);
+                    assertEquals(1, reader.apply(fc -> Fluxzero.loadModel("legacy-receipt", Receipt.class).get().observed()).intValue());
+                }
+            } finally {
+                updated.complete(null);
+                ObserveLegacyInput.beforeRead = null;
+            }
+        }
+    }
+
+    record StageAndObserveLegacyInput(ObserveLegacyInput observe) {
+        @InterceptApply List<Object> split() {
+            return List.of(new CreateCounter("legacy-staged"), observe);
+        }
+    }
+
+    record ObserveLegacyInput(String receiptId, String sourceId, String route) {
+        private static volatile Runnable beforeRead;
+
+        @Apply Receipt apply() {
+            Runnable barrier = beforeRead;
+            if (barrier != null && !Entity.isLoading()) {
+                barrier.run();
+                // Reproduce the untracked current read performed by the old SDK.
+                return new Receipt(receiptId, Fluxzero.get().modelRepository().loadCurrent(sourceId, Counter.class)
+                        .get().value());
+            }
+            var source = route.equals("batch-model")
+                    ? Fluxzero.get().modelRepository().loadAll(List.of(sourceId, "legacy-staged"), Counter.class).getFirst().get()
+                    : loadCounter(sourceId, route);
+            return new Receipt(receiptId, source.value());
         }
     }
 
@@ -117,7 +183,7 @@ class ManualGraphReplayTest {
 
     @Test
     void explicitHistoricalReadsDoNotInheritTheReplayInputOverlay() {
-        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+        try (Fluxzero app = appBuilder()
                 .build(LocalClient.newInstance())) {
             app.apply(fc -> fc.executeModelCommit(Message.asMessage(new CreateCounter("counter"))).join());
             long original = app.apply(fc -> {
@@ -143,7 +209,7 @@ class ManualGraphReplayTest {
     @ParameterizedTest
     @ValueSource(strings = {"alias", "literal", "untyped"})
     void replayPreservesAliasAndAffixSelection(String route) {
-        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+        try (Fluxzero app = appBuilder()
                 .build(LocalClient.newInstance())) {
             app.apply(fc -> fc.executeModelCommit(Message.asMessage(new CreateAliased("owner"))).join());
             app.apply(fc -> fc.executeModelCommit(Message.asMessage(new IncrementAliased(route))).join());
@@ -171,10 +237,10 @@ class ManualGraphReplayTest {
     @Test
     void freshApplicationReadsRetainedCommitsWithoutReseeding() {
         LocalClient client = LocalClient.newInstance();
-        try (Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+        try (Fluxzero writer = appBuilder().build(client)) {
             writer.apply(fc -> fc.executeModelCommit(Message.asMessage(new CreateCounter("counter"))).join());
             writer.apply(fc -> fc.executeModelCommit(Message.asMessage(new ManualIncrement("counter", "typed"))).join());
-            try (Fluxzero reader = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            try (Fluxzero reader = appBuilder().build(client)) {
                 assertEquals(2, reader.apply(fc -> Fluxzero.loadGraph("counter", Counter.class).get().value()).intValue());
                 assertNull(reader.apply(fc -> CommitAttempt.currentReplayContext(fc.modelRepository())));
             }
@@ -184,8 +250,8 @@ class ManualGraphReplayTest {
     @Test
     void foreignNamespaceDoesNotBorrowReplayContext() {
         LocalClient client = LocalClient.newInstance();
-        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
-             Fluxzero other = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+        try (Fluxzero app = appBuilder().build(client);
+             Fluxzero other = appBuilder()
                      .build(client.forNamespace("other"))) {
             other.apply(fc -> fc.executeModelCommit(Message.asMessage(new CreateCounter("counter"))).join());
             app.apply(fc -> fc.executeModelCommit(Message.asMessage(new CreateCounter("counter"))).join());
@@ -236,15 +302,17 @@ class ManualGraphReplayTest {
     record IncrementAndObserve(String counterId, String receiptId, String route) {
         @Apply Counter increment(Counter before) { return new Counter(counterId, before.value() + 1); }
         @Apply Receipt observe() {
-            Graph<Counter> graph = route.equals("options")
-                    ? Fluxzero.get().modelRepository().loadGraph(counterId, Counter.class, Graph.Options.DEFAULT)
-                    : Fluxzero.loadGraph(counterId, Counter.class);
-            return new Receipt(receiptId, graph.get().value());
+            Counter observed = switch (route) {
+                case "model", "untyped-model", "batch-model" -> loadCounter(counterId, route);
+                case "options" -> Fluxzero.get().modelRepository().loadGraph(counterId, Counter.class, Graph.Options.DEFAULT).get();
+                default -> Fluxzero.loadGraph(counterId, Counter.class).get();
+            };
+            return new Receipt(receiptId, observed.value());
         }
     }
 
     private void verifyColdRead(Object increment) {
-        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+        try (Fluxzero app = appBuilder()
                 .build(LocalClient.newInstance())) {
             app.apply(fc -> fc.executeModelCommit(Message.asMessage(new CreateCounter("counter"))).join());
             app.apply(fc -> fc.executeModelCommit(Message.asMessage(increment)).join());
@@ -260,6 +328,14 @@ class ManualGraphReplayTest {
             Counter staged = Fluxzero.loadGraph(counterId, Counter.class).get();
             return new Counter(counterId, staged.value() + 1);
         }
+    }
+
+    private static Counter loadCounter(String id, String route) {
+        return switch (route) {
+            case "untyped-model" -> (Counter) Fluxzero.loadModel((Object) id).get();
+            case "batch-model" -> Fluxzero.get().modelRepository().loadAll(List.of(id), Counter.class).getFirst().get();
+            default -> Fluxzero.loadModel(id, Counter.class).get();
+        };
     }
 
     record CreateCounter(String counterId) {
@@ -283,6 +359,7 @@ class ManualGraphReplayTest {
                     case "current-literal" -> Fluxzero.loadCurrentGraph(selectedId, Counter.class, false).get();
                     case "refresh" -> Fluxzero.loadGraph(selectedId, Counter.class).current().get();
                     case "options" -> Fluxzero.get().modelRepository().loadGraph(selectedId, Counter.class, Graph.Options.DEFAULT).get();
+                    case "model", "untyped-model", "batch-model" -> loadCounter(selectedId, route);
                     default -> Fluxzero.loadGraph(selectedId, Counter.class).get();
                 };
                 return List.of(new Counter(before.counterId(), before.value() + 1));

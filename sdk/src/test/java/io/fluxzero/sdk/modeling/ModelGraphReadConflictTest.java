@@ -208,6 +208,59 @@ class ModelGraphReadConflictTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"typed", "untyped", "batch"})
+    void modelLoadsRebaseAndReplayWithEarlierSubsteps(String route) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(app, new CreateParent("source", 1));
+            commit(app, new CreateParent("staged", 1));
+            commit(app, new RetryReceipt("receipt", 0));
+            var readBoundaries = new java.util.ArrayList<Long>();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("receipt")) {
+                    assertTrue(request.getReadModelIds().contains("source"), request::toString);
+                    readBoundaries.add(request.getReadStateIndex());
+                    if (readBoundaries.size() == 1) {
+                        commit(writer, new CreateParent("source", 2));
+                    }
+                }
+            };
+
+            commit(app, new StageAndObserveModels(route));
+            assertEquals(2, readBoundaries.size());
+            assertTrue(readBoundaries.getLast() > readBoundaries.getFirst());
+            assertEquals(23, app.apply(fc -> Fluxzero.loadModel("receipt", Receipt.class).get().observed()).intValue());
+            commit(app, new CreateParent("source", 4));
+            app.cache().clear();
+            assertEquals(23, app.apply(fc -> Fluxzero.loadModel("receipt", Receipt.class).get().observed()).intValue());
+        }
+    }
+
+    record StageAndObserveModels(String route) {
+        @InterceptApply List<Object> split() {
+            return List.of(new CreateParent("staged", 3), new ObserveModels("receipt", route));
+        }
+    }
+
+    record ObserveModels(String receiptId, String route) {
+        @Apply(conflictPolicy = ModelConflictPolicy.ACCEPT) Receipt apply(Receipt previous) {
+            List<ParentModel> input = switch (route) {
+                case "batch" -> Fluxzero.get().modelRepository()
+                        .loadAll(List.of("source", "staged", "absent"), ParentModel.class)
+                        .stream().map(Entity::get).toList();
+                case "untyped" -> List.of((ParentModel) Fluxzero.loadModel("source").get(),
+                                          (ParentModel) Fluxzero.loadModel("staged").get());
+                default -> List.of(Fluxzero.loadModel("source", ParentModel.class).get(),
+                                   Fluxzero.loadModel("staged", ParentModel.class).get());
+            };
+            assertTrue(Fluxzero.loadModel("absent").isEmpty());
+            if (route.equals("batch")) { assertNull(input.getLast()); }
+            return new Receipt(receiptId, 10 * input.getFirst().capacity() + input.get(1).capacity());
+        }
+    }
+
     @Test
     void canonicalApplyBindingDoesNotInheritANestedAssertionAlias() {
         GateClient client = new GateClient();

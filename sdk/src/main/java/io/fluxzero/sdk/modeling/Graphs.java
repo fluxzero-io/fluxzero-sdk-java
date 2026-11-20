@@ -37,6 +37,7 @@ import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.repository.ModelIdResolution;
 import io.fluxzero.sdk.persisting.repository.ModelTypeResolver;
 
+import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -283,6 +284,55 @@ public final class Graphs {
         Graph<T> mutation = inMutation(modelId, repositoryId, true, modelType, repository);
         if (mutation != null) { return mutation; }
         return GraphState.identity(modelId, repositoryId, true, modelType, repository).root();
+    }
+
+    /** Resolves an ordinary Model read within the same input and staged state as a manual Graph read. */
+    public static <T> Entity<T> loadModelInScope(Object id, Class<T> type, ModelRepository repository,
+                                                 ModelIdResolution resolution) {
+        if (readContext(repository) == null) { return null; }
+        Graph<T> graph = Object.class.equals(type)
+                ? cast(lazy(id, repository, resolution == ModelIdResolution.FUNCTIONAL))
+                : inMutation(id, resolution.primaryId(id, type), resolution, type, repository);
+        GraphView<?> view = (GraphView<?>) graph;
+        Entity<?> entity = view.node().data().entity();
+        CommitAttempt.graphValueRead(view);
+        return castEntity(entity);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Entity<T> castEntity(Entity<?> entity) {
+        return (Entity<T>) entity;
+    }
+
+    /** Loads ordinary Model collections at the attempt's input while preserving batched storage reads. */
+    public static <T> List<Entity<T>> loadModelsInScope(List<String> ids, Class<T> type, ModelRepository repository) {
+        CommitAttempt context = readContext(repository);
+        if (context == null) { return null; }
+        EntityMetadata metadata = EntityMetadata.validate(type);
+        if (ids.size() == 1 || metadata.hasAliases()
+            || Modifier.isAbstract(type.getModifiers()) && metadata.rootConfiguration().orElseThrow().eventSourced()) {
+            return ids.stream().map(id -> loadModelInScope(id, type, repository, ModelIdResolution.LITERAL)).toList();
+        }
+        if (!(repository instanceof ModelGraphResolver resolver)) {
+            throw new UnsupportedOperationException("Transactional Model reads require a ModelGraphResolver");
+        }
+        context.ensureReadBoundary();
+        var boundary = context.graphReadBoundary();
+        var snapshot = resolver.graphStagedValues(boundary).withValues(context.graphEntities());
+        Map<String, Entity<?>> staged = new LinkedHashMap<>();
+        Map<String, Class<?>> requested = new LinkedHashMap<>();
+        for (String id : ids) {
+            requested.put(id, type);
+            Entity<?> overlay = snapshot.overlayExactIdentity(id, type);
+            if (overlay != null) { staged.put(id, overlay); }
+        }
+        Map<String, Entity<?>> values = resolver.loadGraphValues(requested, boundary, staged, false);
+        return ids.stream().map(id -> {
+            Entity<T> entity = castEntity(values.get(id));
+            GraphView<?> graph = (GraphView<?>) lazy(entity, context, repository);
+            CommitAttempt.graphValueRead(graph);
+            return entity;
+        }).toList();
     }
 
     private static CommitAttempt readContext(ModelRepository repository) {
@@ -997,7 +1047,7 @@ final class GraphState {
                 !resolution.exact() && EntityMetadata.of(modelType).hasAliases());
         Node root = new Node(data, null, null, true);
         return indexed(boundary.stateIndex() == null ? -1L : boundary.stateIndex(), repository, false, false,
-                       boundary.stateIndex() != null, boundary, models, List.of(), Map.of(),
+                       boundary.historical(), boundary, models, List.of(), Map.of(),
                        List.of(root), Map.of(), root, identity);
     }
 
