@@ -153,10 +153,15 @@ class GraphPinnedReadCostTest {
                                new PutValue(DEPENDENCIES.getFirst(), 1));
         fixture.whenExecuting(fc -> {
             try {
+                // Initial command completion does not establish Model-cache tracker completion.
+                // Exclude setup replay only after the intended warm predecessor is retained.
+                client.awaitTrackerAtHead();
+                Cache cache = ReflectionUtils.<Cache>getFieldValue("modelCache", fc.modelRepository()).orElseThrow();
+                Entity<Value> predecessor = cache.get(ROOT.toString());
+                assertEquals(3, predecessor.get().revision());
                 client.reads.clear();
                 fc.commandGateway().sendAndWait(new IncrementValue(ROOT));
                 client.awaitTrackerAtHead();
-                Cache cache = ReflectionUtils.<Cache>getFieldValue("modelCache", fc.modelRepository()).orElseThrow();
                 Entity<Value> root = cache.get(ROOT.toString());
                 assertEquals(4, root.get().revision());
                 assertEquals(3, root.previous().get().revision());

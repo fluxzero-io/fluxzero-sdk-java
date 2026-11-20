@@ -1,2 +1,3 @@
 [tools]
-java = "temurin-25.0.4+7.0.LTS"
+# Temurin 25.0.5.1+2-LTS; mise uses the normalized Adoptium catalog version.
+java = "temurin-25.0.5+100000002.0.LTS"
