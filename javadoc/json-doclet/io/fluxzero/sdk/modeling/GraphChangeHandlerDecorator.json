@@ -38,42 +38,6 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "addMetadataAncestors",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#addMetadataAncestors",
-    "returnType" : "void",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "T" ],
-    "parameters" : [ {
-      "name" : "roots",
-      "type" : "java.util.Map<java.lang.String,java.lang.Class<? extends T>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "targetId",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "rootType",
-      "type" : "java.lang.Class<T>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "repository",
-      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "stateIndex",
-      "type" : "long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "addRoots",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#addRoots",
     "returnType" : "void",
@@ -109,27 +73,6 @@
     "parameters" : [ {
       "name" : "graph",
       "type" : "io.fluxzero.sdk.modeling.Graph<? extends T>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "changedGraphs",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#changedGraphs",
-    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<T>>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "T" ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "rootType",
-      "type" : "java.lang.Class<T>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -254,23 +197,50 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "repository",
-      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "ancestors",
-      "type" : "io.fluxzero.sdk.persisting.repository.ModelAncestorResolver",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "payloadTypes",
-      "type" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+      "name" : "changes",
+      "type" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator.GraphChanges",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
       "name" : "cascade",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadGraphChanges",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#loadGraphChanges",
+    "returnType" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator.GraphChanges",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadMetadataAncestors",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#loadMetadataAncestors",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator.GraphRoot>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "key",
+      "type" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator.AncestryKey",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -543,8 +513,20 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "AncestryKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$AncestryKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "GraphArgument",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphArgument",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "GraphChanges",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphChanges",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
@@ -557,6 +539,12 @@
   }, {
     "name" : "GraphKey",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "GraphRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphRoot",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]

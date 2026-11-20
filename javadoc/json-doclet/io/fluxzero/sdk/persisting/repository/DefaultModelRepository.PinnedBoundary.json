@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "replayStorageFence",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$PinnedBoundary.replayStorageFence",
+    "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "source",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$PinnedBoundary.source",
     "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
@@ -35,6 +43,31 @@
     "parameters" : [ {
       "name" : "source",
       "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "PinnedBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$PinnedBoundary#PinnedBoundary",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "replayStorageFence",
+      "type" : "java.util.function.LongSupplier",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

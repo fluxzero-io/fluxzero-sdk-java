@@ -375,9 +375,19 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator",
     "kind" : "class"
   }, {
+    "file" : "GraphChangeHandlerDecorator.AncestryKey.json",
+    "name" : "GraphChangeHandlerDecorator.AncestryKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$AncestryKey",
+    "kind" : "record"
+  }, {
     "file" : "GraphChangeHandlerDecorator.GraphArgument.json",
     "name" : "GraphChangeHandlerDecorator.GraphArgument",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphArgument",
+    "kind" : "record"
+  }, {
+    "file" : "GraphChangeHandlerDecorator.GraphChanges.json",
+    "name" : "GraphChangeHandlerDecorator.GraphChanges",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphChanges",
     "kind" : "record"
   }, {
     "file" : "GraphChangeHandlerDecorator.GraphHandler.json",
@@ -388,6 +398,11 @@
     "file" : "GraphChangeHandlerDecorator.GraphKey.json",
     "name" : "GraphChangeHandlerDecorator.GraphKey",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphKey",
+    "kind" : "record"
+  }, {
+    "file" : "GraphChangeHandlerDecorator.GraphRoot.json",
+    "name" : "GraphChangeHandlerDecorator.GraphRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphRoot",
     "kind" : "record"
   }, {
     "file" : "GraphLookupPolicy.json",

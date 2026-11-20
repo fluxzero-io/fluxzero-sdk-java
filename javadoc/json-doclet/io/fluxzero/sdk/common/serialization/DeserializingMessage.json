@@ -1129,6 +1129,27 @@
     "varArgs" : false,
     "documentation" : " Registers a callback for the enclosing batch's completion, or invokes it immediately outside message handling.\n A caught failure in nested message handling does not complete the enclosing batch or become its failure.\n\n @param executable callback receiving the error that escapes the owning scope, or {@code null} on success\n"
   }, {
+    "name" : "withCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withCurrent",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lookup",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs an infrastructure lookup with the supplied thread-local message and restores the prior message.\n This does not start or complete message handling or batch lifecycle callbacks.\n"
+  }, {
     "name" : "withData",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withData",
     "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",

@@ -378,9 +378,25 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "replayMembership",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.replayMembership",
+    "type" : "io.fluxzero.common.api.modeling.ModelEventMembership",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "replayRepository",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.replayRepository",
     "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "replayStorageFence",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.replayStorageFence",
+    "type" : "java.util.function.LongSupplier",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -1937,6 +1953,28 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "replayMembership",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#replayMembership",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelEventMembership",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "The stored event currently being applied, independent of its published message metadata. "
+  }, {
+    "name" : "replayStorageFence",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#replayStorageFence",
+    "returnType" : "java.util.function.LongSupplier",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Lazily supplies the durable erasure fence of the reconstruction that is applying this event. "
+  }, {
     "name" : "requireNoAtomicCallback",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#requireNoAtomicCallback",
     "returnType" : "void",
@@ -2409,6 +2447,16 @@
     }, {
       "name" : "boundary",
       "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "membership",
+      "type" : "io.fluxzero.common.api.modeling.ModelEventMembership",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "storageFence",
+      "type" : "java.util.function.LongSupplier",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

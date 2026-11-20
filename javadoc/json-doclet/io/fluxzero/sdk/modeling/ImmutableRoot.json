@@ -75,6 +75,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "replayTrigger",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableRoot.replayTrigger",
+    "type" : "java.lang.ThreadLocal<java.util.Optional<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "sequenceNumber",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableRoot.sequenceNumber",
     "type" : "long",
@@ -298,6 +306,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Applies the shared bounded revision-retention policy used by persisted roots.\n"
+  }, {
+    "name" : "storageRequestTrigger",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableRoot#storageRequestTrigger",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "current",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the message responsible for runtime I/O. Replayed event metadata remains the context for application\n code, while transport metrics use the request that caused the reconstruction.\n"
   }, {
     "name" : "truncatePrevious",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableRoot#truncatePrevious",

@@ -975,6 +975,32 @@
     "varArgs" : false,
     "documentation" : "Configures application-owned event payload restoration before this repository is made available to callers. "
   }, {
+    "name" : "coveredReplayContext",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#coveredReplayContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerBoundary",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.PinnedBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createForNamespace",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#createForNamespace",
     "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",

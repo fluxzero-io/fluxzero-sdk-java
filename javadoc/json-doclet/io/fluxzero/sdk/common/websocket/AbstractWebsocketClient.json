@@ -748,7 +748,7 @@
     "name" : "captureCorrelationData",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#captureCorrelationData",
     "returnType" : "java.lang.Object",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
@@ -2191,6 +2191,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Allows a specialized client to complete request-owned work for a decoded result group before individual request\n futures are released.\n"
+  }, {
+    "name" : "publishCorrelatedMetric",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#publishCorrelatedMetric",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metric",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "publishRequestMetrics",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#publishRequestMetrics",
