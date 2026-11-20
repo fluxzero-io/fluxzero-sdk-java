@@ -30,7 +30,9 @@ Models/Graphs and persisted message context when their identity is available for
 `loadGraph`, `loadCurrentGraph` and `graph.current()` reads on the operation's repository/namespace are supported
 when the target is discovered during the transition. During replay they see the original step's input, including
 earlier steps in the same commit and the current phase's staged values, never the event's own completed output.
-Do not use arbitrary Model loads, search, random IDs, external services or a wall clock to derive replayed state.
+Ordinary synchronous Model loads share that input and conflict scope. Replay uses the recorded input for every
+stored Model event. Use canonical IDs for dynamic loads that must survive alias reassignment. Explicit current Model reads, search, random IDs, external services and a wall clock remain
+independent of the replayed input.
 
 Inject `Sender` for actor-dependent state and `Instant` for the stored message time. Avoid ambient user state.
 Use `@AssertLegal` for business refusals and `@InterceptApply` to transform, suppress or expand the accepted update.

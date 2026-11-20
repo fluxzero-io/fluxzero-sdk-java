@@ -124,9 +124,16 @@ freshness request or retry is made merely to see whether newer state might permi
 | --- | --- |
 | Injected `T` / `Graph<T>` | Attempt snapshot; injected values and inspected relationships are dependencies |
 | Synchronous `loadGraph`, `loadCurrentGraph`, `graph.current()` on its repository/namespace | Same attempt snapshot and staged state; inspected values/relationships join its readset, including empty collections |
-| Arbitrary `loadModel` in a helper | Authoritative load and applicable handler/cache boundary; does not itself register a new dependency: inject the Model or read its Graph |
+| Synchronous `loadModel` in a helper on the same repository/namespace | Same attempt input, staged values and conflict dependencies as Graph reads |
 | Search / `loadCurrentModelState` | Search/document read contract, not a commit dependency or an event-bound Graph |
 | Historical `previous()` / `at...` | Historical view, not a current invariant dependency |
+
+Replay uses the recorded input of each Apply, including earlier steps in the same commit and the current
+phase's staged values. This also applies to previously stored events. If an older Apply read an unrelated
+Model after a concurrent write that fell outside its recorded input, reconstructing that event now reads the
+recorded value. Use canonical Model IDs for dynamic lookups that must survive replay after an alias is moved.
+Storage resolves dynamic aliases through the current alias owner. Explicit `loadCurrent` and `loadCurrentState`
+remain independent reads.
 
 Outside mutations, ordinary Model-event reads use the event's boundary; explicit current Graph reads open a fresh
 storage-verified view. Inside mutations, current shortcuts never create a second snapshot. Do not hand detached
