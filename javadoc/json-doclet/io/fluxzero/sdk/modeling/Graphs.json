@@ -173,6 +173,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "castEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#castEntity",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "changedGraph",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#changedGraph",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
@@ -922,6 +943,63 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Creates a detached graph for an exact persisted identity. "
+  }, {
+    "name" : "loadModelInScope",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#loadModelInScope",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelIdResolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves an ordinary Model read within the same input and staged state as a manual Graph read. "
+  }, {
+    "name" : "loadModelsInScope",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#loadModelsInScope",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "ids",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads ordinary Model collections at the attempt's input while preserving batched storage reads. "
   }, {
     "name" : "lookupStream",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#lookupStream",
