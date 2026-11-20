@@ -47,6 +47,7 @@ import io.fluxzero.common.api.modeling.ModelCommitWireCodec;
 import io.fluxzero.common.api.modeling.ModelEventPageDecoder;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
@@ -227,6 +228,14 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                     session.getHandshakeResponseHeaders())) {
             throw new UnsupportedOperationException(
                     "This Runtime does not support live Model migration documents; upgrade the Runtime before starting replay");
+        }
+        boolean migrationEffects = request instanceof CommitModels commit && commit.isMigration()
+                && commit.getSubsteps().size() > 1 && commit.getSubsteps().stream().anyMatch(step ->
+                        step.getTargets().stream().anyMatch(ModelCommitTarget::isCascadeDelete));
+        if (migrationEffects
+            && !WebSocketCapabilities.supportsModelEventEffects(session.getHandshakeResponseHeaders())) {
+            throw new UnsupportedOperationException(
+                    "This Runtime does not support atomic Model migration event boundaries; the migration peer changed during replay");
         }
         return request;
     }
@@ -488,6 +497,13 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
             }
         }
         return restored == null ? results : restored;
+    }
+
+    @Override
+    public boolean supportsModelEventEffects() {
+        var sessions = sessionsForCapabilities();
+        return !sessions.isEmpty() && sessions.stream().allMatch(session ->
+                WebSocketCapabilities.supportsModelEventEffects(session.getHandshakeResponseHeaders()));
     }
 
     @Override

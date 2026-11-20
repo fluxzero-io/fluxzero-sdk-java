@@ -2957,6 +2957,15 @@ Replay has durable progress, is idempotent and does not republish the historical
 applies, not command assertions or interceptors. Compare the reconstructed values, relationships and query
 results with the old application before moving traffic.
 
+A replayed parent deletion also removes children and descendants owned through
+`@Parent(deleteOnParentDeletion = true)`. Children with `deleteOnParentDeletion = false` survive.
+The cascade is part of the same atomic commit and publishes no additional domain events. Include every
+related Model in the catalog and verify child lookups separately after replay, even when the parent is gone.
+
+The SDK enables migration cascades when its connected Runtime peers advertise event-effects support.
+Either component can be upgraded first. Historical Graph reads then return the state before the source deletion
+or after its complete cascade. Events already migrated with legacy behavior require a clean reconstruction.
+
 #### 2. Move handlers to the new application
 
 Move queries and read-only listeners first, changing aggregate lookups to the new Model/Graph reads.

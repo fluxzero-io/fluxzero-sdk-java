@@ -85,6 +85,9 @@ public interface EventStoreClient extends AutoCloseable {
                 new UnsupportedOperationException("Independent model commits are not supported by this event store"));
     }
 
+    /** Whether published-event migration can commit and read a complete cascade at one event boundary. */
+    default boolean supportsModelEventEffects() { return false; }
+
     /** Refreshes a canonical Model source without changing its head or history. */
     default CompletableFuture<Boolean> reindexModel(io.fluxzero.common.api.modeling.ReindexModel request) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("Model reindex is not supported"));

@@ -11,6 +11,12 @@ updates, relationships, moves and deletion, not just the newest happy-path event
 aliases and required upcasters. A command handler is not a replay mapping: the migration runs replay applies, not
 ordinary business handlers, command legality assertions or command interceptors.
 
+When a replayed event deletes a parent, the migration also deletes children whose `@Parent` relation has
+`deleteOnParentDeletion = true`, including owned descendants. Children with `deleteOnParentDeletion = false`
+survive. These deletions are committed atomically with the parent and do not publish new domain events.
+Use an isolated migration target and include every related Model definition. Cascade traversal follows stored
+owning relationships, including any that already exist in the target. Check children by ID after replay.
+
 For example, a synthetic archive might have published this event before introducing independent Models:
 
 ```java
@@ -84,6 +90,12 @@ Use a Runtime that supports live migration documents. An older Runtime is reject
 commit. Persisted records from older staged migrations retain their original storage behavior. If staged documents
 already exist, stop every old migration-runner instance, including failover standbys. The runner refuses live replay until they have been verified and adopted with the existing `adopt`
 operation; do not silently resume document-only Models against an empty ordinary source.
+
+Historical Graph reads at `ModelReadBoundary.event(index)` include the cascade of a migrated deletion.
+`asBefore()` selects the state before that deletion. Verify both separate Model lookups and relationships.
+The writer uses the Runtime handshake to enable cascades once its peers support migration event effects.
+Either component can be upgraded first. Until both support the feature, migration retains its legacy deletion
+behavior. Rebuild into empty target storage to correct previously migrated events.
 
 ## Coordinate readers without starting another replay
 

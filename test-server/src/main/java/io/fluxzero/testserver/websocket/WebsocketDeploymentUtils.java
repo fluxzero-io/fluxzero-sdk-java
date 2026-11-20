@@ -85,6 +85,7 @@ public class WebsocketDeploymentUtils {
         response.getHeaders().put(WebSocketCapabilities.MODEL_IDENTITY_SELECTION_VERSION_HEADER, List.of("1"));
         response.getHeaders().put(WebSocketCapabilities.MODEL_RECONSTRUCTION_VERSION_HEADER, List.of("1"));
         response.getHeaders().put(WebSocketCapabilities.LIVE_MODEL_MIGRATION_VERSION_HEADER, List.of("1"));
+        response.getHeaders().put(WebSocketCapabilities.MODEL_EVENT_EFFECTS_VERSION_HEADER, List.of("1"));
         response.getHeaders().put(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER,
                                   Integer.toString(io.fluxzero.common.api.tracking.ConsumerFilter.VERSION));
 

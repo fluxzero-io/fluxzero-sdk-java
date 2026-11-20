@@ -64,6 +64,18 @@ public final class WebSocketCapabilities {
                 .anyMatch("1"::equals);
     }
 
+    /** Event boundaries include every internal effect of one migrated published event. */
+    public static final String MODEL_EVENT_EFFECTS_VERSION_HEADER = "Fluxzero-Model-Event-Effects-Version";
+
+    /** Missing or unknown versions never permit atomic migration-event boundaries. */
+    public static boolean supportsModelEventEffects(Map<String, List<String>> headers) {
+        return headers != null && headers.entrySet().stream()
+                .filter(entry -> MODEL_EVENT_EFFECTS_VERSION_HEADER.equalsIgnoreCase(entry.getKey()))
+                .filter(entry -> entry.getValue() != null)
+                .flatMap(entry -> entry.getValue().stream())
+                .anyMatch("1"::equals);
+    }
+
     /** Explicit primary/alias selection and atomic alias-owner observations understood by the server. */
     public static final String MODEL_IDENTITY_SELECTION_VERSION_HEADER = "Fluxzero-Model-Identity-Selection-Version";
 

@@ -363,6 +363,7 @@ final class ModelPipeline {
             serialized.setIndex(eventIndex);
             DeserializingMessage message = serializer.deserializeMessage(
                     serialized, MessageType.EVENT);
+            message.putContext(MigrationCascade.class, new MigrationCascade(eventStoreClient.supportsModelEventEffects()));
             return execute(new ExecutionRequest(message, null, -1, Mode.MIGRATE), null)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
@@ -478,9 +479,12 @@ final class ModelPipeline {
                 loader.assertionsOnly = true;
                 yield ModelReducer.assertLegal(attempt, request.message(), loader);
             }
-            case REPLAY, MIGRATE -> ModelReducer.reapply(
-                    attempt, List.of(request.message()),
-                    new CommitLoader(null, true, request.mode() == Mode.MIGRATE));
+            case REPLAY -> ModelReducer.reapply(
+                    attempt, List.of(request.message()), new CommitLoader(null, true, false));
+            // Published history contains the parent event, not the internal cascade substeps. Rebuild those
+            // substeps from the migrated relationships without rerunning command constraints or deadlines.
+            case MIGRATE -> expandMigrationDeletes(request.message(), ModelReducer.reapply(
+                    attempt, List.of(request.message()), new CommitLoader(null, true, true)));
             case LIVE, AUTOMATIC -> {
                 boolean direct = request.mode() == Mode.AUTOMATIC
                         ? !retry || batched
@@ -588,7 +592,7 @@ final class ModelPipeline {
                 })
                 : Retry.conflicts(
                         conflictResolver, maxConflictRetries,
-                        (conflict, current) -> reload(entry, message, current, conflict));
+                        (conflict, current) -> reload(entry, message, current, conflict, migration));
         ModelCommitAdmission.Session admissionSession =
                 effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                         ? commitAdmission.open() : null;
@@ -880,13 +884,21 @@ final class ModelPipeline {
             ModelBatchScope.CommitCoordination entry,
             DeserializingMessage message,
             CommitAttempt staleEvaluation,
-            CommitModelsResult conflict) {
+            CommitModelsResult conflict,
+            boolean migration) {
         repository.invalidateModels(
                 staleEvaluation.readModelIds());
         long retryStateIndex =
                 retryStateIndex(
                         staleEvaluation,
                         conflict);
+        if (migration) {
+            // A relationship conflict can reveal descendants absent from the initial replay boundary.
+            // Retry the accepted event as replay, never as a newly validated command.
+            return reevaluate(entry, message, () -> expandMigrationDeletes(message, ModelReducer.reapply(
+                    new CommitAttempt(), List.of(message), new CommitLoader(
+                            retryStateIndex, true, true, readsDocumentModel(staleEvaluation)))));
+        }
         return reevaluate(entry, message, () -> validateCascadingAssertions(expandCascadeDeletes(
                 ModelReducer.retry(message, new CommitLoader(
                         retryStateIndex, false, false, readsDocumentModel(staleEvaluation)), conflict), message)));
@@ -948,15 +960,18 @@ final class ModelPipeline {
         // ACCEPT reapplies at the runtime's requested boundary while holding its admission session.
         // Keep this existing apply-only path free of waits on speculative producers.
         return ModelBatchScope.withDependency(entry,
-                () -> expandCascadeDeletes(ModelReducer.reapplySteps(
-                        new CommitAttempt(),
-                        steps.stream()
-                                .filter(step -> !(step.message().getPayload()
-                                        instanceof CascadedModelDeletion))
-                                .toList(),
-                        new CommitLoader(
-                                stateIndex, true, migration,
-                                readsDocumentModel(evaluation))), message));
+                () -> {
+                    CommitAttempt reapplied = ModelReducer.reapplySteps(
+                            new CommitAttempt(),
+                            steps.stream()
+                                    .filter(step -> !(step.message().getPayload()
+                                            instanceof CascadedModelDeletion))
+                                    .toList(),
+                            new CommitLoader(
+                                    stateIndex, true, migration,
+                                    readsDocumentModel(evaluation)));
+                    return migration ? expandMigrationDeletes(message, reapplied) : expandCascadeDeletes(reapplied, message);
+                });
     }
 
     private CompletableFuture<CommitAttempt> reevaluate(
@@ -983,6 +998,13 @@ final class ModelPipeline {
         } catch (Exception failure) {
             throw repository.preparationFailure(message.getMessageId(), evaluation.readStateIndex(), failure);
         }
+    }
+
+    private record MigrationCascade(boolean enabled) {}
+
+    private CommitAttempt expandMigrationDeletes(DeserializingMessage message, CommitAttempt evaluation) {
+        return message.getContext(MigrationCascade.class).orElseThrow().enabled()
+                ? expandCascadeDeletes(evaluation) : evaluation;
     }
 
     private CommitAttempt expandCascadeDeletes(
