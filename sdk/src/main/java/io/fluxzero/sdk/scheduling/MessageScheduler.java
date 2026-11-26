@@ -123,6 +123,11 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      * @return the effective schedule ID
      */
     default String schedulePeriodic(@NonNull Object value, Object scheduleId) {
+        return schedulePeriodic(value, scheduleId, null);
+    }
+
+    /** Starts a periodic schedule with a per-instance key overriding the annotation's spread key. */
+    default String schedulePeriodic(@NonNull Object value, Object scheduleId, String spreadKey) {
         Class<?> payloadType = value instanceof Message m ? m.getPayloadClass() : value.getClass();
         var periodic = ReflectionUtils.<Periodic>getTypeAnnotation(payloadType, Periodic.class);
         if (periodic == null) {
@@ -133,7 +138,11 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
                 .orElseGet(() -> value instanceof HasMessage m ? m.getPayload().toString() : value.toString());
         Instant firstDeadline = PeriodicSchedulingDefaults.schedulePeriodicDeadline(periodic, Fluxzero.currentTime());
         if (firstDeadline != null) {
-            schedule(periodicSchedule(value, effectiveScheduleId, firstDeadline, periodic));
+            Schedule schedule = periodicSchedule(value, effectiveScheduleId, firstDeadline, periodic);
+            if (spreadKey != null) {
+                schedule = schedule.addMetadata(PeriodicSchedulingDefaults.SPREAD_KEY, spreadKey);
+            }
+            schedule(PeriodicSchedulingDefaults.applySpread(schedule, periodic));
         }
         return effectiveScheduleId;
     }

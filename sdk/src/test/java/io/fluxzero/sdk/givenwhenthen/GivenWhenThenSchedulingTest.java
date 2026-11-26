@@ -49,6 +49,10 @@ import java.util.stream.IntStream;
 
 import static io.fluxzero.sdk.Fluxzero.publishEvent;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class GivenWhenThenSchedulingTest {
@@ -200,6 +204,53 @@ class GivenWhenThenSchedulingTest {
         private String branchId(String scheduleId, Instant deadline) {
             return "%s_%s".formatted(scheduleId, IndexUtils.indexFromTimestamp(deadline));
         }
+    }
+
+    @Periodic(delay = 1, timeUnit = TimeUnit.DAYS, initialDelay = 0, autoStart = false,
+              spread = 1, spreadTimeUnit = TimeUnit.HOURS)
+    record SpreadTask() {}
+
+    @Test
+    void spreadKeySurvivesDeliveryWithoutMovingTheDailyAnchor() {
+        var start = Instant.parse("2026-01-01T00:00:00Z");
+        var first = start.plusMillis(2_004_735);
+        TestFixture.create().atFixedTime(start).registerHandlers(new Object() {
+            @HandleSchedule
+            void handle(SpreadTask task) { }
+        }).whenExecuting(fc -> Fluxzero.schedulePeriodic(new SpreadTask(), "task", "example"))
+                .expectSchedule(s -> s.getDeadline().equals(first))
+                .andThen().whenTimeAdvancesTo(first)
+                .expectSchedule(s -> s.getScheduleId().equals("task")
+                                     && s.getDeadline().equals(first.plus(Duration.ofDays(1))));
+    }
+
+    @Test
+    void autoStartedCronSpreadsEachNominalDeadline() {
+        var start = Instant.parse("2026-01-01T00:00:00Z");
+        var offset = Duration.ofMillis(2_004_735);
+        TestFixture.create().atFixedTime(start).registerHandlers(new Object() {
+            @HandleSchedule
+            @Periodic(cron = "0 0 * * *", initialDelay = 0, spread = 1, spreadTimeUnit = TimeUnit.HOURS,
+                      spreadKey = "example")
+            void handle(CronSchedule task) { publishEvent("ran"); }
+        }).whenTimeAdvancesTo(start.plus(offset))
+                .expectOnlyEvents("ran")
+                .expectSchedule(s -> s.getDeadline().equals(start.plus(Duration.ofDays(1)).plus(offset)));
+    }
+
+    @Test
+    void oneShotSpreadRespectsTheWindowAndPreservesIdentity() {
+        var schedule = new Schedule("payload", Instant.EPOCH);
+        var budget = Duration.ofHours(1);
+        var keyed = schedule.withSpread(budget, "example");
+        assertEquals(Instant.ofEpochMilli(2_004_735), keyed.getDeadline());
+        assertEquals(schedule.getMessageId(), keyed.getMessageId());
+        assertEquals(schedule.getScheduleId(), keyed.getScheduleId());
+        assertFalse(keyed.hasExplicitScheduleId());
+        assertSame(schedule, schedule.withSpread(Duration.ZERO));
+        assertThrows(IllegalArgumentException.class, () -> schedule.withSpread(Duration.ofNanos(-1)));
+        Instant random = schedule.withSpread(budget).getDeadline();
+        assertTrue(!random.isBefore(Instant.EPOCH) && random.isBefore(Instant.EPOCH.plus(budget)));
     }
 
     @Nested

@@ -15,6 +15,13 @@ test whether the first run is immediate or delayed.
 Cron values may reference an application property. Use `Periodic.DISABLED` (`"-"`) or a property default such as
 `${maintenanceCron:-}` when absence should disable the schedule rather than make application startup fail.
 
+To stagger tasks, set `spread` and optionally `spreadTimeUnit` on `@Periodic`.
+For example, `delay = 1, timeUnit = DAYS, spread = 1, spreadTimeUnit = HOURS` schedules each
+occurrence within the hour following its nominal deadline. Spread defaults to zero and its unit to
+milliseconds. Set `spreadKey` for a stable offset, or pass a per-instance key to
+`Fluxzero.schedulePeriodic(payload, scheduleId, key)`. Otherwise each occurrence draws a fresh offset.
+One-off schedules support `schedule.withSpread(duration)` and `schedule.withSpread(duration, key)`.
+
 ## Distinguish normal and error continuation
 
 ```java

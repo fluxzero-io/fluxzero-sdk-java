@@ -16,6 +16,7 @@ package io.fluxzero.sdk.scheduling;
 
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -28,6 +29,19 @@ import static io.fluxzero.sdk.scheduling.CronExpression.parseCronExpression;
 
 final class PeriodicSchedulingDefaults {
     static final String CRON_SCHEMA_METADATA_KEY = "$periodic.cron";
+
+    static final String SPREAD_KEY = "$periodic.spreadKey";
+    static final String BASE_DEADLINE = "$periodic.baseDeadline";
+
+    static Schedule applySpread(Schedule schedule, Periodic periodic) {
+        if (periodic.spread() == 0) {
+            return schedule;
+        }
+        String key = schedule.getMetadata().getOrDefault(SPREAD_KEY, periodic.spreadKey());
+        return schedule.withSpread(Duration.of(periodic.spread(), periodic.spreadTimeUnit().toChronoUnit()),
+                                   key.isEmpty() ? null : key)
+                .addMetadata(BASE_DEADLINE, schedule.getDeadline().toEpochMilli());
+    }
 
     private static final LocalDate DEFAULT_INITIAL_DELAY_DEFAULTS_VERSION = LocalDate.of(2026, 5, 21);
     private static final Function<String, CronExpression> cronExpression = memoize(PeriodicSchedulingDefaults::parse);
