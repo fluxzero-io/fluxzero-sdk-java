@@ -1,8 +1,4 @@
 version: 1
-defaults:
-  schedule:
-    cron: 0 * * * *
-    spread: 55m
 branches:
 - name: main
   ecosystems:
