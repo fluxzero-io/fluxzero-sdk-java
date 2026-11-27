@@ -21,13 +21,19 @@ import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.Value;
 
 import java.beans.ConstructorProperties;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static io.fluxzero.sdk.Fluxzero.currentTime;
 import static java.time.temporal.ChronoUnit.MILLIS;
@@ -248,6 +254,37 @@ public class Schedule extends Message {
     @Override
     public Schedule addUser(User user) {
         return (Schedule) super.addUser(user);
+    }
+
+    /** Picks a deadline uniformly within the forward spread window at millisecond resolution. */
+    public Schedule withSpread(Duration budget) {
+        return withSpread(budget, null);
+    }
+
+    /**
+     * Shifts this deadline by less than the supplied budget, retaining the message identity.
+     * A non-null key yields the same offset for the same budget across JVMs. Null selects a random offset.
+     * Negative budgets are invalid. Budgets shorter than a millisecond leave the deadline unchanged.
+     */
+    public Schedule withSpread(Duration budget, String key) {
+        if (budget.isNegative()) {
+            throw new IllegalArgumentException("Spread must be nonnegative");
+        }
+        long bound = budget.toMillis();
+        if (bound <= 1) {
+            return this;
+        }
+        long offset = key == null ? ThreadLocalRandom.current().nextLong(bound)
+                : Long.remainderUnsigned(spreadHash(key), bound);
+        return new Schedule(getPayload(), getMetadata(), getMessageId(), getTimestamp(),
+                            scheduleId, deadline.plusMillis(offset), generatedScheduleId);
+    }
+
+    @SneakyThrows(NoSuchAlgorithmException.class)
+    private static long spreadHash(String key) {
+        byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(key.getBytes(StandardCharsets.UTF_8));
+        return ByteBuffer.wrap(digest).getLong();
     }
 
     /**

@@ -891,6 +891,11 @@ public interface Fluxzero extends AutoCloseable {
         get().messageScheduler().schedulePeriodic(schedule, scheduleId);
     }
 
+    /** Starts a periodic schedule using an explicit per-instance spread key. */
+    static void schedulePeriodic(Object schedule, Object scheduleId, String spreadKey) {
+        get().messageScheduler().schedulePeriodic(schedule, scheduleId, spreadKey);
+    }
+
     /**
      * Schedules a message for the given timestamp, returning the schedule's id. The {@code schedule} parameter may be
      * an instance of a {@link Message} in which case it will be scheduled as is. Otherwise, the schedule is published

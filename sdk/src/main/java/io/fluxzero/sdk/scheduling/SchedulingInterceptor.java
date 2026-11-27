@@ -143,7 +143,8 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                             p -> ofNullable(p.getSystemUser()).map(u -> p.addToMetadata(Metadata.empty(), u)))
                     .orElse(Metadata.empty());
             Schedule schedule = new Schedule(payload, markCron(metadata, periodic), scheduleId, firstDeadline);
-            initializePeriodicSchedule(fluxzero.messageScheduler().forNamespace(namespace), schedule, periodic);
+            initializePeriodicSchedule(fluxzero.messageScheduler().forNamespace(namespace),
+                                       PeriodicSchedulingDefaults.applySpread(schedule, periodic), periodic);
         }
     }
 
@@ -257,13 +258,13 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                         schedule(nextPayload, metadata, now.plus(Duration.of(1, MINUTES)), schedule);
                     }
                 } else {
-                    schedule(nextPayload, metadata, nextDeadline(periodic, now), periodic, schedule);
+                    schedule(nextPayload, metadata, nextPeriodicDeadline(periodic, schedule, now), periodic, schedule);
                 }
             } else if (periodic != null) {
-                schedule(schedule, nextDeadline(periodic, now), periodic);
+                schedule(schedule, nextPeriodicDeadline(periodic, schedule, now), periodic);
             }
         } else if (periodic != null) {
-            schedule(schedule, nextDeadline(periodic, now), periodic);
+            schedule(schedule, nextPeriodicDeadline(periodic, schedule, now), periodic);
         }
         return result;
     }
@@ -289,10 +290,23 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
             if (periodic.delayAfterError() >= 0) {
                 schedule(schedule, now.plusMillis(periodic.timeUnit().toMillis(periodic.delayAfterError())));
             } else {
-                schedule(schedule, nextDeadline(periodic, now), periodic);
+                schedule(schedule, nextPeriodicDeadline(periodic, schedule, now), periodic);
             }
         }
         throw result;
+    }
+
+    private Instant nextPeriodicDeadline(Periodic periodic, DeserializingMessage message, Instant delivered) {
+        if (periodic.spread() > 0) {
+            String base = message.getMetadata().get(PeriodicSchedulingDefaults.BASE_DEADLINE);
+            if (base != null) {
+                Instant next = nextDeadline(periodic, ofEpochMilli(Long.parseLong(base)));
+                if (next == null || next.isAfter(delivered)) {
+                    return next;
+                }
+            }
+        }
+        return nextDeadline(periodic, delivered);
     }
 
     private void schedule(DeserializingMessage message, Instant instant) {
@@ -312,7 +326,21 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
 
     private void schedule(Object payload, Metadata metadata, Instant instant, Periodic periodic,
                           DeserializingMessage source) {
-        schedule(payload, markCron(metadata, periodic), instant, source);
+        if (periodic.spread() == 0) {
+            schedule(payload, markCron(metadata, periodic), instant, source);
+            return;
+        }
+        if (instant != null) {
+            Metadata nextMetadata = markCron(metadata, periodic);
+            String key = source.getMetadata().get(PeriodicSchedulingDefaults.SPREAD_KEY);
+            if (key != null) {
+                nextMetadata = nextMetadata.with(PeriodicSchedulingDefaults.SPREAD_KEY, key);
+            }
+            String id = source.getMetadata().getOrDefault(Schedule.scheduleIdMetadataKey,
+                                                          currentIdentityProvider().nextTechnicalId());
+            scheduleInternal(PeriodicSchedulingDefaults.applySpread(new Schedule(payload, nextMetadata, id, instant),
+                                                                     periodic), source);
+        }
     }
 
     private void schedule(Schedule schedule, DeserializingMessage source) {
@@ -340,7 +368,10 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
     }
 
     private static Metadata clearCron(Metadata metadata) {
-        return metadata.without(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY);
+        return metadata.containsKey(PeriodicSchedulingDefaults.BASE_DEADLINE)
+                ? metadata.withoutIf(key -> key.equals(PeriodicSchedulingDefaults.BASE_DEADLINE)
+                                            || key.equals(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY))
+                : metadata.without(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY);
     }
 
     private static boolean wasCronScheduled(Metadata metadata) {

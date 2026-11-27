@@ -162,6 +162,15 @@ public @interface Periodic {
      */
     long delay() default -1L;
 
+    /** Exclusive upper bound for the offset added to each periodic deadline. Zero disables spread. */
+    long spread() default 0L;
+
+    /** Unit of {@link #spread()}, independently of {@link #timeUnit()}. */
+    TimeUnit spreadTimeUnit() default MILLISECONDS;
+
+    /** Stable key for spreading occurrences. An empty value chooses a fresh random offset for each occurrence. */
+    String spreadKey() default "";
+
     /**
      * Returns true if the schedule should continue after an error. Defaults to {@code true}.
      */
