@@ -48,6 +48,10 @@ public interface Tracking extends AutoCloseable {
     /**
      * Closes the tracking process, releasing any resources held by it. This method is invoked automatically when
      * {@link Fluxzero} is shut down.
+     * <p>
+     * Cancellation waits at most one second per tracker group. If handler processing is still unfinished when
+     * cancellation returns, the uncertain batch remains eligible for replay. Already executed effects may repeat.
+     * Completion continues to follow the settings in {@link ConsumerConfiguration}.
      */
     @Override
     void close();

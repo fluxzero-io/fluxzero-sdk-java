@@ -103,7 +103,7 @@ public class DefaultTracker implements Runnable, Registration {
     private final Duration retryDelay;
     private final Long minIndex;
     private final Long maxIndexExclusive;
-    private final boolean autoStorePosition;
+    private volatile boolean autoStorePosition;
     private final Guarantee disconnectGuarantee;
     private final FlowRegulator flowRegulator;
     private final MetricsGateway metricsGateway;
@@ -210,6 +210,10 @@ public class DefaultTracker implements Runnable, Registration {
         }
         return new WorkerGroup(trackers);
     }
+
+    /** Internal marker for batch callbacks whose handler registrations may be released during cancellation. */
+    @FunctionalInterface
+    public interface HandlerConsumer extends Consumer<List<SerializedMessage>> {}
 
     /** A tracker registration with a local lifecycle query that performs no Runtime I/O. */
     public interface TrackerRegistration extends Registration {
@@ -631,15 +635,10 @@ public class DefaultTracker implements Runnable, Registration {
         }
     }
 
-    @SuppressWarnings("BusyWait")
     private void awaitCancellation(long threadStopDeadline) {
         Thread trackerThread = thread.get();
-        if (!cancellationRequested.get() || currentThread().equals(trackerThread)) {
-            completeCancellation();
-            return;
-        }
-        if (trackerThread != null) {
-            try {
+        try {
+            if (trackerThread != null && !currentThread().equals(trackerThread)) {
                 long remainingNanos = threadStopDeadline - System.nanoTime();
                 if (remainingNanos > 0L) {
                     trackerThread.join(Math.max(1L, TimeUnit.NANOSECONDS.toMillis(remainingNanos)));
@@ -648,16 +647,21 @@ public class DefaultTracker implements Runnable, Registration {
                     log.warn("Tracker thread {} did not stop within {} after cancellation. Continuing shutdown so "
                              + "the client can release its resources", trackerThread.getName(),
                              TRACKER_THREAD_STOP_TIMEOUT);
-                    // Keep interceptor resources alive until the processing stack has actually unwound.
-                    termination.thenRun(this::completeCancellation);
-                    return;
                 }
-            } catch (InterruptedException e) {
-                currentThread().interrupt();
-                return;
+            }
+        } catch (InterruptedException e) {
+            currentThread().interrupt();
+        } finally {
+            if (trackerThread != null && trackerThread.isAlive()) {
+                if (processing && consumer instanceof HandlerConsumer) {
+                    // Handler resources may now be released. Keep the uncertain batch eligible for replay.
+                    autoStorePosition = false;
+                }
+                termination.thenRun(this::completeCancellation);
+            } else {
+                completeCancellation();
             }
         }
-        completeCancellation();
     }
 
     private void completeCancellation() {

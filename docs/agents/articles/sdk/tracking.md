@@ -58,11 +58,14 @@ For document rebuilding after search or upcaster changes, increment `@Revision` 
 
 For monotonic identifiers, model the sequence as a query backed by persisted counter state. Use `@Consumer(singleTracker = true)` only for a global sequence; omit it when routing keys partition independent counters naturally.
 
-Canceling a tracking registration waits at most one second for its tracker threads, sharing that budget across
-parallel trackers. Active batches are not interrupted. If a worker remains blocked, cancellation returns so client
-shutdown can continue; the worker releases its segment and runs interceptor cleanup only after it actually exits.
-A timeout does not acknowledge unfinished work. Keep side effects replay-safe if the application closes before the
-batch completes. Custom interceptor cleanup must itself be bounded; this is not a global application-shutdown deadline.
+Canceling a tracking registration stops fetching new batches and waits at most one second for its tracker threads,
+sharing that budget across parallel trackers. Active batches are not interrupted. When handler tracking is stopped,
+in-flight callbacks retain their handlers; partial unregistration from a running consumer retains its existing behavior.
+If cancellation returns with handler processing unfinished, its entire uncertain batch remains eligible for replay,
+even if a later error-handler retry returns normally. Already executed effects may therefore repeat. A checkpoint
+already started after completed processing may still finish. Direct DefaultTracker/proxy callbacks retain their own
+completion policy, and `awaitAsyncResults=false` still permits acknowledgement before returned futures complete.
+Interceptor cleanup follows worker exit. Custom cleanup must itself be bounded; this is not a global shutdown deadline.
 
 An active batch requests release of its segment ownership after finishing
 with a `DisconnectTracker` using `STORED` delivery. This also applies when other consumers keep the client connected. Cancellation from

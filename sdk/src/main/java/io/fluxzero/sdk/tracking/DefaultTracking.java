@@ -410,10 +410,19 @@ public class DefaultTracking implements Tracking {
     private void unregisterConsumerHandlers(ConsumerConfiguration configuration,
                                             List<Handler<DeserializingMessage>> handlers,
                                             List<String> topics) {
+        if (closing.get()) {
+            Optional.ofNullable(startedTopics.get(configuration))
+                    .ifPresent(trackers -> trackers.values().forEach(TopicTracker::stop));
+        }
         releaseTrackingTopics(configuration, topics);
         Optional.ofNullable(startedHandlers.get(configuration)).ifPresent(activeHandlers -> {
-            activeHandlers.removeAll(handlers);
-            if (activeHandlers.isEmpty()) {
+            boolean detached = closing.get()
+                    || (!startedTopics.containsKey(configuration) && handlers.containsAll(activeHandlers));
+            // Stopped callbacks may still be using this list. Drop ownership without removing their handlers.
+            if (!detached) {
+                activeHandlers.removeAll(handlers);
+            }
+            if (detached || activeHandlers.isEmpty()) {
                 startedHandlers.remove(configuration);
                 var blueprint = consumerBlueprints.remove(configuration);
                 if (blueprint != null) {
@@ -756,6 +765,7 @@ public class DefaultTracking implements Tracking {
     private static class TopicTracker {
         private final Registration registration;
         private int references;
+        private boolean stopped;
 
         private TopicTracker(Registration registration) {
             this.registration = registration;
@@ -770,15 +780,22 @@ public class DefaultTracking implements Tracking {
             if (references > 0) {
                 return false;
             }
-            registration.cancel();
+            stop();
             return true;
+        }
+
+        void stop() {
+            if (!stopped) {
+                stopped = true;
+                registration.cancel();
+            }
         }
     }
 
     protected Consumer<List<SerializedMessage>> createConsumer(ConsumerConfiguration config,
                                                                List<Handler<DeserializingMessage>> handlers) {
         Map<String, ChunkedDeserializingMessage> activeChunkedMessages = new ConcurrentHashMap<>();
-        return serializedMessages -> {
+        return (DefaultTracker.HandlerConsumer) serializedMessages -> {
             String topic = Tracker.current().orElseThrow().getTopic();
             TrackingClient trackingClient = Fluxzero.get().client().forNamespace(config.getNamespace())
                     .getTrackingClient(messageType, topic);

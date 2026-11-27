@@ -654,9 +654,13 @@ is controlled separately by `awaitAsyncResults`.
 
 ### Stopping a consumer
 
-Cancel its tracking registration to let the active batch finish and release its assigned segments. Closing the
-Fluxzero instance also closes its owned tracking resources. Shutdown has bounded waits for outstanding work;
-a crash or timeout can leave input to be replayed.
+Cancel its tracking registration to stop fetching new batches and let the active batch finish. Cancellation waits at
+most one second per group of tracker threads. If handler processing is still unfinished when cancellation returns,
+the uncertain batch is left for replay, including work that may already have produced effects. Keep side effects safe
+to repeat. Closing the Fluxzero instance also closes its owned tracking resources.
+
+The existing async-result settings still determine what counts as completed processing. Low-level `DefaultTracker`
+callbacks retain their own completion policy.
 
 See <Jdoclink className="ConsumerConfiguration" /> and <Jdoclink className="Tracking" /> for exact completion
 and resource lifecycle contracts.
