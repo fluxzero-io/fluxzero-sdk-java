@@ -16,6 +16,14 @@
 
 package io.fluxzero.sdk.configuration;
 
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.ModelCommitConflict;
+import io.fluxzero.sdk.modeling.AssertLegal;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.tracking.Position;
@@ -31,6 +39,10 @@ import jakarta.annotation.Nullable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
+import java.util.List;
+import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
@@ -149,12 +161,85 @@ class PublishedEventModelMigrationTest {
     }
 
     @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    void replayRetryDoesNotRunLiveInterceptorsOrLoseTheOriginalEvent() throws Exception {
+        var rejected = new AtomicBoolean();
+        var client = conflictingClient(rejected);
+        var serializer = new JacksonSerializer();
+        try (var migration = PublishedEventModelMigration.builder().name("replay-retry-contract")
+                .client(client).serializer(serializer).modelTypes(LegacyModel.class).build()) {
+            client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                    new Message(new LegacyIncrement("legacy", 1)).serialize(serializer),
+                    new Message(new AcceptedLegacyUpdate("legacy")).serialize(serializer)).join();
+            var source = client.getTrackingClient(EVENT).readFromIndex(0L, 100);
+            var replay = migration.replay();
+            await(() -> client.getTrackingClient(EVENT).getPosition(migration.name())
+                    .lowestIndexForSegment(new int[]{0, MAX_SEGMENT}).orElse(-1L) >= source.getLast().getIndex());
+            replay.cancel();
+            assertTrue(rejected.get());
+            assertEquals(2, migration.repository().load("legacy", LegacyModel.class).get().value());
+            assertEquals(source, client.getTrackingClient(EVENT).readFromIndex(0L, 100));
+        }
+    }
+
+    @Test
+    void storedEventRetryAlsoRemainsApplyOnlyWithoutPublication() {
+        var rejected = new AtomicBoolean();
+        var client = conflictingClient(rejected);
+        try (var application = DefaultFluxzero.builder().disableAutomaticTracking().build(client)) {
+            application.registerHandlers(LegacyModel.class);
+            application.executeStoredModelEvent(new Message(new LegacyIncrement("legacy", 1))).join();
+            application.executeStoredModelEvent(new Message(new AcceptedLegacyUpdate("legacy"))).join();
+            assertTrue(rejected.get());
+            assertEquals(2, application.modelRepository().load("legacy", LegacyModel.class).get().value());
+            assertTrue(client.getTrackingClient(EVENT).readFromIndex(0L, 100).isEmpty());
+        }
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    void storedEventRetryReloadsAConcurrentlyChangedDocumentModel() {
+        var base = LocalClient.newInstance(null);
+        var client = org.mockito.Mockito.spy(base);
+        var store = org.mockito.Mockito.spy(base.getEventStoreClient());
+        org.mockito.Mockito.doReturn(store).when(client).getEventStoreClient();
+        var advanced = new AtomicBoolean();
+        try (var competitor = DefaultFluxzero.builder().disableAutomaticTracking().build(base);
+             var application = DefaultFluxzero.builder().disableAutomaticTracking().build(client)) {
+            competitor.registerHandlers(DocumentCounter.class);
+            application.registerHandlers(DocumentCounter.class);
+            org.mockito.Mockito.doAnswer(invocation -> {
+                CommitModels commit = invocation.getArgument(0);
+                if (commit.getCommitId().equals("retry-source") && advanced.compareAndSet(false, true)) {
+                    CompletableFuture.runAsync(() -> competitor.executeStoredModelEvent(
+                            new Message(new DocumentIncrement("document", 10))).join()).join();
+                    @SuppressWarnings("unchecked")
+                    var result = (CompletableFuture<CommitModelsResult>)
+                            invocation.callRealMethod();
+                    return result.thenApply(conflict -> {
+                        assertFalse(conflict.isAccepted());
+                        assertTrue(conflict.getConflicts().getFirst().getCurrentStateIndex() > commit.getReadStateIndex());
+                        return conflict;
+                    });
+                }
+                return invocation.callRealMethod();
+            }).when(store).commitModels(org.mockito.ArgumentMatchers.any());
+            application.executeStoredModelEvent(new Message(new DocumentIncrement("document", 1))).join();
+            application.executeStoredModelEvent(new Message(new DocumentIncrement("document", 2),
+                    Metadata.empty(), "retry-source", Instant.parse("2026-01-01T00:00:00Z"))).join();
+            assertTrue(advanced.get());
+            assertEquals(13, application.modelRepository().load("document", DocumentCounter.class).get().value());
+            assertTrue(client.getTrackingClient(EVENT).readFromIndex(0L, 100).isEmpty());
+        }
+    }
+
+    @Test
     void refusesLiveReplayWhenLegacyStagedDocumentsRemain() {
         LocalClient client = org.mockito.Mockito.spy(LocalClient.newInstance(null));
         var search = org.mockito.Mockito.spy(client.getSearchClient());
         org.mockito.Mockito.doReturn(search).when(client).getSearchClient();
         org.mockito.Mockito.doReturn(new io.fluxzero.common.api.search.GetModelMigrationsResult(1L,
-                java.util.List.of(new io.fluxzero.common.api.modeling.ModelHeadState(
+                List.of(new io.fluxzero.common.api.modeling.ModelHeadState(
                         "legacy", "LegacyModel", 0L, 1L, true, false))))
                 .when(search).getModelMigrations(org.mockito.ArgumentMatchers.any());
         try (var migration = PublishedEventModelMigration.builder().name("legacy-staging-guard")
@@ -184,6 +269,25 @@ class PublishedEventModelMigrationTest {
         }
     }
 
+    private static LocalClient conflictingClient(AtomicBoolean rejected) {
+        var client = org.mockito.Mockito.spy(LocalClient.newInstance(null));
+        var store = org.mockito.Mockito.spy(client.getEventStoreClient());
+        org.mockito.Mockito.doReturn(store).when(client).getEventStoreClient();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            if (commit.getSubsteps().stream().anyMatch(step -> step.getEvent() != null
+                    && step.getEvent().getData().getType().endsWith("AcceptedLegacyUpdate"))
+                    && rejected.compareAndSet(false, true)) {
+                return CompletableFuture.completedFuture(
+                        CommitModelsResult.conflict(commit.getRequestId(), commit.getCommitId(),
+                                List.of(new ModelCommitConflict(
+                                        "legacy", commit.getReadStateIndex(), -1)), true));
+            }
+            return invocation.callRealMethod();
+        }).when(store).commitModels(org.mockito.ArgumentMatchers.any());
+        return client;
+    }
+
     private static void await(BooleanSupplier condition) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
         while (!condition.getAsBoolean()) {
@@ -205,4 +309,31 @@ class PublishedEventModelMigrationTest {
                     id, (model == null ? 0 : model.value()) + delta);
         }
     }
+    @Model(persistence = ModelPersistence.DOCUMENT)
+    private record DocumentCounter(@EntityId String id, int value) {}
+
+    private record DocumentIncrement(String id, int delta) {
+        @InterceptApply
+        Object intercept() { throw new AssertionError("Accepted events must not rerun interceptors"); }
+
+        @AssertLegal
+        void assertLegal() { throw new AssertionError("Accepted events must not rerun assertions"); }
+
+        @Apply
+        DocumentCounter apply(@Nullable DocumentCounter current) {
+            return new DocumentCounter(id, (current == null ? 0 : current.value()) + delta);
+        }
+    }
+
+    private record AcceptedLegacyUpdate(String id) {
+        @AssertLegal
+        void assertLegal() { throw new AssertionError("Accepted events must not rerun command assertions"); }
+
+        @InterceptApply
+        Object intercept(Graph<LegacyModel> model) { return model.delete(); }
+
+        @Apply
+        LegacyModel apply(LegacyModel model) { return new LegacyModel(id, model.value() + 1); }
+    }
+
 }
