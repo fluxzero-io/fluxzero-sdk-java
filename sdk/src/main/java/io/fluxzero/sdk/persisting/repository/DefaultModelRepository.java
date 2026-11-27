@@ -2608,7 +2608,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 }
                 boolean direct = step.directMutation();
                 Instant eventTime = message.getMessageType() != EVENT
-                                    || transitions.stream().anyMatch(Change::cascadedDeletion)
+                                    || (!migration && transitions.stream().anyMatch(Change::cascadedDeletion))
                         ? eventCreationTime : message.getTimestamp();
                 List<Change> committedTransitions = direct
                         ? transitions.stream().map(transition -> transition.withEffects(
@@ -2708,7 +2708,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 }
             }
-            boolean possibleDuplicate = possibleDuplicate(evaluation, preparedChanges.values());
+            // Replay can revisit a source event even when document-only state has no last-event evidence.
+            // Always consult durable receipts for migration commits, including document-only Models.
+            boolean possibleDuplicate = migration || possibleDuplicate(evaluation, preparedChanges.values());
             if (protocolSteps.isEmpty()) {
                 return new Outcome(null, preparedChanges, existingEvent, eventCreationTime);
             }

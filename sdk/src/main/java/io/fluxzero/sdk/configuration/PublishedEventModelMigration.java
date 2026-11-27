@@ -51,6 +51,10 @@ import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
  * and declared Graph projections are maintained in their configured collections, so readers can move before command
  * ownership changes. Use collections distinct from those still owned by the legacy application.</p>
  *
+ * <p>Parent deletion cascades through owning {@link io.fluxzero.sdk.modeling.Parent} relations in the same atomic
+ * commit. Non-owning children survive. Include all related Model definitions in the catalog; cascade deletions
+ * do not publish additional domain events or rerun command assertions.</p>
+ *
  * <p>The consumer name must remain stable across restarts and application instances. Fluxzero fixes the consumer to
  * one globally ordered tracker and one synchronous handler thread; extra application instances therefore act as
  * failover candidates. Each event's Model commit completes before the next event is reduced and before the durable
