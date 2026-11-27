@@ -13,7 +13,7 @@
  <build><finalName>openapi-probe</finalName></build>
  <profiles>
   <profile><id>boot</id><build><plugins><plugin>
-   <groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId><version>4.1.1</version>
+   <groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId><version>4.2.0</version>
    <configuration><mainClass>io.fluxzero.sdk.web.PackagingProbe</mainClass></configuration>
    <executions><execution><goals><goal>repackage</goal></goals></execution></executions>
   </plugin></plugins></build></profile>
