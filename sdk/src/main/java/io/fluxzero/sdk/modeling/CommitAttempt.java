@@ -46,6 +46,10 @@ import java.util.function.Supplier;
  * Instances used only as a handler read context leave the evaluation and completion portions empty.
  */
 public final class CommitAttempt {
+    /** Internal per-event negotiation decision, retained through retries and commit preparation. */
+    public enum MigrationContract { LEGACY, EVENT_RANGES }
+
+
     private static final ThreadLocal<CommitAttempt> graphInvocation = new ThreadLocal<>();
     private volatile CommitAttempt activeGraphInvocation;
     private List<GraphReadProof> graphCaptures;

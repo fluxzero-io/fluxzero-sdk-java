@@ -73,7 +73,8 @@ public class GetModelEvents extends Request {
                           Set<String> documentVersionTypes) {
         this.documentVersionTypes = documentVersionTypes == null ? Set.of() : Set.copyOf(documentVersionTypes);
         this.requests = requests;
-        this.boundary = Objects.requireNonNull(boundary, "boundary").forRequest();
+        ModelReadBoundary requested = Objects.requireNonNull(boundary, "boundary").forRequest();
+        this.boundary = boundary.before() && boundary.eventIndex() != null ? requested.asBefore() : requested;
         this.maxBytes = maxBytes;
     }
 
@@ -85,7 +86,8 @@ public class GetModelEvents extends Request {
         super(requestId);
         this.documentVersionTypes = Set.of();
         this.requests = requests;
-        this.boundary = Objects.requireNonNull(boundary, "boundary").forRequest();
+        ModelReadBoundary requested = Objects.requireNonNull(boundary, "boundary").forRequest();
+        this.boundary = boundary.before() && boundary.eventIndex() != null ? requested.asBefore() : requested;
         this.maxBytes = maxBytes;
     }
 

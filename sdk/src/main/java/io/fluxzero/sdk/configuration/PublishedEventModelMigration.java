@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.function.Function;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,6 +51,12 @@ import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
  * global event is reduced through the normal Model replay pipeline without being published again. Model documents
  * and declared Graph projections are maintained in their configured collections, so readers can move before command
  * ownership changes. Use collections distinct from those still owned by the legacy application.</p>
+ *
+ * <p>Historical parent deletions cascade through selected children with {@code deleteOnParentDeletion=true},
+ * consistently on initial evaluation and conflict retry. Surviving children retain their relationships; traversal
+ * stops outside the selected catalog. Private cascade events, including those for document-loaded children, extend
+ * the source event's AFTER boundary without moving its BEFORE boundary. This requires migration-event-range support
+ * from the Runtime and reading SDK. Ordinary stored-event replay remains unchanged.</p>
  *
  * <p>The consumer name must remain stable across restarts and application instances. Fluxzero fixes the consumer to
  * one globally ordered tracker and one synchronous handler thread; extra application instances therefore act as
@@ -97,7 +104,7 @@ public final class PublishedEventModelMigration implements AutoCloseable {
                     .replaceSnapshotSerializer(builder.serializer);
         }
         this.application = (DefaultFluxzero) applicationBuilder.build(client);
-        this.eventMigrator = new EventMigrator(application);
+        this.eventMigrator = new EventMigrator(application, builder.targetResolver, modelTypes);
         try {
             this.modelRegistration = application.registerMigrationTypes(modelTypes);
         } catch (RuntimeException | Error failure) {
@@ -309,11 +316,28 @@ public final class PublishedEventModelMigration implements AutoCloseable {
         }
     }
 
-    private record EventMigrator(DefaultFluxzero application) {
+    /** One explicit repository identity for an event with otherwise ambiguous Apply targets. */
+    public record Target(String modelId, Class<?> modelType) {
+        public Target {
+            if (modelId == null || modelId.isBlank()) {
+                throw new IllegalArgumentException("Migration target ID must not be blank");
+            }
+            Objects.requireNonNull(modelType, "modelType");
+        }
+    }
+
+    private record EventMigrator(DefaultFluxzero application,
+                                 Function<DeserializingMessage, Target> targetResolver,
+                                 List<Class<?>> modelTypes) {
         @HandleEvent
         void migrate(Object ignored, DeserializingMessage event) {
             // The durable consumer position is the cross-process read barrier; commits in one batch may not overlap.
-            application.migratePublishedEvent(event).join();
+            Target target = targetResolver == null ? null : targetResolver.apply(event);
+            if (target != null && !modelTypes.contains(target.modelType())) {
+                throw new IllegalArgumentException("Explicit migration target type is outside the registered catalog: "
+                                                           + target.modelType().getName());
+            }
+            application.migratePublishedEvent(event, target).join();
         }
     }
 
@@ -325,8 +349,21 @@ public final class PublishedEventModelMigration implements AutoCloseable {
         private final LinkedHashSet<Class<?>> modelTypes = new LinkedHashSet<>();
         private final LinkedHashSet<String> modelPackages = new LinkedHashSet<>();
         private int maxFetchSize = DEFAULT_MAX_FETCH_SIZE;
+        private Function<DeserializingMessage, Target> targetResolver;
 
         private Builder() {
+        }
+
+        /**
+         * Selects an explicit target for events whose Apply methods require a concrete Model identity.
+         * Return null to use ordinary target resolution. The resolver runs in the migration application context
+         * before applying the event; it must be deterministic and must not write state or produce side effects.
+         * The selected type must belong to this migration's catalog. Resolver failures stop replay.
+         * IDs are repository IDs, including any declared prefix. This does not enable live assertions/interceptors.
+         */
+        public Builder targetResolver(Function<DeserializingMessage, Target> targetResolver) {
+            this.targetResolver = Objects.requireNonNull(targetResolver, "targetResolver");
+            return this;
         }
 
         /** Sets the stable durable consumer name. */
@@ -347,12 +384,18 @@ public final class PublishedEventModelMigration implements AutoCloseable {
             return this;
         }
 
-        /** Adds explicit Model roots to the migration catalog. */
+        /**
+         * Adds explicit Model roots to the migration catalog and write boundary. Other Models can supply read
+         * dependencies but are not migrated, even when discovered through payload Apply methods.
+         */
         public Builder modelTypes(Class<?>... modelTypes) {
             return modelTypes(List.of(modelTypes));
         }
 
-        /** Adds explicit Model roots to the migration catalog. */
+        /**
+         * Adds explicit Model roots to the migration catalog and write boundary. Other Models can supply read
+         * dependencies but are not migrated, even when discovered through payload Apply methods.
+         */
         public Builder modelTypes(Collection<Class<?>> modelTypes) {
             this.modelTypes.addAll(Objects.requireNonNull(modelTypes, "Model types"));
             return this;

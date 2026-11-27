@@ -30,6 +30,69 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class ModelCommitValidatorTest {
 
     @Test
+    void migrationDerivedStepsRequireMatchingPrecedingSourceAndPrivateDurablePayload() {
+        var original = existingEventCommit("event-1", "event-1", 42L);
+        var internal = new SerializedMessage(new Data<>(new byte[]{2}, "internal", 0),
+                Metadata.of(ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX, "42"), "cascade", 1L);
+        var step = ModelCommitStep.builder().event(internal)
+                .targets(List.of(target("child").toBuilder().storeEvent(true).build())).build();
+        var valid = new CommitModels(original.getCommitId(), -1L, List.of("order-1", "child"),
+                List.of(original.getSubsteps().getFirst(), step), ModelConflictPolicy.ACCEPT, Guarantee.STORED, true, true);
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(valid));
+        var decoded = (CommitModels) io.fluxzero.common.serialization.JsonUtils.fromJson(
+                io.fluxzero.common.serialization.JsonUtils.asJson(valid), io.fluxzero.common.api.JsonType.class);
+        assertEquals(valid, decoded);
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(decoded));
+        for (String value : List.of("41", "-1", "invalid")) {
+            internal.setMetadata(Metadata.of(ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX, value));
+            assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(valid));
+        }
+        internal.setMetadata(Metadata.of(ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX, "42"));
+        var reversed = new CommitModels(original.getCommitId(), -1L, List.of("order-1", "child"),
+                List.of(step, original.getSubsteps().getFirst()), ModelConflictPolicy.ACCEPT, Guarantee.STORED, true, true);
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(reversed));
+        for (var invalidStep : List.of(step.toBuilder().publishEvent(true).build(),
+                step.toBuilder().targets(List.of(target("child").toBuilder().storeEvent(false).build())).build())) {
+            var invalid = new CommitModels(original.getCommitId(), -1L, List.of("order-1", "child"),
+                    List.of(original.getSubsteps().getFirst(), invalidStep), ModelConflictPolicy.ACCEPT, Guarantee.STORED, true, true);
+            assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(invalid));
+        }
+    }
+
+    @Test
+    void ordinarySimpleCommitRejectsMigrationMarker() {
+        var ordinary = publishedCommit(-1L);
+        ordinary.getSubsteps().getFirst().getEvent().setMetadata(
+                Metadata.of(ModelEventMetadata.MIGRATION_SOURCE_EVENT_INDEX, "42"));
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(ordinary));
+    }
+
+    @Test
+    void eventBeforeSelectionSurvivesRequestSerialization() {
+        var before = ModelReadBoundary.event(42L).asBefore();
+        var request = new GetModelEvents(List.of(new ModelEventStreamRequest("model", -1L, 100)), before, 0);
+        assertTrue(request.getBoundary().before());
+        var decoded = (GetModelEvents) io.fluxzero.common.serialization.JsonUtils.fromJson(
+                io.fluxzero.common.serialization.JsonUtils.asJson(request), io.fluxzero.common.api.JsonType.class);
+        assertEquals(before, decoded.getBoundary());
+        assertTrue(new GetModelReconstruction("model", before, 100, 0, false).getBoundary().before());
+    }
+
+    @Test
+    void migrationRelationshipOptInSurvivesRoundTripAndMissingFieldRetainsLegacyBehavior() {
+        var commit = new CommitModelsWithLiveMigrationDocuments(existingEventCommit("event-1", "event-1", 42L), true);
+        String json = io.fluxzero.common.serialization.JsonUtils.asJson(commit);
+        var decoded = (CommitModels) io.fluxzero.common.serialization.JsonUtils.fromJson(json, io.fluxzero.common.api.JsonType.class);
+        assertTrue(decoded.preservesMigrationRelationships());
+        assertTrue(decoded.withDeadlineUpdates(List.of()).preservesMigrationRelationships());
+        String legacy = json.replace("\"preserveMigrationRelationships\":true,", "")
+                .replace(",\"preserveMigrationRelationships\":true", "");
+        assertFalse(legacy.contains("preserveMigrationRelationships"));
+        var oldRequest = (CommitModels) io.fluxzero.common.serialization.JsonUtils.fromJson(legacy, io.fluxzero.common.api.JsonType.class);
+        assertFalse(oldRequest.preservesMigrationRelationships());
+    }
+
+    @Test
     void liveMigrationRoundTripsWithoutChangingLegacyStagingOrReadDependencies() {
         CommitModels legacy = existingEventCommit("event-1", "event-1", 42L);
         var live = new CommitModelsWithLiveMigrationDocuments(

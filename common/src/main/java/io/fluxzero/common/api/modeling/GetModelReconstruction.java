@@ -43,7 +43,8 @@ public class GetModelReconstruction extends Request {
     public GetModelReconstruction(String modelId, ModelReadBoundary boundary, int maxSize, long maxBytes,
                                   boolean primaryOnly) {
         this.modelId = modelId;
-        this.boundary = Objects.requireNonNull(boundary, "boundary").forRequest();
+        ModelReadBoundary requested = Objects.requireNonNull(boundary, "boundary").forRequest();
+        this.boundary = boundary.before() && boundary.eventIndex() != null ? requested.asBefore() : requested;
         this.maxSize = maxSize;
         this.maxBytes = maxBytes;
         this.primaryOnly = primaryOnly;

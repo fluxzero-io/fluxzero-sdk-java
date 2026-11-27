@@ -87,3 +87,11 @@ This project is available under the [Apache License 2.0](LICENSE).
   <a href="https://fluxzero.io/about">About us</a> &nbsp;·&nbsp;
   <a href="https://fluxzero.io/contact">Contact us</a>
 </p>
+
+### Historical Model migration compatibility
+
+SDK and Runtime may be upgraded in either order. Published-event migration uses the existing capability handshake:
+without migration-event-range support it retains legacy behavior; with support it repairs historical cascades.
+The decision is fixed per source event through retries. Ordinary replay is unchanged. Previously migrated events
+are not retroactively repaired by an upgrade. See the [migration guide](docs/agents/articles/sdk/models/published-event-migration.md)
+for the low-level historical reader limitation and isolated reconstruction guidance.

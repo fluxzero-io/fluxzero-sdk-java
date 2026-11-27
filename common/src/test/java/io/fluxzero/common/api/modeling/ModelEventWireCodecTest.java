@@ -39,6 +39,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelEventWireCodecTest {
 
     @Test
+    void eventBeforeRequestsUseLosslessJsonIncludingMixedBatches() throws Exception {
+        var streams = List.of(new ModelEventStreamRequest("parent", -1L, 100));
+        var before = new GetModelEvents(streams, ModelReadBoundary.event(42L).asBefore(), 0);
+        var after = new GetModelEvents(streams, ModelReadBoundary.event(42L), 0);
+        assertNull(ModelEventWireCodec.tryEncode(before));
+        assertNull(ModelEventWireCodec.tryEncode(new RequestBatch<>(List.of(after, before))));
+        assertNull(ModelEventWireCodec.tryEncode(new RequestBatch<>(List.of(before, after))));
+        var decoded = (GetModelEvents) io.fluxzero.common.serialization.JsonUtils.fromJson(
+                io.fluxzero.common.serialization.JsonUtils.asJson(before), io.fluxzero.common.api.JsonType.class);
+        assertTrue(decoded.getBoundary().before());
+        org.junit.jupiter.api.Assertions.assertNotNull(ModelEventWireCodec.tryEncode(after));
+    }
+
+    @Test
     void aliasHeadsFallBackWithoutChangingTheCanonicalCompactFormat() throws Exception {
         var canonical = new GetModelEventsResult(1L, 2L, List.of(), List.of(new ModelEventStream(
                 "canonical", new ModelHeadState("canonical", "Root", 0, 2, true, false), List.of())));

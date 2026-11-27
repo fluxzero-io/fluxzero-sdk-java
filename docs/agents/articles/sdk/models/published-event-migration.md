@@ -72,6 +72,42 @@ across restarts and failover instances. `run()` without arguments starts replay 
 explicit lifecycle control, `replay()` returns a `Registration`; cancel it to stop replay and close the migration
 when finished.
 
+The catalog is also the migration's write boundary. List every replacement Model explicitly; payload Apply
+methods do not enroll additional Models. Existing Models outside the catalog can still supply read dependencies,
+but their state and history are not rewritten. Dynamic Apply results must remain valid, replayable Models even
+when excluded from persistence: they can participate in the same event's Apply phases. Only selected Model
+transitions are retained for subsequent events and storage.
+
+Historical parent deletion cascades only through selected children with `deleteOnParentDeletion=true`. It stops at
+children outside the catalog. Children with `false` retain their values, and surviving children retain their parent
+relationships during migration, including when the parent is later recreated. Ordinary commands and ordinary stored-event
+replay keep their existing behavior. Initial migration, RETRY and ACCEPT rebase all apply the same deletion rule.
+
+Internal cascade events are stored privately, including for DOCUMENT children, without changing the Model's loading
+strategy or republishing the source event. The original event's AFTER boundary includes the entire cascade; BEFORE
+retains the boundary preceding the original change when both peers support migration event ranges.
+
+SDK and Runtime may be upgraded in either order. The runner uses the existing websocket capability handshake:
+without migration-event-range support it retains the previous migration behavior, including its missing historical
+cascade; with support it includes the cascade and preserves surviving relationships. The choice is fixed for each
+source event through evaluation and retries. No release-number checks or new configuration are required. A request
+already prepared with the new contract is rejected if reconnect selects an unsupported peer; it is never silently
+changed after evaluation. Replay that source after the connection is stable.
+
+Existing histories remain readable. Old SDK event-stream requests already normalize BEFORE to AFTER; this existing
+low-level limitation is not a requirement to upgrade every application before upgrading the Runtime. Public Graph
+BEFORE/AFTER reads are supported across the tested mixed-version upgrade paths. Qualify custom low-level historical
+readers against their actual behavior rather than assuming that they implement the newer range contract. Events
+already migrated using legacy behavior are not retroactively repaired by upgrading: duplicate receipts preserve
+their original result. Reconstruct an isolated target from the source history when qualifying a complete repair.
+
+For a historical event whose Apply methods require an explicit concrete target, configure
+`.targetResolver(event -> ...)`. Return a `PublishedEventModelMigration.Target(repositoryId, modelType)` for that
+event, or null for ordinary routing. Use the exact repository ID, including its prefix, and a registered catalog
+type with a compatible Apply. The resolver runs in the migration context and must be deterministic and read-only;
+it must not invoke the old command handler. Invalid selection stops replay. Explicit selection preserves apply-only
+execution and the original event identity, including on conflict retry; a valid Apply may still be a no-op.
+
 The runner registers only the catalog and one globally ordered, single-threaded EVENT consumer. It does not start
 ordinary handlers or automatic Model commands during replay, and does not republish historical events. It registers
 and maintains the declared Graph projections using their normal completion policy. Each Model commit completes before the durable consumer position advances. Source-event identity

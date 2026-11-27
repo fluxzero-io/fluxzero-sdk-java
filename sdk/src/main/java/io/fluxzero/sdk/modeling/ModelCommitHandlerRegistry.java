@@ -127,7 +127,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     /** Registers Model definitions for migration without enabling command tracking or Graph projections. */
-    public Registration registerMigrationTypes(
+    public synchronized Registration registerMigrationTypes(
             Collection<Class<?>> modelTypes) {
         List<Class<?>> validated = List.copyOf(new LinkedHashSet<>(
                 Objects.requireNonNull(modelTypes, "Model types")));
@@ -138,8 +138,17 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             }
             repository.modelName(type);
         });
+        Registration scope = definitions.restrictMigrationTypes(validated);
         validated.forEach(definitions::register);
-        return () -> validated.forEach(definitions::unregister);
+        var cancelled = new java.util.concurrent.atomic.AtomicBoolean();
+        return () -> {
+            synchronized (ModelCommitHandlerRegistry.this) {
+                if (cancelled.compareAndSet(false, true)) {
+                    try { validated.forEach(definitions::unregister); }
+                    finally { scope.cancel(); }
+                }
+            }
+        };
     }
 
     /** Executes one explicit update through the model pipeline. */
@@ -170,7 +179,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     /** Applies one existing globally published event without republishing it. */
     public CompletableFuture<Void> migratePublishedEvent(
             Message event, long eventIndex) {
-        return pipeline.migratePublishedEvent(event, eventIndex);
+        return pipeline.migratePublishedEvent(event, eventIndex, null, null, definitions.migrationScope());
+    }
+
+    /** Applies an existing global event to one explicitly selected Model without republishing it. */
+    public CompletableFuture<Void> migratePublishedEvent(
+            Message event, long eventIndex, String modelId, Class<?> modelType) {
+        return pipeline.migratePublishedEvent(event, eventIndex, modelId, modelType, definitions.migrationScope());
     }
 
     @Override

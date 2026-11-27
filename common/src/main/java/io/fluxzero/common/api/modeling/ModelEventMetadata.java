@@ -46,6 +46,21 @@ public final class ModelEventMetadata {
      */
     public static final String CASCADE_SUBSTEPS = "$modelCascadeSubsteps";
 
+    /**
+     * Original global event index whose migration includes this internal, non-published substep.
+     * Its durable payload extends AFTER reads through this step; BEFORE reads retain the original event boundary.
+     */
+    public static final String MIGRATION_SOURCE_EVENT_INDEX = "$modelMigrationSourceEventIndex";
+
+    /** Returns the explicit migration source, rejecting malformed or negative indices. */
+    public static Long migrationSourceEventIndex(Metadata metadata) {
+        String value = metadata == null ? null : metadata.get(MIGRATION_SOURCE_EVENT_INDEX);
+        if (value == null) { return null; }
+        long result = Long.parseLong(value);
+        if (result < 0) { throw new IllegalArgumentException("Negative Model migration source index"); }
+        return result;
+    }
+
     /** Returns the bounded, ordered cascade references, rejecting malformed or backward references. */
     public static List<Integer> cascadeSubsteps(Metadata metadata) {
         String value = metadata == null ? null : metadata.get(CASCADE_SUBSTEPS);
